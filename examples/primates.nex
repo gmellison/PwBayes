@@ -21,3 +21,6 @@ Saimiri_sciureus    AAGCTTCACCGGCGCAATGATCCTAATAATCGCTCACGGGTTTACTTCGTCTATGCTATT
     ;
 end;
 
+begin mrbayes;
+    Showmatrix;
+end;
