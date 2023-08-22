@@ -46,7 +46,7 @@
 #include "SIOUX.h"
 #endif
 
-#define NUMCOMMANDS                     62    /* The total number of commands in the program  */
+#define NUMCOMMANDS                     62 + 1    /* The total number of commands in the program  */
 #define NUMPARAMS                       283   /* The total number of parameters  */
 #define PARAM(i, s, f, l)               p->string = s;    \
                                         p->fp = f;        \
@@ -110,6 +110,7 @@ int      DoNexusParm (char *parmName, char *tkn);
 int      DoOutgroup (void);
 int      DoOutgroupParm (char *parmName, char *tkn);
 int      DoPairs (void);
+int      DoPairwise(void);
 int      DoPairsParm (char *parmName, char *tkn);
 int      DoPartition (void);
 int      DoPartitionParm (char *parmName, char *tkn);
@@ -356,7 +357,9 @@ CmdType     commands[] =
                                                                                                                                                      270,273,274},        4,             "Unlinks parameters across character partitions",  IN_CMD, SHOW },
             { 59,        "Usertree", YES,        DoUserTree,  1,                                                                                            {203},        8,                                 "Defines a single user tree",  IN_CMD, HIDE },
             { 60,         "Version",  NO,         DoVersion,  0,                                                                                             {-1},       32,                                      "Shows program version",  IN_CMD, SHOW },
-            { 61,      "Compareref",  NO,     DoCompRefTree,  7,                                                                    {127,128,129,130,221,222,223},       36,                     "Compares the tree to the reference trees",  IN_CMD, HIDE },
+            { 61,      "Compareref",  NO,     DoCompRefTree,  7,                                                                    {127,128,129,130,221,222,223},       36,                   "Compares the tree to the reference trees",  IN_CMD, HIDE },
+            { 62,        "Pairwise",  NO,        DoPairwise,  0,                                                                                             {-1},        4,                      "Computes pairwise gtr param estimates",  IN_CMD, HIDE },
+
             /* NOTE: If you add a command here, make certain to change NUMCOMMANDS (above, in this file) appropriately! */
             { 999,             NULL,  NO,              NULL,  0,                                                                                             {-1},       32,                                                           "",  IN_CMD, HIDE }  
             };
@@ -7089,7 +7092,6 @@ int DoSetParm (char *parmName, char *tkn)
     return (NO_ERROR);
 }
 
-
 int DoShowMatrix (void)
 {
     int         i, j, nameLen, start, finish, ct, longestName;
@@ -7173,9 +7175,45 @@ int DoShowMatrix (void)
         start = finish;
         } while (finish != numChar);
 
+    // test compute and print the matrix of doubles:
+    int pc[16] = {0};
+ 
+    MrBayesPrint("numChar: %d \n", numChar);
+
+    int nuc1,nuc2;
+    for (int s=0;s<numChar;s++) {
+        for (i=0;i<(numTaxa-1);i++) {
+            for (j=(i+1);j<numTaxa;j++) {
+                nuc1=matrix[pos(i,s,numChar)];
+                nuc2=matrix[pos(j,s,numChar)];
+
+                MrBayesPrint("Nuc1: %d, Nuc2: %d \n",nuc1,nuc2);
+
+                int idx1 = nucToIdx(nuc1);
+                int idx2 = nucToIdx(nuc2);
+                pc[4*idx1+idx2] = pc[4*idx1+idx2]+1;
+            }
+        }
+    }
+    
+    for (i=0;i<16;i++) {
+        MrBayesPrint("Count %d: %d \n", i+1, pc[i]);
+    }
+
     return (NO_ERROR);
 }
 
+int nucToIdx(int nuc) {
+    if (nuc == 1) return 0;
+    if (nuc == 2) return 1;
+    if (nuc == 4) return 2;
+    if (nuc == 8) return 3;
+    return -1;
+}
+
+int DoPairwise(void) {
+    return(NO_ERROR);
+}
 
 int DoShowUserTrees (void)
 {
