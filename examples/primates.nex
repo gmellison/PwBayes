@@ -22,5 +22,5 @@ Saimiri_sciureus    AAGCTTCACCGGCGCAATGATCCTAATAATCGCTCACGGGTTTACTTCGTCTATGCTATT
 end;
 
 begin mrbayes;
-    Showmatrix;
+    Pairwise;
 end;

@@ -358,7 +358,7 @@ CmdType     commands[] =
             { 59,        "Usertree", YES,        DoUserTree,  1,                                                                                            {203},        8,                                 "Defines a single user tree",  IN_CMD, HIDE },
             { 60,         "Version",  NO,         DoVersion,  0,                                                                                             {-1},       32,                                      "Shows program version",  IN_CMD, SHOW },
             { 61,      "Compareref",  NO,     DoCompRefTree,  7,                                                                    {127,128,129,130,221,222,223},       36,                   "Compares the tree to the reference trees",  IN_CMD, HIDE },
-            { 62,        "Pairwise",  NO,        DoPairwise,  0,                                                                                             {-1},        4,                      "Computes pairwise gtr param estimates",  IN_CMD, HIDE },
+            { 62,        "Pairwise",  NO,        DoPairwise,  0,                                                                                             {-1},       32,                      "Computes pairwise gtr param estimates",  IN_CMD, HIDE },
 
             /* NOTE: If you add a command here, make certain to change NUMCOMMANDS (above, in this file) appropriately! */
             { 999,             NULL,  NO,              NULL,  0,                                                                                             {-1},       32,                                                           "",  IN_CMD, HIDE }  
@@ -7092,6 +7092,60 @@ int DoSetParm (char *parmName, char *tkn)
     return (NO_ERROR);
 }
 
+int toIdx(int x) {
+    if (x == 1) return 0;
+    else if (x == 2) return 1;
+    else if (x == 4) return 2;
+    else if (x == 8) return 3;
+    else if (x == GAP) return 5;
+    else {
+        MrBayesPrint("Problem in to Idx (maybe bad input: x=%d?)\n", x);
+        return -1;
+    }
+}
+
+int DoPairwise(void) {
+
+    // first count the doublets across all taxa pairs
+    //
+    //
+
+    if (defMatrix == NO)
+    {
+        MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
+        return (ERROR);
+    }
+            
+    int id1,id2;
+    int pc[16] = {0};
+
+    MrBFlt pairRates[16] = {0.0};
+
+    int pairsTotal=0;
+
+    for (int s=0;s<numChar;s++) {
+        for (int i=0;i<(numTaxa-1);i++) {
+            for (int j=(i+1);j<numTaxa;j++) {
+
+                if (matrix[pos(i,s,numChar)]==GAP || matrix[pos(j,s,numChar)]==GAP)
+                    continue;
+                    
+                id1=toIdx(matrix[pos(i,s,numChar)]);
+                id2=toIdx(matrix[pos(j,s,numChar)]);
+
+                pc[pos(id1,id2,4)]++;
+                pairsTotal++;
+            }
+        }
+    }
+
+    for (int i=0;i<16;i++) {
+        pairRates[i]=((MrBFlt)pc[i])/pairsTotal;
+    }
+
+    return(NO_ERROR);
+}
+
 int DoShowMatrix (void)
 {
     int         i, j, nameLen, start, finish, ct, longestName;
@@ -7175,44 +7229,7 @@ int DoShowMatrix (void)
         start = finish;
         } while (finish != numChar);
 
-    // test compute and print the matrix of doubles:
-    int pc[16] = {0};
- 
-    MrBayesPrint("numChar: %d \n", numChar);
-
-    int nuc1,nuc2;
-    for (int s=0;s<numChar;s++) {
-        for (i=0;i<(numTaxa-1);i++) {
-            for (j=(i+1);j<numTaxa;j++) {
-                nuc1=matrix[pos(i,s,numChar)];
-                nuc2=matrix[pos(j,s,numChar)];
-
-                MrBayesPrint("Nuc1: %d, Nuc2: %d \n",nuc1,nuc2);
-
-                int idx1 = nucToIdx(nuc1);
-                int idx2 = nucToIdx(nuc2);
-                pc[4*idx1+idx2] = pc[4*idx1+idx2]+1;
-            }
-        }
-    }
-    
-    for (i=0;i<16;i++) {
-        MrBayesPrint("Count %d: %d \n", i+1, pc[i]);
-    }
-
     return (NO_ERROR);
-}
-
-int nucToIdx(int nuc) {
-    if (nuc == 1) return 0;
-    if (nuc == 2) return 1;
-    if (nuc == 4) return 2;
-    if (nuc == 8) return 3;
-    return -1;
-}
-
-int DoPairwise(void) {
-    return(NO_ERROR);
 }
 
 int DoShowUserTrees (void)
