@@ -7116,32 +7116,116 @@ int DoPairwise(void) {
         return (ERROR);
     }
             
-    int id1,id2;
-    int pc[16] = {0};
+    int i,j,s,id1,id2;
+    int counts[4] = {0};
+    int pairCounts[4][4] = {{0}};
+    MrBFlt freqs[4] = {0.0};
+    MrBFlt pairRates[4][4];
+    double nu=0.0;
 
-    MrBFlt pairRates[16] = {0.0};
-
+    /*  
+    int dim,
+    MrBFlt **q, 
+    MrBFlt *eigenValues, 
+    MrBFlt *eigvalsImag, 
+    MrBFlt **eigvecs, 
+    MrBFlt **inverseEigvecs, 
+    MrBComplex **Ceigvecs, 
+    MrBComplex **CinverseEigvecs
+*/
     int pairsTotal=0;
 
-    for (int s=0;s<numChar;s++) {
-        for (int i=0;i<(numTaxa-1);i++) {
-            for (int j=(i+1);j<numTaxa;j++) {
+    for (s=0;s<numChar;s++) {
+        for (i=0;i<(numTaxa-1);i++) {
+            if (matrix[pos(i,s,numChar)]==GAP)
+                continue;
 
-                if (matrix[pos(i,s,numChar)]==GAP || matrix[pos(j,s,numChar)]==GAP)
+            id1=toIdx(matrix[pos(i,s,numChar)]);
+            counts[id1]++;
+            for (j=(i+1);j<numTaxa;j++) {
+                 if (matrix[pos(j,s,numChar)]==GAP)
                     continue;
                     
-                id1=toIdx(matrix[pos(i,s,numChar)]);
-                id2=toIdx(matrix[pos(j,s,numChar)]);
+                 id2=toIdx(matrix[pos(j,s,numChar)]);
+                 pairCounts[id1][id2]++;
+                 pairsTotal++;
 
-                pc[pos(id1,id2,4)]++;
-                pairsTotal++;
+                 // need to count single nucleotides for final taxa
+                 if (j == (numTaxa-1) && i == (numTaxa-2))
+                     counts[id2]++;
             }
         }
     }
 
-    for (int i=0;i<16;i++) {
-        pairRates[i]=((MrBFlt)pc[i])/pairsTotal;
+    // symmetrize count matrix (in place in pairRates matrix
+    for (i=0;i<4;i++) {
+        for (j=i;j<4;j++){
+            pairRates[i][j] = (pairCounts[i][j] + pairCounts[j][i])/(pairsTotal*2.0);
+            pairRates[j][i] = pairRates[i][j];
+        }
     }
+
+    for (i=0;i<4;i++) {
+        for (j=0;j<4;j++){
+            if (j==0) MrBayesPrint(spacer);
+            MrBayesPrint("%f  ", pairRates[i][j]);
+            if (j==3)  MrBayesPrint("\n");
+        }
+    }
+
+    for (i=0;i<4;i++) {
+        freqs[i]=((MrBFlt)counts[i])/(numChar*numTaxa);
+        MrBayesPrint("%s %f\n",spacer,freqs[i]);
+    }
+
+    // use mb machinery to compute eigens
+    // set up matrices 
+    MrBFlt **V         = AllocateSquareDoubleMatrix(4);
+    MrBFlt **Vinv      = AllocateSquareDoubleMatrix(4);
+    MrBFlt **Dpi       = AllocateSquareDoubleMatrix(4);
+
+    MrBComplex **Vc    = AllocateSquareComplexMatrix(4); 
+    MrBComplex **Vcinv = AllocateSquareComplexMatrix(4);
+    MrBFlt *la         = (MrBFlt*)malloc(sizeof(MrBFlt)*4);
+    MrBFlt *laC        = (MrBFlt*)malloc(sizeof(MrBFlt)*4);
+
+    MrBFlt **Q         = AllocateSquareDoubleMatrix(4);
+    MrBayesPrint("%s Q Matrix: \n", spacer);
+    for (i=0;i<4;i++) {
+        for (j=0;j<4;j++){
+            Q[i][j] = pairRates[i][j] * freqs[i];
+        }
+    }
+
+    int isComplex=GetEigens(4,Q,la,laC,V,Vinv,Vc,Vcinv);
+    (void)isComplex;
+    
+    for (i=0;i<4;i++) {
+        Dpi[i][i] = exp(la[i]);
+        for (j=0;j<i;j++) {
+            Dpi[i][j]=0.0;
+            Dpi[j][i]=0.0;
+        }
+    }
+
+   
+    MultiplyMatrices(4,V,Dpi,Q); 
+    MultiplyMatrices(4,V,Vinv,Q);
+
+    for (i=0;i<4;i++) {
+        for (j=0;j<i;j++) {
+            Q[i][j] = Q[i][j]/freqs[i];
+        }
+    }
+        
+    //int isComplex = GetEigens(4,**pairRates,*la,*laimag,**V,**Vinv,**Vc,**Vcinv);
+    FreeSquareDoubleMatrix(V);
+    FreeSquareDoubleMatrix(Vinv);
+    FreeSquareDoubleMatrix(Q);
+    FreeSquareComplexMatrix(Vc);
+    FreeSquareComplexMatrix(Vcinv);
+    free(la);
+    free(laC);
 
     return(NO_ERROR);
 }
