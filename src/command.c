@@ -7167,15 +7167,15 @@ int DoPairwise(void) {
 
     for (i=0;i<4;i++) {
         for (j=0;j<4;j++){
-            if (j==0) MrBayesPrint(spacer);
-            MrBayesPrint("%f  ", pairRates[i][j]);
-            if (j==3)  MrBayesPrint("\n");
+           // if (j==0) MrBayesPrint(spacer);
+           // MrBayesPrint("%f  ", pairRates[i][j]);
+           // if (j==3)  MrBayesPrint("\n");
         }
     }
 
     for (i=0;i<4;i++) {
         freqs[i]=((MrBFlt)counts[i])/(numChar*numTaxa);
-        MrBayesPrint("%s %f\n",spacer,freqs[i]);
+        // MrBayesPrint("%s %f\n",spacer,freqs[i]);
     }
 
     // use mb machinery to compute eigens
@@ -7190,7 +7190,6 @@ int DoPairwise(void) {
     MrBFlt *laC        = (MrBFlt*)malloc(sizeof(MrBFlt)*4);
 
     MrBFlt **Q         = AllocateSquareDoubleMatrix(4);
-    MrBayesPrint("%s Q Matrix: \n", spacer);
     for (i=0;i<4;i++) {
         for (j=0;j<4;j++){
             Q[i][j] = pairRates[i][j] * freqs[i];
@@ -7208,16 +7207,46 @@ int DoPairwise(void) {
         }
     }
 
-   
     MultiplyMatrices(4,V,Dpi,Q); 
-    MultiplyMatrices(4,V,Vinv,Q);
+    MultiplyMatrices(4,Q,Vinv,Q);
 
+    // symmetrize
     for (i=0;i<4;i++) {
         for (j=0;j<i;j++) {
-            Q[i][j] = Q[i][j]/freqs[i];
+            Q[i][j] = (Q[i][j] + Q[j][i])/2.0;
+            Q[j][i] = Q[i][j];
         }
     }
-        
+
+    for (i=0;i<4;i++) {
+        for (j=0;j<4;j++) {
+            // print:
+            if (j == 0) MrBayesPrint(spacer);
+            MrBayesPrint("%f ",Q[i][j]);
+            if (j == 3) MrBayesPrint("\n");
+        }
+    }
+
+    // set diagonal so rowsums are 0, mult by inverse Dpi mat:
+    double rowsum;
+    for (i=0;i<4;i++) {
+        rowsum=0.0;
+        for (j=0;j<4;j++) {
+            if (j!=i) rowsum+=Q[i][j];
+        }
+        Q[i][i]=-1*rowsum;
+    }
+
+    for (i=0;i<4;i++) {
+        for (j=0;j<4;j++) {
+            Q[i][j]=Q[i][j]/freqs[j];
+        }
+    }
+   
+    for (i=0;i<4;i++)
+        nu += -1.0 * Q[i][i]/freqs[i];
+
+    MrBayesPrint("Branch Length: %f", nu);
     //int isComplex = GetEigens(4,**pairRates,*la,*laimag,**V,**Vinv,**Vc,**Vcinv);
     FreeSquareDoubleMatrix(V);
     FreeSquareDoubleMatrix(Vinv);
