@@ -7100,8 +7100,33 @@ int toIdx(int x) {
     else if (x == GAP) return 5;
     else {
         MrBayesPrint("Problem in to Idx (maybe bad input: x=%d?)\n", x);
-        return -1;
+        return ERROR;
     }
+}
+
+MrBFlt freqs[4];
+int defFreqs=NO;
+
+void SetFreqs() {
+
+    int s,i,nucidx;
+    int counts[4];
+
+    for (s=0;s<numChar;s++) {
+        for (i=0;i<numTaxa;i++) {
+            if (matrix[pos(i,s,numChar)]==GAP)
+                continue;
+
+            nucidx=toIdx(matrix[pos(i,s,numChar)]);
+            counts[nucidx]++;
+        }
+    }
+    // symmetrize count matrix (in place in pairRates matrix
+    for (i=0;i<4;i++) {
+        freqs[i]=((MrBFlt)counts[i])/(numChar*numTaxa);
+    }
+
+    defFreqs=YES;
 }
 
 int DoPairwise(void) {
@@ -7115,11 +7140,13 @@ int DoPairwise(void) {
         MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
         return (ERROR);
     }
-            
+           
+    if (defFreqs == NO) {
+        SetFreqs();
+    }
+
     int i,j,s,id1,id2;
-    int counts[4] = {0};
     int pairCounts[4][4] = {{0}};
-    MrBFlt freqs[4] = {0.0};
     MrBFlt pairRates[4][4];
     double nu=0.0;
 
@@ -7141,7 +7168,6 @@ int DoPairwise(void) {
                 continue;
 
             id1=toIdx(matrix[pos(i,s,numChar)]);
-            counts[id1]++;
             for (j=(i+1);j<numTaxa;j++) {
                  if (matrix[pos(j,s,numChar)]==GAP)
                     continue;
@@ -7150,9 +7176,6 @@ int DoPairwise(void) {
                  pairCounts[id1][id2]++;
                  pairsTotal++;
 
-                 // need to count single nucleotides for final taxa
-                 if (j == (numTaxa-1) && i == (numTaxa-2))
-                     counts[id2]++;
             }
         }
     }
@@ -7163,19 +7186,6 @@ int DoPairwise(void) {
             pairRates[i][j] = (pairCounts[i][j] + pairCounts[j][i])/(pairsTotal*2.0);
             pairRates[j][i] = pairRates[i][j];
         }
-    }
-
-    for (i=0;i<4;i++) {
-        for (j=0;j<4;j++){
-           // if (j==0) MrBayesPrint(spacer);
-           // MrBayesPrint("%f  ", pairRates[i][j]);
-           // if (j==3)  MrBayesPrint("\n");
-        }
-    }
-
-    for (i=0;i<4;i++) {
-        freqs[i]=((MrBFlt)counts[i])/(numChar*numTaxa);
-        // MrBayesPrint("%s %f\n",spacer,freqs[i]);
     }
 
     // use mb machinery to compute eigens
@@ -7237,6 +7247,11 @@ int DoPairwise(void) {
         Q[i][i]=-1*rowsum;
     }
 
+
+    for (i=0;i<4;i++)
+        MrBayesPrint("%f ", freqs[i]);
+    MrBayesPrint("\n");
+
     for (i=0;i<4;i++) {
         for (j=0;j<4;j++) {
             Q[i][j]=Q[i][j]/freqs[j];
@@ -7258,6 +7273,128 @@ int DoPairwise(void) {
 
     return(NO_ERROR);
 }
+
+
+int triplePos(int i, int j, int k) {
+    return i*16 +j*4 + k;
+}
+
+int DoTripletnLL(void) {
+
+    if (defMatrix == NO)
+    {
+        MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
+        return (ERROR);
+    }
+
+    if (defFreqs==NO) 
+    {
+        SetFreqs();
+    }
+
+    int tripleCounts[64] = {0};
+    int s,i,j,k,ri;
+    int seqi,seqj,seqk;
+    MrBFlt bl,al;
+
+    for (s=0;s<numChar;s++) {
+        for (seqi=0;seqi<(numTaxa-2);seqi++) {
+            if (matrix[pos(seqi,s,numChar)]==GAP)
+                continue;
+            i=toIdx(matrix[pos(seqi,s,numChar)]);
+
+            for (seqj=(seqi+1);seqj<(numTaxa-1);seqj++) {
+                 if (matrix[pos(seqj,s,numChar)]==GAP)
+                    continue;
+                 j = toIdx(matrix[pos(seqj,s,numChar)]);
+
+                for (seqk=(seqj+1);seqk<numTaxa;seqk++) {
+                     if (matrix[pos(seqk,s,numChar)]==GAP)
+                        continue;
+                     k = toIdx(matrix[pos(seqk,s,numChar)]);
+                     tripleCounts[triplePos(i,j,k)]++;
+                }
+            }
+        }
+    }
+
+    // temp: just set distance alpha:
+    bl=0.1;
+    al=0.5;
+   
+    MrBFlt dg4[4];
+    DiscreteGamma(dg4,al,al,4,1);
+
+    MrBFlt pii[4];
+    MrBFlt pij[4];
+
+    for (int i=0; i<4; i++) {
+        MrBFlt etr = exp(-(4.0/3) * bl * dg4[i]);
+        pii[i]=(1.0/4) + (3.0/4) * etr;
+        pij[i]=(1.0/4) - (1.0/4) * etr;
+    }
+
+    MrBFlt tripleProbs[64], transitionProbs[64];
+
+    // set up array of transition probabilities
+    for (i=0;i<4;i++) {
+            for (j=0;j<4;j++) {
+                    for (int ri=0;ri<4;ri++) {
+                            if (i==j) {
+                                transitionProbs[triplePos(i,j,ri)]=pii[ri];
+                            } else {
+                                transitionProbs[triplePos(i,j,ri)]=pij[ri];
+                            }
+                    }
+            }
+    }
+
+    MrBFlt probsByRateCat[4];
+    MrBFlt ll=0.0;
+
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 4; j++) {
+            for (k = 0; k < 4; k++) {
+                // no need to calculate probs for not present in data
+                if (tripleCounts[triplePos(i,j,k)] == 0) continue;  
+
+                // ensure triple site pattern prob is init to 0:
+                tripleProbs[triplePos(i,j,k)] = 0.0;
+
+                // calculate the site pattern probability for each 
+                //   dg4 rate category
+                for (ri=0; ri<4; ri++) {
+
+                    // reset helper rate cat array at current index
+                    probsByRateCat[ri]=0.0;
+
+                    // sum over the 4 possible internal nucleotides, 
+                    // given rate cat ri:   
+                    for (int nucx=0; nucx<4; nucx++) {
+                            probsByRateCat[ri]+=
+                                        freqs[nucx]
+                                        *transitionProbs[triplePos(nucx,i,ri)]
+                                        *transitionProbs[triplePos(nucx,j,ri)]
+                                        *transitionProbs[triplePos(nucx,k,ri)];
+                    }
+
+                    // calculate triple probability by summing over 
+                    //   conditional probs given rate categories 
+                    tripleProbs[triplePos(i,j,k)]+=0.25*probsByRateCat[ri];
+                }
+
+                ll += tripleCounts[triplePos(i,j,k)] * log(tripleProbs[triplePos(i,j,k)]);
+            }
+        }
+    }
+
+    MrBayesPrint("Triplet Quasi Log-Likelihood for Data: %f", ll);
+
+    return(NO_ERROR);
+
+}
+
+
 
 int DoShowMatrix (void)
 {
