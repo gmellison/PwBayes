@@ -46,7 +46,7 @@
 #include "SIOUX.h"
 #endif
 
-#define NUMCOMMANDS                     62 + 1    /* The total number of commands in the program  */
+#define NUMCOMMANDS                     62 + 2    /* The total number of commands in the program  */
 #define NUMPARAMS                       283   /* The total number of parameters  */
 #define PARAM(i, s, f, l)               p->string = s;    \
                                         p->fp = f;        \
@@ -132,6 +132,7 @@ int      DoTranslate (void);
 int      DoTranslateParm (char *parmName, char *tkn);
 int      DoTree (void);
 int      DoTreeParm (char *parmName, char *tkn);
+int      DoTripletnLL(void);
 int      DoUserTree (void);
 int      DoUserTreeParm (char *parmName, char *tkn);
 int      DoVersion (void);
@@ -359,6 +360,7 @@ CmdType     commands[] =
             { 60,         "Version",  NO,         DoVersion,  0,                                                                                             {-1},       32,                                      "Shows program version",  IN_CMD, SHOW },
             { 61,      "Compareref",  NO,     DoCompRefTree,  7,                                                                    {127,128,129,130,221,222,223},       36,                   "Compares the tree to the reference trees",  IN_CMD, HIDE },
             { 62,        "Pairwise",  NO,        DoPairwise,  0,                                                                                             {-1},       32,                      "Computes pairwise gtr param estimates",  IN_CMD, HIDE },
+            { 63,      "TripletnLL",  NO,       DoTripletnLL,  0,                                                                                             {-1},       32,                                "Computes triplet-based nqll",  IN_CMD, HIDE },
 
             /* NOTE: If you add a command here, make certain to change NUMCOMMANDS (above, in this file) appropriately! */
             { 999,             NULL,  NO,              NULL,  0,                                                                                             {-1},       32,                                                           "",  IN_CMD, HIDE }  
@@ -7104,26 +7106,26 @@ int toIdx(int x) {
     }
 }
 
-MrBFlt freqs[4];
+MrBFlt nucFreqs[4];
 int defFreqs=NO;
 
 void SetFreqs() {
 
-    int s,i,nucidx;
-    int counts[4];
+    int s,i,j,nucIdx;
+    int nucCounts[4] = {0};
 
     for (s=0;s<numChar;s++) {
         for (i=0;i<numTaxa;i++) {
             if (matrix[pos(i,s,numChar)]==GAP)
                 continue;
 
-            nucidx=toIdx(matrix[pos(i,s,numChar)]);
-            counts[nucidx]++;
+            nucIdx=toIdx(matrix[pos(i,s,numChar)]);
+            nucCounts[nucIdx]++;
         }
     }
-    // symmetrize count matrix (in place in pairRates matrix
-    for (i=0;i<4;i++) {
-        freqs[i]=((MrBFlt)counts[i])/(numChar*numTaxa);
+
+    for (j=0;j<4;j++) {
+        nucFreqs[j]=((MrBFlt)nucCounts[j])/(numChar*numTaxa);
     }
 
     defFreqs=YES;
@@ -7150,16 +7152,6 @@ int DoPairwise(void) {
     MrBFlt pairRates[4][4];
     double nu=0.0;
 
-    /*  
-    int dim,
-    MrBFlt **q, 
-    MrBFlt *eigenValues, 
-    MrBFlt *eigvalsImag, 
-    MrBFlt **eigvecs, 
-    MrBFlt **inverseEigvecs, 
-    MrBComplex **Ceigvecs, 
-    MrBComplex **CinverseEigvecs
-*/
     int pairsTotal=0;
 
     for (s=0;s<numChar;s++) {
@@ -7202,7 +7194,7 @@ int DoPairwise(void) {
     MrBFlt **Q         = AllocateSquareDoubleMatrix(4);
     for (i=0;i<4;i++) {
         for (j=0;j<4;j++){
-            Q[i][j] = pairRates[i][j] * freqs[i];
+            Q[i][j] = pairRates[i][j] * nucFreqs[i];
         }
     }
 
@@ -7248,18 +7240,14 @@ int DoPairwise(void) {
     }
 
 
-    for (i=0;i<4;i++)
-        MrBayesPrint("%f ", freqs[i]);
-    MrBayesPrint("\n");
-
     for (i=0;i<4;i++) {
         for (j=0;j<4;j++) {
-            Q[i][j]=Q[i][j]/freqs[j];
+            Q[i][j]=Q[i][j]/nucFreqs[j];
         }
     }
    
     for (i=0;i<4;i++)
-        nu += -1.0 * Q[i][i]/freqs[i];
+        nu += -1.0 * Q[i][i]/nucFreqs[i];
 
     MrBayesPrint("Branch Length: %f", nu);
     //int isComplex = GetEigens(4,**pairRates,*la,*laimag,**V,**Vinv,**Vc,**Vcinv);
@@ -7372,7 +7360,7 @@ int DoTripletnLL(void) {
                     // given rate cat ri:   
                     for (int nucx=0; nucx<4; nucx++) {
                             probsByRateCat[ri]+=
-                                        freqs[nucx]
+                                        nucFreqs[nucx]
                                         *transitionProbs[triplePos(nucx,i,ri)]
                                         *transitionProbs[triplePos(nucx,j,ri)]
                                         *transitionProbs[triplePos(nucx,k,ri)];
@@ -7389,7 +7377,6 @@ int DoTripletnLL(void) {
     }
 
     MrBayesPrint("Triplet Quasi Log-Likelihood for Data: %f", ll);
-
     return(NO_ERROR);
 
 }

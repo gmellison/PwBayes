@@ -23,4 +23,5 @@ end;
 
 begin mrbayes;
     Pairwise;
+    TripletnLL;
 end;
