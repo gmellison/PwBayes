@@ -46,8 +46,10 @@
 #include "SIOUX.h"
 #endif
 
-#define NUMCOMMANDS                     62 + 2    /* The total number of commands in the program  */
-#define NUMPARAMS                       283   /* The total number of parameters  */
+#include "pairwise.h"
+
+#define NUMCOMMANDS                     62 + 3    /* The total number of commands in the program  */
+#define NUMPARAMS                       283 + 1   /* The total number of parameters  */
 #define PARAM(i, s, f, l)               p->string = s;    \
                                         p->fp = f;        \
                                         p->valueList = l; \
@@ -110,7 +112,7 @@ int      DoNexusParm (char *parmName, char *tkn);
 int      DoOutgroup (void);
 int      DoOutgroupParm (char *parmName, char *tkn);
 int      DoPairs (void);
-int      DoPairwise(void);
+int      DoEstQPairwise(void);
 int      DoPairsParm (char *parmName, char *tkn);
 int      DoPartition (void);
 int      DoPartitionParm (char *parmName, char *tkn);
@@ -132,7 +134,8 @@ int      DoTranslate (void);
 int      DoTranslateParm (char *parmName, char *tkn);
 int      DoTree (void);
 int      DoTreeParm (char *parmName, char *tkn);
-int      DoTripletnLL(void);
+int      DoTripletLogLike(void);
+int      DoPairwiseLogLike(void);
 int      DoUserTree (void);
 int      DoUserTreeParm (char *parmName, char *tkn);
 int      DoVersion (void);
@@ -146,6 +149,7 @@ int      IsAmbig (int charCode, int dType);
 int      IsMissing (int charCode, int dType);
 int      MBResID (char nuc);
 int      NucID (char nuc);
+int      MethylID (char n);
 void     PrintSettings (char *command);
 void     PrintYesNo (int yn, char s[4]);
 int      ProtID (char aa);
@@ -359,9 +363,10 @@ CmdType     commands[] =
             { 59,        "Usertree", YES,        DoUserTree,  1,                                                                                            {203},        8,                                 "Defines a single user tree",  IN_CMD, HIDE },
             { 60,         "Version",  NO,         DoVersion,  0,                                                                                             {-1},       32,                                      "Shows program version",  IN_CMD, SHOW },
             { 61,      "Compareref",  NO,     DoCompRefTree,  7,                                                                    {127,128,129,130,221,222,223},       36,                   "Compares the tree to the reference trees",  IN_CMD, HIDE },
-            { 62,        "Pairwise",  NO,        DoPairwise,  0,                                                                                             {-1},       32,                      "Computes pairwise gtr param estimates",  IN_CMD, HIDE },
-            { 63,      "TripletnLL",  NO,       DoTripletnLL,  0,                                                                                             {-1},       32,                                "Computes triplet-based nqll",  IN_CMD, HIDE },
-
+            { 62,    "EstQPairwise",  NO,    DoEstQPairwise,  0,                                                                                             {-1},       32,                      "Computes pairwise gtr param estimates",  IN_CMD, HIDE },
+            { 63, "PairwiseLogLike",  NO, DoPairwiseLogLike,  0,                                                                                             {-1},       32,                                "Computes triplet-based nqll",  IN_CMD, HIDE },
+            { 63,  "TripletLogLike",  NO,  DoTripletLogLike,  0,                                                                                             {-1},       32,                                "Computes triplet-based nqll",  IN_CMD, HIDE },
+ 
             /* NOTE: If you add a command here, make certain to change NUMCOMMANDS (above, in this file) appropriately! */
             { 999,             NULL,  NO,              NULL,  0,                                                                                             {-1},       32,                                                           "",  IN_CMD, HIDE }  
             };
@@ -727,6 +732,14 @@ int CharacterCode (char ch, int *charCode, int chType)
         if ((*charCode = NucID (ch)) == -1)
             {
             MrBayesPrint ("%s   Unrecognized DNA/RNA character '%c'\n", spacer, ch);
+            return (ERROR);
+            }
+        }
+    else if (chType == METHYL)
+        {
+        if ((*charCode = MethylID (ch)) == -1)
+            {
+            MrBayesPrint ("%s   Unrecognized Methyl character '%c'\n", spacer, ch);
             return (ERROR);
             }
         }
@@ -4123,6 +4136,8 @@ int DoFormatParm (char *parmName, char *tkn)
                             dataType = RESTRICTION;
                         else if (!strcmp(tempStr, "Standard"))
                             dataType = STANDARD;
+                        else if (!strcmp(tempStr, "Methyl"))
+                            dataType = METHYL;
                         else if (!strcmp(tempStr, "Continuous"))
                             {
                             MrBayesPrint ("%s   MrBayes currently does not support the use of the 'Continuous' datatype\n", spacer);
@@ -7094,48 +7109,7 @@ int DoSetParm (char *parmName, char *tkn)
     return (NO_ERROR);
 }
 
-int toIdx(int x) {
-    if (x == 1) return 0;
-    else if (x == 2) return 1;
-    else if (x == 4) return 2;
-    else if (x == 8) return 3;
-    else if (x == GAP) return 5;
-    else {
-        MrBayesPrint("Problem in to Idx (maybe bad input: x=%d?)\n", x);
-        return ERROR;
-    }
-}
-
-MrBFlt nucFreqs[4];
-int defFreqs=NO;
-
-void SetFreqs() {
-
-    int s,i,j,nucIdx;
-    int nucCounts[4] = {0};
-
-    for (s=0;s<numChar;s++) {
-        for (i=0;i<numTaxa;i++) {
-            if (matrix[pos(i,s,numChar)]==GAP)
-                continue;
-
-            nucIdx=toIdx(matrix[pos(i,s,numChar)]);
-            nucCounts[nucIdx]++;
-        }
-    }
-
-    for (j=0;j<4;j++) {
-        nucFreqs[j]=((MrBFlt)nucCounts[j])/(numChar*numTaxa);
-    }
-
-    defFreqs=YES;
-}
-
-int DoPairwise(void) {
-
-    // first count the doublets across all taxa pairs
-    //
-    //
+int DoEstQPairwise(void) {
 
     if (defMatrix == NO)
     {
@@ -7143,39 +7117,27 @@ int DoPairwise(void) {
         return (ERROR);
     }
            
-    if (defFreqs == NO) {
-        SetFreqs();
+    if (defFreqs == NO) 
+    {
+        CountFreqs(); // sets nucleotide frequencies in global object 'nucFreqs'
+    }
+
+    if (defDoublets == NO) 
+    {
+        CountDoublets(); // sets nucleotide frequencies in global object 'doubletFreqs'
     }
 
     int i,j,s,id1,id2;
-    int pairCounts[4][4] = {{0}};
     MrBFlt pairRates[4][4];
     double nu=0.0;
 
     int pairsTotal=0;
 
-    for (s=0;s<numChar;s++) {
-        for (i=0;i<(numTaxa-1);i++) {
-            if (matrix[pos(i,s,numChar)]==GAP)
-                continue;
-
-            id1=toIdx(matrix[pos(i,s,numChar)]);
-            for (j=(i+1);j<numTaxa;j++) {
-                 if (matrix[pos(j,s,numChar)]==GAP)
-                    continue;
-                    
-                 id2=toIdx(matrix[pos(j,s,numChar)]);
-                 pairCounts[id1][id2]++;
-                 pairsTotal++;
-
-            }
-        }
-    }
-
+    // get the doublet counts, across all pairs in the alignment 
     // symmetrize count matrix (in place in pairRates matrix
     for (i=0;i<4;i++) {
         for (j=i;j<4;j++){
-            pairRates[i][j] = (pairCounts[i][j] + pairCounts[j][i])/(pairsTotal*2.0);
+            pairRates[i][j] = (doubletCounts[i][j] + doubletCounts[j][i])/(numTaxa * numChar * 2.0);
             pairRates[j][i] = pairRates[i][j];
         }
     }
@@ -7184,7 +7146,7 @@ int DoPairwise(void) {
     // set up matrices 
     MrBFlt **V         = AllocateSquareDoubleMatrix(4);
     MrBFlt **Vinv      = AllocateSquareDoubleMatrix(4);
-    MrBFlt **Dpi       = AllocateSquareDoubleMatrix(4);
+    MrBFlt **LaLog     = AllocateSquareDoubleMatrix(4);
 
     MrBComplex **Vc    = AllocateSquareComplexMatrix(4); 
     MrBComplex **Vcinv = AllocateSquareComplexMatrix(4);
@@ -7192,27 +7154,30 @@ int DoPairwise(void) {
     MrBFlt *laC        = (MrBFlt*)malloc(sizeof(MrBFlt)*4);
 
     MrBFlt **Q         = AllocateSquareDoubleMatrix(4);
+
+    // set up matrix of doublet probabilities, in Q (will be modified in place)  
     for (i=0;i<4;i++) {
         for (j=0;j<4;j++){
-            Q[i][j] = pairRates[i][j] * nucFreqs[i];
+            Q[i][j] = pairRates[i][j] * nucFreqs[j];
         }
     }
 
     int isComplex=GetEigens(4,Q,la,laC,V,Vinv,Vc,Vcinv);
     (void)isComplex;
     
+    // diagonal matrix of e^{lambda_i}, lambdas are eigvals of Q
     for (i=0;i<4;i++) {
-        Dpi[i][i] = exp(la[i]);
+        LaLog[i][i] = log(la[i]);
         for (j=0;j<i;j++) {
-            Dpi[i][j]=0.0;
-            Dpi[j][i]=0.0;
+            LaLog[i][j]=0.0;
+            LaLog[j][i]=0.0;
         }
     }
 
-    MultiplyMatrices(4,V,Dpi,Q); 
+    MultiplyMatrices(4,V,LaLog,Q); 
     MultiplyMatrices(4,Q,Vinv,Q);
 
-    // symmetrize
+    // symmetrize Q
     for (i=0;i<4;i++) {
         for (j=0;j<i;j++) {
             Q[i][j] = (Q[i][j] + Q[j][i])/2.0;
@@ -7220,11 +7185,12 @@ int DoPairwise(void) {
         }
     }
 
+    MrBayesPrint("%s relative rates: \n", spacer);
     for (i=0;i<4;i++) {
         for (j=0;j<4;j++) {
             // print:
             if (j == 0) MrBayesPrint(spacer);
-            MrBayesPrint("%f ",Q[i][j]);
+            MrBayesPrint("%f ",Q[i][j]/nucFreqs[j]);
             if (j == 3) MrBayesPrint("\n");
         }
     }
@@ -7249,8 +7215,9 @@ int DoPairwise(void) {
     for (i=0;i<4;i++)
         nu += -1.0 * Q[i][i]/nucFreqs[i];
 
-    MrBayesPrint("Branch Length: %f", nu);
-    //int isComplex = GetEigens(4,**pairRates,*la,*laimag,**V,**Vinv,**Vc,**Vcinv);
+    MrBayesPrint("Tau: %f", nu);
+
+    // free all matrices 
     FreeSquareDoubleMatrix(V);
     FreeSquareDoubleMatrix(Vinv);
     FreeSquareDoubleMatrix(Q);
@@ -7263,11 +7230,7 @@ int DoPairwise(void) {
 }
 
 
-int triplePos(int i, int j, int k) {
-    return i*16 +j*4 + k;
-}
-
-int DoTripletnLL(void) {
+int DoPairwiseLogLike(void) {
 
     if (defMatrix == NO)
     {
@@ -7277,38 +7240,122 @@ int DoTripletnLL(void) {
 
     if (defFreqs==NO) 
     {
-        SetFreqs();
+        CountFreqs();
     }
 
-    int tripleCounts[64] = {0};
+    if (defDoublets==NO) 
+    {
+        CountDoublets();
+    }
+
+    MrBFlt al=0.5, tau=0.1;
     int s,i,j,k,ri;
     int seqi,seqj,seqk;
-    MrBFlt bl,al;
 
-    for (s=0;s<numChar;s++) {
-        for (seqi=0;seqi<(numTaxa-2);seqi++) {
-            if (matrix[pos(seqi,s,numChar)]==GAP)
-                continue;
-            i=toIdx(matrix[pos(seqi,s,numChar)]);
+    MrBFlt dg4[4];
+    DiscreteGamma(dg4,al,al,4,1);
 
-            for (seqj=(seqi+1);seqj<(numTaxa-1);seqj++) {
-                 if (matrix[pos(seqj,s,numChar)]==GAP)
-                    continue;
-                 j = toIdx(matrix[pos(seqj,s,numChar)]);
+    // compute gtr transition probabilities
+    // set up matrices for taking the matrix exponent
+    MrBFlt **V         = AllocateSquareDoubleMatrix(4);
+    MrBFlt **Vinv      = AllocateSquareDoubleMatrix(4);
+    MrBFlt **LaExp     = AllocateSquareDoubleMatrix(4);
 
-                for (seqk=(seqj+1);seqk<numTaxa;seqk++) {
-                     if (matrix[pos(seqk,s,numChar)]==GAP)
-                        continue;
-                     k = toIdx(matrix[pos(seqk,s,numChar)]);
-                     tripleCounts[triplePos(i,j,k)]++;
-                }
-            }
+    MrBComplex **Vc    = AllocateSquareComplexMatrix(4);    // eigenvectors
+    MrBComplex **Vcinv = AllocateSquareComplexMatrix(4);    // inverse eigvect matrix
+    MrBFlt *la         = (MrBFlt*)malloc(sizeof(MrBFlt)*4); // eigenvalues
+    MrBFlt *laC        = (MrBFlt*)malloc(sizeof(MrBFlt)*4); // 
+
+    MrBFlt **Q         = AllocateSquareDoubleMatrix(4);
+    MrBFlt **Qtausr    = AllocateSquareDoubleMatrix(4);
+    MrBFlt **pTrans    = AllocateSquareDoubleMatrix(4);
+
+
+    // set up matrix of doublet probabilities, in Q (will be modified in place)  
+    for (i=0;i<4;i++) {
+        for (j=0;j<4;j++){
+            Q[i][j] = doubletFreqs[i][j] * nucFreqs[j];
         }
     }
 
+    MultiplyMatrixByScalar(4, Q, tau*1.0, Qtausr); // for now just multiply by 1
+
+    int isComplex=GetEigens(4,Q,la,laC,V,Vinv,Vc,Vcinv);
+    (void)isComplex;
+    
+    // diagonal matrix of e^{lambda_i}, lambdas are eigvals of Q
+    for (i=0;i<4;i++) {
+        LaExp[i][i] = exp(la[i]);
+        for (j=0;j<i;j++) {
+            LaExp[i][j]=0.0;
+            LaExp[j][i]=0.0;
+        }
+    }
+
+    MultiplyMatrices(4,V,LaExp,Q); 
+    MultiplyMatrices(4,Q,Vinv,pTrans);
+
+    MrBFlt probsByRateCat[4];
+    MrBFlt ll=0.0;
+
+    for (i = 0; i < 4; i++) {
+        for (j = 0; j < 4; j++) {
+
+                // calculate the site pattern probability for each 
+                //   dg4 rate category
+                /*
+                for (ri=0; ri<4; ri++) {
+
+                    // reset helper rate cat array at current index
+                    probsByRateCat[ri]=0.0;
+
+                    // sum over the 4 possible internal nucleotides, 
+                    // given rate cat ri:   
+                    for (int nucx=0; nucx<4; nucx++) {
+                            probsByRateCat[ri]+=
+                                        nucFreqs[nucx]
+                                        *transitionProbs[triplePos(nucx,i,ri)]
+                                        *transitionProbs[triplePos(nucx,j,ri)]
+                                        *transitionProbs[triplePos(nucx,k,ri)];
+                    }
+
+                    // calculate triple probability by summing over 
+                    //   conditional probs given rate categories 
+                    tripleProbs[triplePos(i,j,k)]+=0.25*probsByRateCat[ri];
+                }
+                */
+
+            ll += doubletCounts[i][j] * log(pTrans[i][j]);
+        }
+    }
+
+    MrBayesPrint("Pairwise Log-Likelihood: %f", ll);
+    return(NO_ERROR);
+
+}
+
+
+int DoTripletLogLike(void) {
+
+    if (defMatrix == NO)
+    {
+        MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
+        return (ERROR);
+    }
+
+    if (defFreqs==NO) 
+    {
+        CountFreqs();
+    }
+
+    if (defTriples==NO)
+    {
+        CountTriples();
+    }
+
     // temp: just set distance alpha:
-    bl=0.1;
-    al=0.5;
+    double bl=0.1;
+    double al=0.5;
    
     MrBFlt dg4[4];
     DiscreteGamma(dg4,al,al,4,1);
@@ -7323,6 +7370,8 @@ int DoTripletnLL(void) {
     }
 
     MrBFlt tripleProbs[64], transitionProbs[64];
+
+    int i,j,k, ri;
 
     // set up array of transition probabilities
     for (i=0;i<4;i++) {
@@ -7446,6 +7495,8 @@ int DoShowMatrix (void)
                     MrBayesPrint ("%c", WhichStand(matrix[pos(i,j,numChar)]));
                 else if (ct == RESTRICTION)
                     MrBayesPrint ("%c", WhichRes(matrix[pos(i,j,numChar)]));
+                else if (ct == METHYL)
+                    MrBayesPrint ("%c", WhichMethyl(matrix[pos(i,j,numChar)]));
                 else if (ct == CONTINUOUS)
                     {
                     if (WhichCont(matrix[pos(i,j,numChar)]) < 0.0)
@@ -13909,7 +13960,7 @@ else if (!strcmp(helpTkn, "Set"))
    NO if character is unambiguous, missing or gapped */ 
 int IsAmbig (int charCode, int dType)
 {
-    if (dType == DNA || dType == RNA || dType == STANDARD || dType == RESTRICTION || dType == PROTEIN)
+    if (dType == DNA || dType == RNA || dType == STANDARD || dType == RESTRICTION || dType == PROTEIN || dType == METHYL)
         {
         if (charCode != MISSING && charCode != GAP)
             if (NBits(charCode) > 1)
@@ -13999,6 +14050,11 @@ int IsMissing (int charCode, int dType)
         if (charCode == 15 || charCode == 16)
             return (YES);
         }
+    else if (dType == METHYL)
+        {
+        if (charCode == MISSING || charCode == GAP)
+            return (YES);
+        }
     else if (dType == STANDARD || dType == PROTEIN)
         {
         if (charCode == MISSING || charCode == GAP)
@@ -14060,6 +14116,34 @@ int IsWhite (char c)
         return 1;
         }
     return 0;
+}
+
+// Greg Checkpoint
+
+int MethylID (char n)
+{
+    if (n == 'U' || n == 'u')
+        {
+        return 1;
+        }
+    else if (n == 'M' || n == 'm')
+        {
+        return 2;
+        }
+    else if (n == 'D' || n == 'd')
+        {
+        return 4;
+        }
+    else if (n == gapId)
+        {
+        return GAP;
+        }
+    else if (n == missingId)
+        {
+        return MISSING;
+        }
+    else
+        return -1;
 }
 
 
@@ -14791,7 +14875,7 @@ void SetUpParms (void)
     PARAM   (4, "Ntax",           DoDimensionsParm,  "\0");
     PARAM   (5, "Nchar",          DoDimensionsParm,  "\0");
     PARAM   (6, "Interleave",     DoFormatParm,      "Yes|No|\0");
-    PARAM   (7, "Datatype",       DoFormatParm,      "Dna|Rna|Protein|Restriction|Standard|Continuous|Mixed|\0");
+    PARAM   (7, "Datatype",       DoFormatParm,      "Dna|Rna|Protein|Restriction|Standard|Continuous|Mixed|Methyl|\0");
     PARAM   (8, "Gap",            DoFormatParm,      "\0");
     PARAM   (9, "Missing",        DoFormatParm,      "\0");
     PARAM  (10, "Matchchar",      DoFormatParm,      "\0");
@@ -14812,7 +14896,7 @@ void SetUpParms (void)
     PARAM  (25, "Starttree",      DoMcmcParm,        "Random|Current|User|Parsimony|NJ|\0");
     PARAM  (26, "Nperts",         DoMcmcParm,        "\0");
     PARAM  (27, "Savebrlens",     DoMcmcParm,        "Yes|No|\0");
-    PARAM  (28, "Nucmodel",       DoLsetParm,        "4by4|Doublet|Codon|Protein|\0");
+    PARAM  (28, "Nucmodel",       DoLsetParm,        "4by4|Doublet|Codon|Protein|Methyl|Dimethyl|\0");
     PARAM  (29, "Nst",            DoLsetParm,        "1|2|6|Mixed|\0");
     PARAM  (30, "Aamodel",        DoLsetParm,        "Poisson|Equalin|Jones|Dayhoff|Mtrev|Mtmam|Wag|Rtrev|Cprev|Vt|Blosum|Blossum|LG|\0");
     PARAM  (31, "Parsmodel",      DoLsetParm,        "Yes|No|\0");
@@ -15067,6 +15151,8 @@ void SetUpParms (void)
     PARAM (280, "Statefreqmodel", DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
     PARAM (281, "Rootfreqpr",     DoPrsetParm,       "Dirichlet|Fixed|\0"); //SK
     PARAM (282, "Statefrmod",     DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
+    PARAM (283, "Methylrevmatpr",   DoPrsetParm,      "Dirichlet|Fixed|\0"); //SK
+
 
     /* NOTE: If a change is made to the parameter table, make certain you change
             NUMPARAMS (now 283; one more than last index) at the top of this file. */
@@ -15312,6 +15398,19 @@ int StateCode_NUC4 (int n)
         return 'G';
     else if (n == 3)
         return 'T';
+    else return '?';
+}
+
+
+// Greg
+int StateCode_METHYL (int n)
+{
+    if (n == 0)
+        return 'N';
+    else if (n == 1)
+        return 'M';
+    else if (n == 2)
+        return 'D';
     else return '?';
 }
 
@@ -15638,6 +15737,26 @@ char WhichNuc (int x)
         return ('B');
     else if (x == 15)
         return ('N');
+    else if (x == 16)
+        return ('U');
+    else if (x == MISSING)
+        return ('?');
+    else if (x == GAP)
+        return ('-');
+    else 
+        return (' ');
+}
+
+// Greg Checkpoint (for vim file navigating)
+
+char WhichMethyl (int x)
+{
+    if (x == 1)
+            return('U');
+    else if (x == 2)
+            return('M');
+    else if (x == 4)
+            return('D');
     else if (x == MISSING)
         return ('?');
     else if (x == GAP)
