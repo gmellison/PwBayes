@@ -40,16 +40,17 @@
 #include "mbbeagle.h"
 #include "model.h"
 #include "mcmc.h"
+#include "pairwise.h"
 #include "sumpt.h"
 #include "utils.h"
+
 #if defined(__MWERKS__)
 #include "SIOUX.h"
 #endif
 
-#include "pairwise.h"
 
 #define NUMCOMMANDS                     62 + 3    /* The total number of commands in the program  */
-#define NUMPARAMS                       283 + 1   /* The total number of parameters  */
+#define NUMPARAMS                       283 + 5   /* The total number of parameters  */
 #define PARAM(i, s, f, l)               p->string = s;    \
                                         p->fp = f;        \
                                         p->valueList = l; \
@@ -112,7 +113,6 @@ int      DoNexusParm (char *parmName, char *tkn);
 int      DoOutgroup (void);
 int      DoOutgroupParm (char *parmName, char *tkn);
 int      DoPairs (void);
-int      DoEstQPairwise(void);
 int      DoPairsParm (char *parmName, char *tkn);
 int      DoPartition (void);
 int      DoPartitionParm (char *parmName, char *tkn);
@@ -364,8 +364,8 @@ CmdType     commands[] =
             { 60,         "Version",  NO,         DoVersion,  0,                                                                                             {-1},       32,                                      "Shows program version",  IN_CMD, SHOW },
             { 61,      "Compareref",  NO,     DoCompRefTree,  7,                                                                    {127,128,129,130,221,222,223},       36,                   "Compares the tree to the reference trees",  IN_CMD, HIDE },
             { 62,    "EstQPairwise",  NO,    DoEstQPairwise,  0,                                                                                             {-1},       32,                      "Computes pairwise gtr param estimates",  IN_CMD, HIDE },
-            { 63, "PairwiseLogLike",  NO, DoPairwiseLogLike,  0,                                                                                             {-1},       32,                                "Computes triplet-based nqll",  IN_CMD, HIDE },
-            { 63,  "TripletLogLike",  NO,  DoTripletLogLike,  0,                                                                                             {-1},       32,                                "Computes triplet-based nqll",  IN_CMD, HIDE },
+            { 63, "PairwiseLogLike",  NO, DoPairwiseLogLike,  3,                                                                                        {284,285,286},       36,                                     "Computes pairwise nqll",  IN_CMD, HIDE },
+            { 63,  "TripletLogLike",  NO,  DoTripletLogLike,  3,                                                                                        {284,285,286},       36,                                "Computes triplet-based nqll",  IN_CMD, HIDE },
  
             /* NOTE: If you add a command here, make certain to change NUMCOMMANDS (above, in this file) appropriately! */
             { 999,             NULL,  NO,              NULL,  0,                                                                                             {-1},       32,                                                           "",  IN_CMD, HIDE }  
@@ -7108,328 +7108,6 @@ int DoSetParm (char *parmName, char *tkn)
 
     return (NO_ERROR);
 }
-
-int DoEstQPairwise(void) {
-
-    if (defMatrix == NO)
-    {
-        MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
-        return (ERROR);
-    }
-           
-    if (defFreqs == NO) 
-    {
-        CountFreqs(); // sets nucleotide frequencies in global object 'nucFreqs'
-    }
-
-    if (defDoublets == NO) 
-    {
-        CountDoublets(); // sets nucleotide frequencies in global object 'doubletFreqs'
-    }
-
-    int i,j,s,id1,id2;
-    MrBFlt pairRates[4][4];
-    double nu=0.0;
-
-    int pairsTotal=0;
-
-    // get the doublet counts, across all pairs in the alignment 
-    // symmetrize count matrix (in place in pairRates matrix
-    for (i=0;i<4;i++) {
-        for (j=i;j<4;j++){
-            pairRates[i][j] = (doubletCounts[i][j] + doubletCounts[j][i])/(numTaxa * numChar * 2.0);
-            pairRates[j][i] = pairRates[i][j];
-        }
-    }
-
-    // use mb machinery to compute eigens
-    // set up matrices 
-    MrBFlt **V         = AllocateSquareDoubleMatrix(4);
-    MrBFlt **Vinv      = AllocateSquareDoubleMatrix(4);
-    MrBFlt **LaLog     = AllocateSquareDoubleMatrix(4);
-
-    MrBComplex **Vc    = AllocateSquareComplexMatrix(4); 
-    MrBComplex **Vcinv = AllocateSquareComplexMatrix(4);
-    MrBFlt *la         = (MrBFlt*)malloc(sizeof(MrBFlt)*4);
-    MrBFlt *laC        = (MrBFlt*)malloc(sizeof(MrBFlt)*4);
-
-    MrBFlt **Q         = AllocateSquareDoubleMatrix(4);
-
-    // set up matrix of doublet probabilities, in Q (will be modified in place)  
-    for (i=0;i<4;i++) {
-        for (j=0;j<4;j++){
-            Q[i][j] = pairRates[i][j] * nucFreqs[j];
-        }
-    }
-
-    int isComplex=GetEigens(4,Q,la,laC,V,Vinv,Vc,Vcinv);
-    (void)isComplex;
-    
-    // diagonal matrix of e^{lambda_i}, lambdas are eigvals of Q
-    for (i=0;i<4;i++) {
-        LaLog[i][i] = log(la[i]);
-        for (j=0;j<i;j++) {
-            LaLog[i][j]=0.0;
-            LaLog[j][i]=0.0;
-        }
-    }
-
-    MultiplyMatrices(4,V,LaLog,Q); 
-    MultiplyMatrices(4,Q,Vinv,Q);
-
-    // symmetrize Q
-    for (i=0;i<4;i++) {
-        for (j=0;j<i;j++) {
-            Q[i][j] = (Q[i][j] + Q[j][i])/2.0;
-            Q[j][i] = Q[i][j];
-        }
-    }
-
-    MrBayesPrint("%s relative rates: \n", spacer);
-    for (i=0;i<4;i++) {
-        for (j=0;j<4;j++) {
-            // print:
-            if (j == 0) MrBayesPrint(spacer);
-            MrBayesPrint("%f ",Q[i][j]/nucFreqs[j]);
-            if (j == 3) MrBayesPrint("\n");
-        }
-    }
-
-    // set diagonal so rowsums are 0, mult by inverse Dpi mat:
-    double rowsum;
-    for (i=0;i<4;i++) {
-        rowsum=0.0;
-        for (j=0;j<4;j++) {
-            if (j!=i) rowsum+=Q[i][j];
-        }
-        Q[i][i]=-1*rowsum;
-    }
-
-
-    for (i=0;i<4;i++) {
-        for (j=0;j<4;j++) {
-            Q[i][j]=Q[i][j]/nucFreqs[j];
-        }
-    }
-   
-    for (i=0;i<4;i++)
-        nu += -1.0 * Q[i][i]/nucFreqs[i];
-
-    MrBayesPrint("Tau: %f", nu);
-
-    // free all matrices 
-    FreeSquareDoubleMatrix(V);
-    FreeSquareDoubleMatrix(Vinv);
-    FreeSquareDoubleMatrix(Q);
-    FreeSquareComplexMatrix(Vc);
-    FreeSquareComplexMatrix(Vcinv);
-    free(la);
-    free(laC);
-
-    return(NO_ERROR);
-}
-
-
-int DoPairwiseLogLike(void) {
-
-    if (defMatrix == NO)
-    {
-        MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
-        return (ERROR);
-    }
-
-    if (defFreqs==NO) 
-    {
-        CountFreqs();
-    }
-
-    if (defDoublets==NO) 
-    {
-        CountDoublets();
-    }
-
-    MrBFlt al=0.5, tau=0.1;
-    int s,i,j,k,ri;
-    int seqi,seqj,seqk;
-
-    MrBFlt dg4[4];
-    DiscreteGamma(dg4,al,al,4,1);
-
-    // compute gtr transition probabilities
-    // set up matrices for taking the matrix exponent
-    MrBFlt **V         = AllocateSquareDoubleMatrix(4);
-    MrBFlt **Vinv      = AllocateSquareDoubleMatrix(4);
-    MrBFlt **LaExp     = AllocateSquareDoubleMatrix(4);
-
-    MrBComplex **Vc    = AllocateSquareComplexMatrix(4);    // eigenvectors
-    MrBComplex **Vcinv = AllocateSquareComplexMatrix(4);    // inverse eigvect matrix
-    MrBFlt *la         = (MrBFlt*)malloc(sizeof(MrBFlt)*4); // eigenvalues
-    MrBFlt *laC        = (MrBFlt*)malloc(sizeof(MrBFlt)*4); // 
-
-    MrBFlt **Q         = AllocateSquareDoubleMatrix(4);
-    MrBFlt **Qtausr    = AllocateSquareDoubleMatrix(4);
-    MrBFlt **pTrans    = AllocateSquareDoubleMatrix(4);
-
-
-    // set up matrix of doublet probabilities, in Q (will be modified in place)  
-    for (i=0;i<4;i++) {
-        for (j=0;j<4;j++){
-            Q[i][j] = doubletFreqs[i][j] * nucFreqs[j];
-        }
-    }
-
-    MultiplyMatrixByScalar(4, Q, tau*1.0, Qtausr); // for now just multiply by 1
-
-    int isComplex=GetEigens(4,Q,la,laC,V,Vinv,Vc,Vcinv);
-    (void)isComplex;
-    
-    // diagonal matrix of e^{lambda_i}, lambdas are eigvals of Q
-    for (i=0;i<4;i++) {
-        LaExp[i][i] = exp(la[i]);
-        for (j=0;j<i;j++) {
-            LaExp[i][j]=0.0;
-            LaExp[j][i]=0.0;
-        }
-    }
-
-    MultiplyMatrices(4,V,LaExp,Q); 
-    MultiplyMatrices(4,Q,Vinv,pTrans);
-
-    MrBFlt probsByRateCat[4];
-    MrBFlt ll=0.0;
-
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 4; j++) {
-
-                // calculate the site pattern probability for each 
-                //   dg4 rate category
-                /*
-                for (ri=0; ri<4; ri++) {
-
-                    // reset helper rate cat array at current index
-                    probsByRateCat[ri]=0.0;
-
-                    // sum over the 4 possible internal nucleotides, 
-                    // given rate cat ri:   
-                    for (int nucx=0; nucx<4; nucx++) {
-                            probsByRateCat[ri]+=
-                                        nucFreqs[nucx]
-                                        *transitionProbs[triplePos(nucx,i,ri)]
-                                        *transitionProbs[triplePos(nucx,j,ri)]
-                                        *transitionProbs[triplePos(nucx,k,ri)];
-                    }
-
-                    // calculate triple probability by summing over 
-                    //   conditional probs given rate categories 
-                    tripleProbs[triplePos(i,j,k)]+=0.25*probsByRateCat[ri];
-                }
-                */
-
-            ll += doubletCounts[i][j] * log(pTrans[i][j]);
-        }
-    }
-
-    MrBayesPrint("Pairwise Log-Likelihood: %f", ll);
-    return(NO_ERROR);
-
-}
-
-
-int DoTripletLogLike(void) {
-
-    if (defMatrix == NO)
-    {
-        MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
-        return (ERROR);
-    }
-
-    if (defFreqs==NO) 
-    {
-        CountFreqs();
-    }
-
-    if (defTriples==NO)
-    {
-        CountTriples();
-    }
-
-    // temp: just set distance alpha:
-    double bl=0.1;
-    double al=0.5;
-   
-    MrBFlt dg4[4];
-    DiscreteGamma(dg4,al,al,4,1);
-
-    MrBFlt pii[4];
-    MrBFlt pij[4];
-
-    for (int i=0; i<4; i++) {
-        MrBFlt etr = exp(-(4.0/3) * bl * dg4[i]);
-        pii[i]=(1.0/4) + (3.0/4) * etr;
-        pij[i]=(1.0/4) - (1.0/4) * etr;
-    }
-
-    MrBFlt tripleProbs[64], transitionProbs[64];
-
-    int i,j,k, ri;
-
-    // set up array of transition probabilities
-    for (i=0;i<4;i++) {
-            for (j=0;j<4;j++) {
-                    for (int ri=0;ri<4;ri++) {
-                            if (i==j) {
-                                transitionProbs[triplePos(i,j,ri)]=pii[ri];
-                            } else {
-                                transitionProbs[triplePos(i,j,ri)]=pij[ri];
-                            }
-                    }
-            }
-    }
-
-    MrBFlt probsByRateCat[4];
-    MrBFlt ll=0.0;
-
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 4; j++) {
-            for (k = 0; k < 4; k++) {
-                // no need to calculate probs for not present in data
-                if (tripleCounts[triplePos(i,j,k)] == 0) continue;  
-
-                // ensure triple site pattern prob is init to 0:
-                tripleProbs[triplePos(i,j,k)] = 0.0;
-
-                // calculate the site pattern probability for each 
-                //   dg4 rate category
-                for (ri=0; ri<4; ri++) {
-
-                    // reset helper rate cat array at current index
-                    probsByRateCat[ri]=0.0;
-
-                    // sum over the 4 possible internal nucleotides, 
-                    // given rate cat ri:   
-                    for (int nucx=0; nucx<4; nucx++) {
-                            probsByRateCat[ri]+=
-                                        nucFreqs[nucx]
-                                        *transitionProbs[triplePos(nucx,i,ri)]
-                                        *transitionProbs[triplePos(nucx,j,ri)]
-                                        *transitionProbs[triplePos(nucx,k,ri)];
-                    }
-
-                    // calculate triple probability by summing over 
-                    //   conditional probs given rate categories 
-                    tripleProbs[triplePos(i,j,k)]+=0.25*probsByRateCat[ri];
-                }
-
-                ll += tripleCounts[triplePos(i,j,k)] * log(tripleProbs[triplePos(i,j,k)]);
-            }
-        }
-    }
-
-    MrBayesPrint("Triplet Quasi Log-Likelihood for Data: %f", ll);
-    return(NO_ERROR);
-
-}
-
 
 
 int DoShowMatrix (void)
@@ -15151,7 +14829,13 @@ void SetUpParms (void)
     PARAM (280, "Statefreqmodel", DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
     PARAM (281, "Rootfreqpr",     DoPrsetParm,       "Dirichlet|Fixed|\0"); //SK
     PARAM (282, "Statefrmod",     DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
-    PARAM (283, "Methylrevmatpr",   DoPrsetParm,      "Dirichlet|Fixed|\0"); //SK
+    PARAM (283, "Methylrevmatpr",   DoPrsetParm,     "Dirichlet|Fixed|\0"); //SK
+    PARAM (284, "Dist",           DoPwSetParm,       "\0"); //SK
+    PARAM (285, "Alpha",          DoPwSetParm,       "\0"); //SK
+    PARAM (286, "Relrates",       DoPwSetParm,       "\0"); //SK
+
+
+
 
 
     /* NOTE: If a change is made to the parameter table, make certain you change

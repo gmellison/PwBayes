@@ -21,31 +21,19 @@
  * @created     : Thursday Nov 16, 2023 13:00:26 EST
  */
 
-#ifndef PAIRWISE_H
+#ifndef __PAIRWISE_H__
+#define __PAIRWISE_H__
 
-#define PAIRWISE_H
-
-#include "bayes.h"
-#include "command.h"
-#include "mbbeagle.h"
-#include "model.h"
-#include "mcmc.h"
-#include "sumpt.h"
-#include "utils.h"
-
-MrBFlt nucFreqs[4];
-int doubletCounts[4][4] = {{0}};
-MrBFlt doubletFreqs[4][4] = {{0.0}};
-int tripleCounts[64] = {0};
-
-int defFreqs=NO;
-int defDoublets=NO;
-int defTriples=NO;
-
-void CountFreqs();
-void CountDoublets();
-void CountTriples();
+void CountFreqs(void);
+void CountDoublets(void);
+void CountTriples(void);
 int  triplePos(int i, int j, int k);
+
+int DoEstQPairwise(void);
+int DoPairwiseLogLike(void);
+int DoTripletLogLike(void);
+
+int DoPwSetParm(char *parmName, char *tkn); // param set -- see param list at end of command.c
 
 #endif /* end of include guard PAIRWISE_H */
 
