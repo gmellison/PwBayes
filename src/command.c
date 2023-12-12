@@ -7213,6 +7213,9 @@ int DoShowUserTrees (void)
             MrBayesPrint ("\n   Tree #%d -- '%s':\n\n", i+1, userTree[i]->name);
             ShowConTree (stdout, userTree[i], 70, NO);
             MrBayesPrint ("\n");
+            PrintPolyNodes(userTree[i]);
+            ShowPolyNodes(userTree[i]);
+            PrintPairwiseDists(userTree[i]);
             }
         }
 
