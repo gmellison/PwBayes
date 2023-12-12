@@ -111,7 +111,6 @@ MrBFlt  LBinormal (MrBFlt h1, MrBFlt h2, MrBFlt r);
 int     LogBase2Plus1 (MrBFlt x);
 void    LUBackSubstitution (int dim, MrBFlt **a, int *indx, MrBFlt *b);
 int     LUDecompose (int dim, MrBFlt **a, MrBFlt *vv, int *indx, MrBFlt *pd);
-void    MultiplyMatrixByScalar (int dim, MrBFlt **a, MrBFlt scalar, MrBFlt **result);
 MrBFlt  PointChi2 (MrBFlt prob, MrBFlt v);
 void    PrintComplexVector (int dim, MrBComplex *vec);
 void    PrintSquareComplexMatrix (int dim, MrBComplex **m);
@@ -130,7 +129,7 @@ void    TiProbsUsingPadeApprox (int dim, MrBFlt **qMat, MrBFlt v, MrBFlt r, MrBF
 MrBFlt  QuantileLogNormal (MrBFlt prob, MrBFlt mu, MrBFlt sigma);
 int     DiscreteLogNormal (MrBFlt *rK, MrBFlt sigma, int K, int median);
 MrBFlt  LogNormalPoint (MrBFlt x, MrBFlt mu, MrBFlt sigma);
-
+
 #if defined (BEAGLE_V3_ENABLED)
 int     Height(TreeNode *p);
 void    ReverseLevelOrder(Tree *t, TreeNode *p, int *i);
@@ -5484,7 +5483,6 @@ void PrintNodes (Tree *t)
         }
     printf ("\n");
 }
-
 
 /* PrintPolyNodes: Print a list of polytomous tree nodes, pointers and length */
 void PrintPolyNodes (PolyTree *pt)

@@ -15,12 +15,14 @@ mb_SOURCES=	\
 	mcmc.h \
 	model.c \
 	model.h \
+	pairwise.c \
+	pairwise.h \
 	proposal.c \
 	proposal.h \
 	sumpt.c \
 	sumpt.h \
 	utils.c \
-	utils.h
+	utils.h 
 
 mb_CFLAGS=	$(SIMD_FLAGS) $(CPUEXT_FLAGS)
 

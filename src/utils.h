@@ -276,6 +276,7 @@ MrBFlt    MaximumValue (MrBFlt x, MrBFlt y);
 MrBFlt    MinimumValue (MrBFlt x, MrBFlt y);
 void      MultiplyMatrices (int dim, MrBFlt **a, MrBFlt **b, MrBFlt **result);
 int       MultiplyMatrixNTimes (int dim, MrBFlt **Mat, int power, MrBFlt **Result);
+void      MultiplyMatrixByScalar (int dim, MrBFlt **a, MrBFlt scalar, MrBFlt **result);
 MrBFlt    PointNormal (MrBFlt prob);
 MrBFlt    PsiGammaLnProb (MrBFlt alpha, MrBFlt value);
 MrBFlt    PsiGammaLnRatio (MrBFlt alpha, MrBFlt numerator, MrBFlt denominator);

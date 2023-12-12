@@ -245,6 +245,7 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define STANDARD                5
 #define MIXED                   6
 #define CONTINUOUS              7
+#define METHYL                  8
 
 #define AAMODEL_POISSON         0
 #define AAMODEL_JONES           1
@@ -264,6 +265,8 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define NUCMODEL_DOUBLET        1
 #define NUCMODEL_CODON          2
 #define NUCMODEL_AA             3
+#define NUCMODEL_METHYL         4
+#define NUCMODEL_DIMETHYL       5
 
 #define NST_MIXED              -1  /* anything other than 1, 2, or 6 */
 
@@ -1035,6 +1038,11 @@ typedef struct model
     char        aaRevMatPr[100];   /* prior for aa GTR model                       */
     MrBFlt      aaRevMatFix[190];
     MrBFlt      aaRevMatDir[190];
+
+    char        methylRevMatPr[100];
+    MrBFlt      methylRevMatFix[3];
+    MrBFlt      methylRevMatDir[190];
+
     char        omegaPr[100];      /* prior for omega                              */
     MrBFlt      omegaFix;
     MrBFlt      omegaDir[2];
