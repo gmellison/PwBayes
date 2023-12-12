@@ -34,6 +34,7 @@ int DoPairwiseLogLike(void);
 int DoTripletLogLike(void);
 
 int DoPwSetParm(char *parmName, char *tkn); // param set -- see param list at end of command.c
+void PrintPairwiseDists(PolyTree *t);
 
 #endif /* end of include guard PAIRWISE_H */
 

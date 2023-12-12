@@ -629,4 +629,50 @@ int DoPwSetParm (char *parmName, char *tkn)
 }
 
 
+/* PrintNodes: Print a list of tree nodes, pointers and length */
+void PrintPairwiseDists (PolyTree *t)
+{
+    int         i,j,a,d,k;
+    PolyNode    *p,*e1,*e2;
+    double      x;
+
+    /* printf ("tip1\ttip2\tdist\n"); */
+
+    MrBFlt **dists = AllocateSquareDoubleMatrix(t->nNodes);
+
+    for (i=0; i<t->nNodes; i++) 
+        for (j=0; j<t->nNodes; j++)
+                dists[i][j]=0.0;
+
+    for (i=1; i<t->nNodes; i++)
+        {
+        p = &t->nodes[i];
+        a = p->anc->index;   
+        d = p->index;
+        x = p->length;
+
+        dists[a][d] = dists[a][d] += x;
+        
+        for (j=i-1; j>=0; j--)
+            {
+                k=(&t->nodes[j])->index;
+                if (k==a) continue;
+                dists[d][k] = dists[k][d] += x;
+            }
+        }
+
+    for (i=1; i<t->nNodes-1; i++)
+        {
+        for (j=0; j<i; j++)
+            {
+            printf ("%d\t%d\t%f\n",
+            i,j,
+            dists[i][j]);
+            }
+        }
+
+    FreeSquareDoubleMatrix(dists);
+    printf ("\n");
+}
+
 
