@@ -19,5 +19,6 @@ begin trees;
 end;
 
 begin mrbayes;
-    showusertrees;
+    estqpairwise;
+    pairwiseloglike alpha=0.5 relrates=(0.1,0.1,0.1,0.1,0.1,0.1);
 end;
