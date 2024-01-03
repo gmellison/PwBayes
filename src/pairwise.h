@@ -24,8 +24,20 @@
 #ifndef __PAIRWISE_H__
 #define __PAIRWISE_H__
 
+#include "bayes.h"
+
+typedef struct pairwisedists 
+    {
+    PolyTree   *tree;
+    MrBFlt     *dists;
+/* int        *doubletCounts;   */   
+    int        *clusters;
+    int        nTaxa;
+    int        nPairs;
+    } PairwiseDists;
+
 void CountFreqs(void);
-void CountDoublets(void);
+int  CountDoublets(int nPairs);
 void CountTriples(void);
 int  triplePos(int i, int j, int k);
 
@@ -34,7 +46,7 @@ int DoPairwiseLogLike(void);
 int DoTripletLogLike(void);
 
 int DoPwSetParm(char *parmName, char *tkn); // param set -- see param list at end of command.c
-void PrintPairwiseDists(PolyTree *t);
+void PrintPairwiseDists(PairwiseDists *pd);
 
 #endif /* end of include guard PAIRWISE_H */
 
