@@ -37,10 +37,10 @@ MrBFlt nucFreqs[4];
 int    *doubletCounts;
 int    **tripletCounts;
 MrBFlt doubletFreqs[4][4];
-int    tripleCounts[64];
+/* int    tripleCounts[64]; */ 
 MrBFlt relRates[6];
 int    tempNumStates;
-
+int    numTriples;
 int I=4;
 int J=4;
 
@@ -63,7 +63,8 @@ int              SetPairwiseDists(PolyTree *t, PairwiseDists *pd);
 int              pairIdx(int i, int j, int n);
 int              tripletIdx(int i, int j, int k, int n);
 MrBFlt           CalcTripletLogLike_JC(PairwiseDists *pd);
-
+int              FreeDists(MrBFlt* dists);
+int              FreePairwiseDists(PairwiseDists* pd);
 
 #define  dIdx( i,j, dim_j ) i*dim_j + j
 #define  tIdx( k, i, j, dim_i, dim_j ) k*dim_i*dim_j + i*dim_j + j
@@ -101,6 +102,13 @@ int tripletIdx(int i, int j, int k, int n) {
         j = l;
     } 
 
+    /*  if i > k, swap i,k so i is for sure the minimum */
+    if (i > k) {
+        l = i;
+        i = k;
+        k = l;
+    } 
+
     /*  now if j > k, swap j,k */
     if (j > k) {
         l = j;
@@ -108,7 +116,7 @@ int tripletIdx(int i, int j, int k, int n) {
         k = l;
     } 
 
-    return(n*(n-1)*(n-2)/6 - (n-i+1)*(n-i)*(n-i-1)/6 - (n-j+1)*(n-j)/2 - (n-k+1)) ;
+    return(n*(n-1)*(n-2)/6 - (n-i-1)*(n-i-2)*(n-i-3)/6 - (n-j-1)*(n-j-2)/2 - (n-k-1) - 1) ;
 }
 
 
@@ -357,11 +365,12 @@ int DoPairwiseLogLike(void) {
         pd=InitPairwiseDists(userTree[l]);
         int K=pd->nPairs, J=4;
 
-        ll=PairwiseLogLikeFull(pd);
+        ll=PairwiseLogLike_Full(pd);
+        MrBayesPrint("Pairwise Log-Likelihood: %f \n", ll);
+        FreePairwiseDists(pd);
     }
 
 
-    MrBayesPrint("Pairwise Log-Likelihood: %f \n", ll);
     return(NO_ERROR);
 
 }
@@ -386,6 +395,13 @@ PairwiseDists* InitPairwiseDists(PolyTree *t)
 }
 
 
+int FreePairwiseDists(PairwiseDists* pd) 
+{
+    FreeDists(pd->dists);
+    free(pd);
+    return(NO_ERROR);
+}
+
 int SetPairwiseDists(PolyTree *t, PairwiseDists *pd)
 {
     int         i,j,a,d,k;
@@ -395,7 +411,10 @@ int SetPairwiseDists(PolyTree *t, PairwiseDists *pd)
     int numExtNodes = t->nNodes - t->nIntNodes;
 
     /*  We'll calculate (in distsTemp) all node dists including internal nodes  */
-    MrBFlt **distsTemp=AllocateSquareDoubleMatrix(t->nNodes); 
+    MrBFlt **distsTemp;
+    distsTemp=(MrBFlt**)malloc(t->nNodes*sizeof(MrBFlt*)); 
+    for (k=0;k<t->nNodes;k++)
+            distsTemp[k]=(MrBFlt*)malloc(t->nNodes*sizeof(MrBFlt));
 
     /*  make sure dists are init to 0  */
     for (i=0; i<t->nNodes; i++) 
@@ -410,27 +429,48 @@ int SetPairwiseDists(PolyTree *t, PairwiseDists *pd)
         d = p->index;
         x = p->length;
 
-        distsTemp[a][d] = distsTemp[a][d] += x;
-        
-        /* now revisit previous nodes, updating distances  */ 
+        /*  start with distance from node to ancestor  */
+        distsTemp[d][a] = x;
+        distsTemp[a][d] = x;
+
+        /* now revisit previously visited nodes, updating distances  */ 
         for (j=i-1; j>=0; j--)
             {
                 k=(&t->nodes[j])->index;
-                if (k==a) continue;
-                distsTemp[d][k] = distsTemp[k][d] += x;
+                if (k==a) 
+                { 
+                    continue;
+                }
+
+                /*  dist from current node to prior node =  
+                 *      dist from anc to prior node + dist from anc to current node  */
+                distsTemp[d][k] = distsTemp[a][k] + x;
+                distsTemp[k][d] = distsTemp[k][a] + x;
+
             }
         }
+
+    for (i=0; i<t->nNodes; i++) 
+        {
+        for (j=0; j<t->nNodes; j++) 
+            {
+            MrBayesPrint("Dist %d, %d, %f \n ", i,j,distsTemp[i][j]);
+            }
+        }
+
 
     /*  set the distances in the output array */
     for (i=0; i<(numExtNodes-1); i++) {
         for (j=i+1; j<numExtNodes; j++) {
             pd->dists[pairIdx(i,j,pd->nTaxa)]=distsTemp[i][j];
         }
-
     }
 
     /*  free temp array and return pointer to taxa pairwise distances */
-    FreeSquareDoubleMatrix(distsTemp);
+    for (k=0;k<t->nNodes;k++)
+        free(distsTemp[k]);
+    free(distsTemp);
+
     return(NO_ERROR);
 }
 
@@ -541,16 +581,19 @@ void CountTriples(void) {
     int i,j,k;
     int seqIdx, spIdx;
 
-    int numTriples = numTaxa * (numTaxa-1) * (numTaxa-2) / 6;
-    *tripletCounts =  malloc( numTriples * sizeof(int*) );
+    numTriples = numTaxa * (numTaxa-1) * (numTaxa-2) / 6;
+
+    tripletCounts = (int**)malloc(numTriples * sizeof(int*));
     for (i=0; i<numTriples; i++)
         tripletCounts[i] = malloc( 64 * sizeof(int));
 
     // initialize triplet counts to 0
-    for (seqi=0; seqi<4; seqi++) {
-        for (seqj=0; seqj<4; seqj++) {
-            for (seqk=0;seqk<4;seqk++) {
+    for (seqi=0; seqi<(numTaxa-2); seqi++) {
+        for (seqj=(seqi+1); seqj<(numTaxa-1); seqj++) {
+            for (seqk=(seqj+1);seqk<(numTaxa);seqk++) {
+
                 seqIdx=tripletIdx(seqi,seqj,seqk,numTaxa);
+                MrBayesPrint("triplet index: %d \n", seqIdx);
 
                 for (i=0; i<4; i++) {
                     for (j=0; j<4; j++) {
@@ -910,6 +953,12 @@ MrBFlt* AllocateDists(int nDists) {
     return (dists);
 }
 
+int FreeDists(MrBFlt* dists) {
+
+    free(dists);
+    return (NO_ERROR);
+}
+
 int*** AllocateDoubletCounts(int nPairs) {
 
     int i;
@@ -937,6 +986,12 @@ int DoTripletLogLike(void) {
         return (ERROR);
     }
 
+    if (numUserTrees == 0)
+    {
+        MrBayesPrint ("%s   No user trees defined. \n", spacer);
+        return (ERROR);
+    }
+
     if (defFreqs==NO) 
     {
         CountFreqs();
@@ -947,8 +1002,18 @@ int DoTripletLogLike(void) {
         CountTriples();
     }
 
+    PairwiseDists* pd;
+    int ti;
+    MrBFlt ll=0.0;
 
-    MrBayesPrint("Triplet Quasi Log-Likelihood for Data: %f", ll);
+    for (ti=0; ti<numUserTrees; ti++) {
+        pd=InitPairwiseDists(userTree[ti]);
+
+        ll = CalcTripletLogLike_JC(pd);
+        MrBayesPrint("Triplet Quasi Log-Likelihood for Tree %d: %f", ti, ll);
+        FreePairwiseDists(pd);
+    }
+
     return(NO_ERROR);
 
 }
@@ -977,83 +1042,131 @@ void PrintPairwiseDists (PairwiseDists *pd)
 MrBFlt CalcTripletLogLike_JC(PairwiseDists *pd) {
 
     double al=0.5;
-   
+    int i,j,k,ri;
+    int seq1, seq2, seq3;
+    int pairidx, tripidx, nucidx;
+     
+
     MrBFlt dg4[4];
     DiscreteGamma(dg4,al,al,4,1);
 
-    MrBFlt pii[4];
-    MrBFlt pij[4];
+    MrBFlt pii[3][4];
+    MrBFlt pij[3][4];
 
-    for (int i=0; i<4; i++) {
-        MrBFlt etr = exp(-(4.0/3) * bl * dg4[i]);
-        pii[i]=(1.0/4) + (3.0/4) * etr;
-        pij[i]=(1.0/4) - (1.0/4) * etr;
-    }
+    MrBFlt tripleProbs[64];
+    MrBFlt transitionProbs[3][64];
 
-    MrBFlt tripleProbs[64], transitionProbs[64];
-
-    int i,j,k, ri;
-
-    // set up array of transition probabilities
-    for (i=0;i<4;i++) {
-            for (j=0;j<4;j++) {
-                    for (int ri=0;ri<4;ri++) {
-                            if (i==j) {
-                                transitionProbs[triplePos(i,j,ri)]=pii[ri];
-                            } else {
-                                transitionProbs[triplePos(i,j,ri)]=pij[ri];
-                            }
-                    }
-            }
-    }
-
-    MrBFlt probsByRateCat[4];
+    MrBFlt pwdist[3];
+    MrBFlt cndist[3];
+ 
+    MrBFlt probByRateCat[4];
     MrBFlt ll=0.0;
+ 
+    /* 
+     * loop over alignment sequence triples 
+     */ 
+    for (seq1=0; seq1<(pd->nTaxa-2); seq1++) {
+        for (seq2=seq1+1; seq2<(pd->nTaxa-1); seq2++) {
+            for (seq3=seq2+1; seq3<pd->nTaxa; seq3++) {
 
-    for (i = 0; i < 4; i++) {
-        for (j = 0; j < 4; j++) {
-            for (k = 0; k < 4; k++) {
-                // no need to calculate probs for not present in data
-                if (tripleCounts[triplePos(i,j,k)] == 0) continue;  
+                tripidx = tripletIdx(seq1,seq2,seq3,pd->nTaxa);
 
-                // ensure triple site pattern prob is init to 0:
-                tripleProbs[triplePos(i,j,k)] = 0.0;
+                /*
+                 * get the distances between triple taxa (pw and cn)
+                 */
+                pwdist[0]=pd->dists[pairIdx(seq1,seq2,pd->nTaxa)];
+                pwdist[1]=pd->dists[pairIdx(seq1,seq3,pd->nTaxa)];
+                pwdist[2]=pd->dists[pairIdx(seq2,seq3,pd->nTaxa)];
+                MrBayesPrint("Triple Dists: %f, %f, %f \n", pwdist[0], pwdist[1], pwdist[2]);
 
-                // calculate the site pattern probability for each 
-                //   dg4 rate category
+                cndist[0] = (pwdist[0] + pwdist[1] - pwdist[2])/2.0;
+                cndist[1] = (pwdist[0] + pwdist[2] - pwdist[1])/2.0;
+                cndist[2] = (pwdist[1] + pwdist[2] - pwdist[0])/2.0;
+                MrBayesPrint("Centernode Dists: %f, %f, %f \n", cndist[0], cndist[1], cndist[2]);
+
+                /*  
+                 *  calc JC transition probs for each centernode dist
+                 */
                 for (ri=0; ri<4; ri++) {
+                    for (pairidx=0; pairidx<3; pairidx++) {
+                        MrBFlt etr = exp(-(4.0/3) * cndist[pairidx] * dg4[ri]);
+                        pii[pairidx][ri]=(1.0/4) + (3.0/4) * etr;
+                        pij[pairidx][ri]=(1.0/4) - (1.0/4) * etr;
 
-                    // reset helper rate cat array at current index
-                    probsByRateCat[ri]=0.0;
+                        /*
+                        MrBayesPrint("  Pij[%d][%d]: %f", pairidx, ri, pij[pairidx][ri]);
+                        MrBayesPrint("  Pii[%d][%d]: %f", pairidx, ri, pii[pairidx][ri]);
+                         */
 
-                    // sum over the 4 possible internal nucleotides, 
-                    // given rate cat ri:   
-                    for (int nucx=0; nucx<4; nucx++) {
-                            probsByRateCat[ri]+=
-                                        nucFreqs[nucx]
-                                        *transitionProbs[triplePos(nucx,i,ri)]
-                                        *transitionProbs[triplePos(nucx,j,ri)]
-                                        *transitionProbs[triplePos(nucx,k,ri)];
+                        // set up array of nucleotide transition probabilities                                
+                        for (i=0;i<4;i++) {
+                            for (j=0;j<4;j++) {
+                                if (i==j) {
+                                    transitionProbs[pairidx][tIdx(i,j,ri,4,4)]=pii[pairidx][ri];
+                                } else {
+                                    transitionProbs[pairidx][tIdx(i,j,ri,4,4)]=pij[pairidx][ri];
+                                }
+                            }
+                        }
                     }
-
-                    // calculate triple probability by summing over 
-                    //   conditional probs given rate categories 
-                    tripleProbs[triplePos(i,j,k)]+=0.25*probsByRateCat[ri];
                 }
 
-                ll += tripleCounts[triplePos(i,j,k)] * log(tripleProbs[triplePos(i,j,k)]);
+                /*  
+                *  calc JC transition probs for each centernode dist
+                */
+                for (i=0; i<4; i++) {
+                    for (j=0; j<4; j++) {
+                        for (k=0; k<4; k++) {
+
+                            nucidx = tIdx(i,j,k,4,4);
+
+                            // no need to calculate probs for not present in data
+                            if (tripletCounts[tripidx][nucidx] == 0) continue;  
+
+                            // ensure triple site pattern prob is init to 0:
+                            tripleProbs[nucidx] = 0.0;
+
+                            // calculate the site pattern probability for each 
+                            //   dg4 rate category
+                            for (ri=0; ri<4; ri++) {
+
+                                // reset helper rate cat array at current index
+                                probByRateCat[ri]=0.0;
+
+                                // sum over the 4 possible internal nucleotides, 
+                                // given rate cat ri:   
+                                for (int nucx=0; nucx<4; nucx++) {
+                                        probByRateCat[ri]+=
+                                                    nucFreqs[nucx]
+                                                    *transitionProbs[0][tIdx(nucx,i,ri,4,4)]
+                                                    *transitionProbs[1][tIdx(nucx,j,ri,4,4)]
+                                                    *transitionProbs[2][tIdx(nucx,k,ri,4,4)];
+                                }
+
+                                // calculate triple probability by summing over 
+                                //   conditional probs given rate categories 
+                                tripleProbs[nucidx]+=0.25*probByRateCat[ri];
+                            }
+
+                            ll += tripletCounts[tripidx][nucidx] * log(tripleProbs[nucidx]);
+                        }
+                    }
+                }
             }
         }
     }
+    return(ll);
 }
 
-
+  
 MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
 
 
     MrBFlt tripleProbs[64], transitionProbs[64];
 
     int i,j,k, ri;
+    int ti;
+    int spIdx;
 
     MrBFlt dist;
 
@@ -1069,18 +1182,18 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
     for (k=0;k<pd->nPairs;k++) 
         dist += (pd->dists)[k];
 
-    dist = dist/(1.0*pd->nPairs);
+    dist = dist/(2.0*pd->nPairs);
 
 
-    /*  pool doublet counts:  */
-    int **doubletCountsPooled;
-    doubletCountsPooled = AllocateSquareIntegerMatrix(4);
+    /*  pool triplet counts:  */
+    int tripletCountsPooled[64];
 
-    for (k=0; k<pd->nPairs; k++) {
+    for (ti=0; ti<pd->nPairs; ti++)
         for (i=0; i<4; i++) 
             for (j=0; j<4; j++) 
-                doubletCountsPooled[i][j] += doubletCounts[tIdx(k,i,j,I,J)];
-    }
+                for (k=0;k<4;k++) 
+                    tripletCountsPooled[tIdx(i,j,k,4,4)] += tripletCounts[ti][tIdx(i,j,k,4,4)];
+    
  
     for (int i=0; i<4; i++) {
         MrBFlt etr = exp(-(4.0/3) * dist* dg4[i]);
@@ -1107,11 +1220,14 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
     for (i = 0; i < 4; i++) {
         for (j = 0; j < 4; j++) {
             for (k = 0; k < 4; k++) {
+
+                spIdx=tIdx(i,j,k,4,4);
+
                 // no need to calculate probs for not present in data
-                if (tripleCounts[triplePos(i,j,k)] == 0) continue;  
+                if (tripletCounts[spIdx] == 0) continue;  
 
                 // ensure triple site pattern prob is init to 0:
-                tripleProbs[triplePos(i,j,k)] = 0.0;
+                tripleProbs[spIdx] = 0.0;
 
                 // calculate the site pattern probability for each 
                 //   dg4 rate category
@@ -1132,10 +1248,10 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
 
                     // calculate triple probability by summing over 
                     //   conditional probs given rate categories 
-                    tripleProbs[triplePos(i,j,k)]+=0.25*probsByRateCat[ri];
+                    tripleProbs[spIdx]+=0.25*probsByRateCat[ri];
                 }
 
-                ll += tripleCounts[triplePos(i,j,k)] * log(tripleProbs[triplePos(i,j,k)]);
+                ll += tripletCountsPooled[spIdx] * log(tripleProbs[spIdx]);
             }
         }
     }

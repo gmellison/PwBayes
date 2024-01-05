@@ -7215,7 +7215,6 @@ int DoShowUserTrees (void)
             MrBayesPrint ("\n");
             PrintPolyNodes(userTree[i]);
             ShowPolyNodes(userTree[i]);
-            PrintPairwiseDists(userTree[i]);
             }
         }
 
