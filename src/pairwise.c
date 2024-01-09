@@ -120,6 +120,180 @@ int tripletIdx(int i, int j, int k, int n) {
 }
 
 
+/*  
+ *
+ *
+ *
+ */
+
+int DoEstQPairwise(void) {
+
+    MrBayesPrint("%s Running 'Estqpairwise' command \n", spacer);
+
+    if (defMatrix == NO)
+    {
+        MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
+        return (ERROR);
+    }
+           
+    if (defFreqs == NO) 
+    {
+        MrBayesPrint("%s Getting Nucleotide Frequences \n", spacer);
+        CountFreqs(); // sets nucleotide frequencies in global object 'nucFreqs'
+    }
+
+    if (defDoublets == NO) 
+    {
+        MrBayesPrint("%s Getting Doublet Counts \n", spacer);
+        CountDoublets(numTaxa);
+    }
+
+    MrBayesPrint("%s Estimating Q Pairwise  \n", spacer);
+
+    int i,j,k;
+    int t1, t2;
+    int r1, r2, ridx;
+    MrBFlt tau;
+    MrBFlt *ratesEst;
+
+    MrBFlt **V;
+    MrBFlt **Vinv;      
+    MrBFlt **LaLog;     
+                       
+    MrBComplex **Vc;    
+    MrBComplex **Vcinv; 
+    MrBFlt la[4]; 
+    MrBFlt laC[4];
+                       
+    MrBFlt **F;            
+    MrBFlt **Q;            
+    MrBFlt **Temp;         
+
+    int numPairs = numTaxa*(numTaxa-1)/2;
+    ratesEst = malloc(6*numPairs*sizeof(MrBFlt));
+
+    for (t1=0; t1<(numTaxa-1); t1++) {
+        for (t2=t1+1; t2<numTaxa; t2++) {
+ 
+            // use mb machinery to compute eigens
+            // set up matrices 
+            V     = AllocateSquareDoubleMatrix(4);
+            Vinv  = AllocateSquareDoubleMatrix(4);
+            LaLog = AllocateSquareDoubleMatrix(4);
+
+            Vc    = AllocateSquareComplexMatrix(4); 
+            Vcinv = AllocateSquareComplexMatrix(4);
+
+            F = AllocateSquareDoubleMatrix(4);
+            Q = AllocateSquareDoubleMatrix(4);
+            Temp = AllocateSquareDoubleMatrix(4);
+       
+            tau=0.0;
+
+            k = pairIdx(t1,t2,numTaxa);
+
+            // set up matrix of empirical transitions 
+            //   probabilities, 'Q' (will be modified in place)  
+            for (i=0;i<4;i++) {
+                for (j=0;j<4;j++){
+                    F[i][j] = 1.0 * doubletCounts[tIdx(k,i,j,I,J)] / (2*numChar*nucFreqs[j]);
+                }
+            }
+
+            // Symmetrize F:
+            for (i=0;i<4;i++) {
+                for (j=i;j<4;j++){
+                    F[i][j] = (F[i][j]+F[j][i])/2.0;
+                    if (i != j)
+                            F[j][i] = F[i][j];
+                }
+            }
+
+
+            int isComplex=GetEigens(4,F,la,laC,V,Vinv,Vc,Vcinv);
+            (void)isComplex;
+            
+            // diagonal matrix of log^{lambda_i}, lambdas are eigvals of Q
+            for (i=0;i<4;i++) {
+                LaLog[i][i] = log(la[i]);
+                for (j=0;j<i;j++) {
+                    LaLog[i][j]=0.0;
+                    LaLog[j][i]=0.0;
+                }
+            }
+        
+            // calculate the matrix log: log(e^Qt) = V log[La] V^-1) 
+            MultiplyMatrices(4,V,LaLog,Temp); 
+            MultiplyMatrices(4,Temp,Vinv,Q); // Q is ptr to resulting matrix
+       
+            // set diagonal so rowsums are 0, mult by inverse Dpi mat:
+            double rowsum;
+            for (i=0;i<4;i++) {
+                rowsum=0.0;
+                for (j=0;j<4;j++) {
+                    if (j!=i) rowsum+=Q[i][j];
+                }
+                Q[i][i]=-1*rowsum;
+            }
+        
+            for (i=0;i<4;i++)
+                tau += -1.0 * Q[i][i] * nucFreqs[i];
+        
+            MultiplyMatrixByScalar(4, Q, 1.0/tau, Q);
+        
+            MrBayesPrint("%s Tau Hat (%d,%d): %f \n", spacer, t1,t2, tau);
+        
+            // get the individual rates: 
+            for (r1=1; r1<4; r1++) {
+                for (r2=0; r2<r1; r2++) {
+                    ridx = pairIdx(r1,r2,4);
+                    ratesEst[dIdx(k,ridx,6)] = Q[r1][r2];
+                }
+            }
+
+            MrBayesPrint("%s Estimated Relative Rates (pair %d): ", spacer, k);
+            for (i=0;i<6;i++)
+                MrBayesPrint(" %f", ratesEst[dIdx(k,i,6)]);
+            MrBayesPrint("\n");
+
+            // free all matrices 
+            FreeSquareDoubleMatrix(V);
+            FreeSquareDoubleMatrix(Vinv);
+            FreeSquareDoubleMatrix(Q);
+            FreeSquareComplexMatrix(Vc);
+            FreeSquareComplexMatrix(Vcinv);
+            FreeSquareDoubleMatrix(Temp);
+            FreeSquareDoubleMatrix(F);
+        }
+    }
+
+
+    /*  average the rates across pairs */
+    MrBFlt r6;
+    MrBFlt ratesOut[6] = {0.0}; 
+
+    
+    /*  Normalize the rates:  */
+    for (k=0; k<numPairs; k++) {
+
+        r6=ratesEst[dIdx(k,5,6)];
+        for (i=0;i<6;i++) {
+            ratesEst[dIdx(k,i,6)]/=r6;
+            ratesOut[i]+=ratesEst[dIdx(k,i,6)]/(1.0*numPairs);
+        }
+    }
+
+    MrBayesPrint("%s Estimated Relative Rates (Averaged): ", spacer);
+    for (i=0;i<6;i++)
+        MrBayesPrint(" %f", ratesOut[i]);
+    MrBayesPrint("\n");
+
+
+    free(ratesEst);
+
+    return(NO_ERROR);
+}
+
 double PairwiseLogLike_Reduced(PairwiseDists *pd) {
 
     int i,j,k;
@@ -635,152 +809,6 @@ void CountTriples(void) {
     }
     defTriples=YES;
 }
-
-int DoEstQPairwise(void) {
-
-    MrBayesPrint("%s Running 'Estqpairwise' command \n", spacer);
-
-    if (defMatrix == NO)
-    {
-        MrBayesPrint ("%s   A character matrix must be defined first\n", spacer);
-        return (ERROR);
-    }
-           
-    if (defFreqs == NO) 
-    {
-        MrBayesPrint("%s Getting Nucleotide Frequences \n", spacer);
-        CountFreqs(); // sets nucleotide frequencies in global object 'nucFreqs'
-    }
-
-    if (defDoublets == NO) 
-    {
-        MrBayesPrint("%s Getting Doublet Counts \n", spacer);
-        CountDoublets(numTaxa);
-    }
-
-    MrBayesPrint("%s Estimating Q Pairwise  \n", spacer);
-
-    int i,j,k;
-    int t1, t2;
-    int r1, r2, ridx;
-    MrBFlt nu=0.0;
-    MrBFlt *ratesEst;
-
-    // 
-    int numPairs = numTaxa*(numTaxa-1)/2;
-    ratesEst = malloc(6*numPairs*sizeof(MrBFlt));
-
-    // use mb machinery to compute eigens
-    // set up matrices 
-    MrBFlt **V         = AllocateSquareDoubleMatrix(4);
-    MrBFlt **Vinv      = AllocateSquareDoubleMatrix(4);
-    MrBFlt **LaLog     = AllocateSquareDoubleMatrix(4);
-
-    MrBComplex **Vc    = AllocateSquareComplexMatrix(4); 
-    MrBComplex **Vcinv = AllocateSquareComplexMatrix(4);
-    MrBFlt la[4]; 
-    MrBFlt laC[4];
-
-    MrBFlt **F         = AllocateSquareDoubleMatrix(4);
-    MrBFlt **Q         = AllocateSquareDoubleMatrix(4);
-    MrBFlt **Temp      = AllocateSquareDoubleMatrix(4);
-
-    for (t1=1; t1<numTaxa; t1++) {
-        for (t2=0; t2<t1; t2++) {
-
-            k = pairIdx(t1,t2,numTaxa);
-
-            // set up matrix of empirical transitions 
-            //   probabilities, 'Q' (will be modified in place)  
-            for (i=0;i<4;i++) {
-                for (j=0;j<4;j++){
-                    F[i][j] = 1.0 * doubletCounts[tIdx(k,i,j,I,J)] / nucFreqs[j];
-                }
-            }
-        
-            int isComplex=GetEigens(4,F,la,laC,V,Vinv,Vc,Vcinv);
-            (void)isComplex;
-            
-            // diagonal matrix of log^{lambda_i}, lambdas are eigvals of Q
-            for (i=0;i<4;i++) {
-                LaLog[i][i] = log(la[i]);
-                for (j=0;j<i;j++) {
-                    LaLog[i][j]=0.0;
-                    LaLog[j][i]=0.0;
-                }
-            }
-        
-            // calculate the matrix log log(e^Qt) = V log[La] V^-1) 
-            MultiplyMatrices(4,V,LaLog,Temp); 
-            MultiplyMatrices(4,Temp,Vinv,Q); // Q is the ptr to resulting matrix
-        
-            // set diagonal so rowsums are 0, mult by inverse Dpi mat:
-            double rowsum;
-            for (i=0;i<4;i++) {
-                rowsum=0.0;
-                for (j=0;j<4;j++) {
-                    if (j!=i) rowsum+=Q[i][j];
-                }
-                Q[i][i]=-1*rowsum;
-            }
-        
-            for (i=0;i<4;i++)
-                nu += -1.0 * Q[i][i] * nucFreqs[i];
-        
-            MultiplyMatrixByScalar(4, Q, 1.0/nu, Q);
-        
-            MrBayesPrint("%s Tau Hat (%d,%d): %f \n", spacer, t1,t2, nu);
-        
-            // get the individual rates: 
-            for (r1=1; r1<4; r1++) {
-                for (r2=0; r2<r1; r2++) {
-                    ridx = pairIdx(r1,r2,4);
-                    ratesEst[dIdx(k,ridx,6)] = Q[r1][r2];
-                }
-            }
-
-            MrBayesPrint("%s Estimated Relative Rates (pair %d): \n", spacer, k);
-            for (i=0;i<6;i++)
-                MrBayesPrint(" %f", ratesEst[dIdx(k,i,6)]);
-            MrBayesPrint("\n");
-
-        }
-    }
-
-
-    /*  average the rates across pairs */
-    MrBFlt r6;
-    MrBFlt ratesOut[6] = {0.0}; 
-
-    for (k=0; k<numPairs; k++) {
-
-        /*  first normalize  */
-        r6=ratesEst[dIdx(k,5,6)];
-        for (i=0;i<6;i++) {
-            ratesEst[dIdx(k,i,6)]/=r6;
-            ratesOut[i]+=ratesEst[dIdx(k,i,6)]/(1.0*numPairs);
-        }
-
-    }
-
-    MrBayesPrint("%s Estimated Relative Rates (Averaged): \n", spacer);
-    for (i=0;i<6;i++)
-        MrBayesPrint(" %f", ratesOut[i]);
-    MrBayesPrint("\n");
-
-    // free all matrices 
-    FreeSquareDoubleMatrix(V);
-    FreeSquareDoubleMatrix(Vinv);
-    FreeSquareDoubleMatrix(Q);
-    FreeSquareComplexMatrix(Vc);
-    FreeSquareComplexMatrix(Vcinv);
-    FreeSquareDoubleMatrix(Temp);
-    FreeSquareDoubleMatrix(F);
-    free(ratesEst);
-
-    return(NO_ERROR);
-}
-
 void SetupQMat(MrBFlt **Q) {
 
     int i, j;
