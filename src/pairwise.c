@@ -26,6 +26,12 @@
 #include "pairwise.h"
 #include "utils.h"
 #include "command.h"
+#include "mcmc.h"
+#include "model.h"
+#include "likelihood.h"
+
+
+
 
 #if defined(__MWERKS__)
 #include "SIOUX.h"
@@ -34,10 +40,8 @@
 // global variables for pairwise likelihoods:
 // global variables for pw likelihoods:
 MrBFlt nucFreqs[4];
-int    *doubletCounts;
-int    **tripletCounts;
 MrBFlt doubletFreqs[4][4];
-/* int    tripleCounts[64]; */ 
+
 MrBFlt relRates[6];
 int    tempNumStates;
 int    numTriples;
@@ -51,20 +55,23 @@ int defTriples = NO;
 MrBFlt alpha=0.1;
 MrBFlt dist=0.1;
 
+int *doubletCounts;
+int **tripletCounts;
+
 // local prototypes:
 int              toIdx(int x);
-int              DoEstQPairwise(void);
 void             SetupQMat(MrBFlt **Q);
-PairwiseDists*   InitPairwiseDists(PolyTree *t);
 MrBFlt*          AllocateDists(int nPairs);
 int***           AllocateDoubletCounts(int nPairs);
 void             FreeDoubletCounts(int ***doubletCounts, int np);
-int              SetPairwiseDists(PolyTree *t, PairwiseDists *pd);
+int              CalcPairwiseDists(Tree *t, PairwiseDists *pd);
+int              CalcPairwiseDistsPolyTree(PolyTree *t, PairwiseDists *pd);
 int              pairIdx(int i, int j, int n);
 int              tripletIdx(int i, int j, int k, int n);
 MrBFlt           CalcTripletLogLike_JC(PairwiseDists *pd);
 int              FreeDists(MrBFlt* dists);
 int              FreePairwiseDists(PairwiseDists* pd);
+double           CalcPairwiseLogLike_Full(PairwiseDists *pd);
 
 #define  dIdx( i,j, dim_j ) i*dim_j + j
 #define  tIdx( k, i, j, dim_i, dim_j ) k*dim_i*dim_j + i*dim_j + j
@@ -288,13 +295,14 @@ int DoEstQPairwise(void) {
         MrBayesPrint(" %f", ratesOut[i]);
     MrBayesPrint("\n");
 
-
     free(ratesEst);
 
     return(NO_ERROR);
 }
 
-double PairwiseLogLike_Reduced(PairwiseDists *pd) {
+
+
+double CalcPairwiseLogLike_Reduced(PairwiseDists *pd) {
 
     int i,j,k;
     int ri;
@@ -400,7 +408,7 @@ double PairwiseLogLike_Reduced(PairwiseDists *pd) {
 
 }
 
-double PairwiseLogLike_Full(PairwiseDists *pd) {
+double CalcPairwiseLogLike_Full(PairwiseDists *pd) {
 
     int i,j;
     int ri;
@@ -536,10 +544,10 @@ int DoPairwiseLogLike(void) {
     MrBayesPrint ("%s   Calculating Pw likelihood for %d defined user trees. \n", spacer, numUserTrees);
 
     for (l=0; l<numUserTrees; l++) {
-        pd=InitPairwiseDists(userTree[l]);
-        int K=pd->nPairs, J=4;
+        pd = AllocatePairwiseDists();
+        InitPairwiseDistsPolyTree(userTree[l],pd);
 
-        ll=PairwiseLogLike_Full(pd);
+        ll=CalcPairwiseLogLike_Full(pd);
         MrBayesPrint("Pairwise Log-Likelihood: %f \n", ll);
         FreePairwiseDists(pd);
     }
@@ -554,20 +562,28 @@ int DoPairwiseLogLike(void) {
  *  
  */
 
-PairwiseDists* InitPairwiseDists(PolyTree *t) 
-{
-
+PairwiseDists* AllocatePairwiseDists(void) {
     PairwiseDists *pd;
     pd=(PairwiseDists*)SafeCalloc(1,sizeof(PairwiseDists));
-    pd->nTaxa=(t->nNodes-t->nIntNodes);
-    pd->nPairs=(pd->nTaxa)*(pd->nTaxa-1)/2;
-    pd->tree=t;
-    pd->dists=AllocateDists(pd->nTaxa);
-    SetPairwiseDists(t, pd);
-
     return(pd);
 }
 
+void InitPairwiseDists(Tree *t, PairwiseDists *pd) 
+{
+    pd->nTaxa=(t->nNodes-t->nIntNodes);
+    pd->nPairs=(pd->nTaxa)*(pd->nTaxa-1)/2;
+    pd->dists=AllocateDists(pd->nTaxa);
+    CalcPairwiseDists(t, pd);
+}
+
+
+void InitPairwiseDistsPolyTree(PolyTree *pt, PairwiseDists *pd) 
+{
+    pd->nTaxa=(pt->nNodes-pt->nIntNodes);
+    pd->nPairs=(pd->nTaxa)*(pd->nTaxa-1)/2;
+    pd->dists=AllocateDists(pd->nTaxa);
+    CalcPairwiseDistsPolyTree(pt, pd);
+}
 
 int FreePairwiseDists(PairwiseDists* pd) 
 {
@@ -576,7 +592,76 @@ int FreePairwiseDists(PairwiseDists* pd)
     return(NO_ERROR);
 }
 
-int SetPairwiseDists(PolyTree *t, PairwiseDists *pd)
+int CalcPairwiseDists(Tree *t, PairwiseDists *pd)
+{
+    int         i,j,a,d,k;
+    TreeNode    *p;
+    double      x;
+
+    int numExtNodes = t->nNodes - t->nIntNodes;
+
+    /*  We'll calculate (in distsTemp) all node dists including internal nodes  */
+    MrBFlt **distsTemp;
+    distsTemp=(MrBFlt**)malloc(t->nNodes*sizeof(MrBFlt*)); 
+    for (k=0;k<t->nNodes;k++)
+            distsTemp[k]=(MrBFlt*)malloc(t->nNodes*sizeof(MrBFlt));
+
+    /*  make sure dists are init to 0  */
+    for (i=0; i<t->nNodes; i++) 
+        for (j=0; j<t->nNodes; j++)
+                distsTemp[i][j]=0.0;
+
+    /* loop over all nodes  */
+    for (i=1; i<t->nNodes; i++)
+        {
+        p = &t->nodes[i];
+        a = p->anc->index;   
+        d = p->index;
+        x = p->length;
+
+        /*  start with distance from node to ancestor  */
+        distsTemp[d][a] = x;
+        distsTemp[a][d] = x;
+
+        /* now revisit previously visited nodes, updating distances  */ 
+        for (j=i-1; j>=0; j--)
+            {
+                k=(&t->nodes[j])->index;
+                if (k==a) 
+                    continue;
+
+                /*  dist from current node to prior node =  
+                 *      dist from anc to prior node + dist from anc to current node  */
+                distsTemp[d][k] = distsTemp[a][k] + x;
+                distsTemp[k][d] = distsTemp[k][a] + x;
+
+            }
+        }
+
+    /*  set the distances in the output array */
+    for (i=0; i<(numExtNodes-1); i++) {
+        for (j=i+1; j<numExtNodes; j++) {
+            pd->dists[pairIdx(i,j,pd->nTaxa)]=distsTemp[i][j];
+        }
+    }
+
+    /*  set the distances in the output array */
+    for (i=0; i<(t->nNodes-1); i++) {
+        for (j=i+1; j<t->nNodes; j++) {
+            pd->dists[pairIdx(i,j,pd->nTaxa)]=distsTemp[i][j];
+        }
+    }
+
+
+    /*  free temp array and return pointer to taxa pairwise distances */
+    for (k=0;k<t->nNodes;k++)
+        free(distsTemp[k]);
+    free(distsTemp);
+
+    return(NO_ERROR);
+}
+
+int CalcPairwiseDistsPolyTree(PolyTree *t, PairwiseDists *pd)
 {
     int         i,j,a,d,k;
     PolyNode    *p;
@@ -624,15 +709,6 @@ int SetPairwiseDists(PolyTree *t, PairwiseDists *pd)
             }
         }
 
-    for (i=0; i<t->nNodes; i++) 
-        {
-        for (j=0; j<t->nNodes; j++) 
-            {
-            MrBayesPrint("Dist %d, %d, %f \n ", i,j,distsTemp[i][j]);
-            }
-        }
-
-
     /*  set the distances in the output array */
     for (i=0; i<(numExtNodes-1); i++) {
         for (j=i+1; j<numExtNodes; j++) {
@@ -647,6 +723,7 @@ int SetPairwiseDists(PolyTree *t, PairwiseDists *pd)
 
     return(NO_ERROR);
 }
+
 
 void CountFreqs(void) {
 
@@ -676,7 +753,6 @@ int CountDoublets(int nTaxa) {
     int s,i,j,k;
     int id1, id2;
  
-    int t1, t2;  
     int I=4, J=4; 
 
     int nPairs = nTaxa*(nTaxa-1)/2;
@@ -845,9 +921,8 @@ void SetupQMat(MrBFlt **Q) {
 
 int DoPwSetParm (char *parmName, char *tkn)
 {
-    char        *tempStr;
+    /*  char        *tempStr;  */
     MrBFlt      tempD;
-    int flag;
     int j;
 
     if (expecting == Expecting(PARAMETER))
@@ -905,11 +980,9 @@ int DoPwSetParm (char *parmName, char *tkn)
                 if (1) // TODO: add relrates to isargvalid (IsArgValid(tkn, tempStr) == NO_ERROR)
 
                     {
-                    flag = 0;
                     relRates[0] = relRates[1] = 1.0;
                     relRates[2] = relRates[3] = 1.0;
                     relRates[4] = relRates[5] = 1.0;
-                    flag = 1;
                     }
                 else
                     {
@@ -1035,7 +1108,8 @@ int DoTripletLogLike(void) {
     MrBFlt ll=0.0;
 
     for (ti=0; ti<numUserTrees; ti++) {
-        pd=InitPairwiseDists(userTree[ti]);
+        pd = AllocatePairwiseDists();
+        InitPairwiseDistsPolyTree(userTree[ti],pd);
 
         ll = CalcTripletLogLike_JC(pd);
         MrBayesPrint("Triplet Quasi Log-Likelihood for Tree %d: %f", ti, ll);
@@ -1051,16 +1125,18 @@ int DoTripletLogLike(void) {
 /* PrintNodes: Print a list of tree nodes, pointers and length */
 void PrintPairwiseDists (PairwiseDists *pd)
 {
-    int         i,j;
+    int i,j;
+    int n;
 
+    n = pd->nTaxa;
     /* printf ("tip1\ttip2\tdist\n"); */
-    for (i=1; i<pd->nTaxa; i++)
+    for (i=1; i<n; i++)
         {
         for (j=0; j<i; j++)
             {
             printf ("%d\t%d\t%f\n",
               i,j,
-              pd->dists[pairIdx(i,j,pd->nTaxa)]);
+              pd->dists[pairIdx(i,j,n)]);
             }
         }
 
@@ -1284,6 +1360,104 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
         }
     }
     return (ll);
+}
+
+/*-----------------------------------------------------------------
+|
+|   TiProbs_JukesCantor: update transition probabilities for 4by4
+|       nucleotide model with nst == 1 (Jukes-Cantor)
+|       with or without rate variation
+|
+------------------------------------------------------------------*/
+int TiProbs_JukesCantor_Pairwise (PairwiseDists *pd, int division, int chain)
+{
+    /* calculate Jukes Cantor transition probabilities */
+    
+    int         i, j, k, index, pair_idx;
+    MrBFlt      t, *catRate, baseRate, theRate, length;
+    CLFlt       pNoChange, pChange;
+    CLFlt       **tiP;   
+    ModelInfo   *m;
+    
+    m = &modelSettings[division];
+
+    /* find transition probabilities */
+    tiP = m->tiProbsPw[chain];
+
+    /* get base rate */
+    baseRate = GetRate (division, chain);
+    
+    /* compensate for invariable sites if appropriate */
+    if (m->pInvar != NULL)
+        baseRate /= (1.0 - (*GetParamVals(m->pInvar, chain, state[chain])));
+   
+    /* get category rates */
+    theRate = 1.0;
+    if (m->shape != NULL)
+        catRate = GetParamSubVals (m->shape, chain, state[chain]);
+    else if (m->mixtureRates != NULL)
+        catRate = GetParamSubVals (m->mixtureRates, chain, state[chain]);
+    else
+        catRate = &theRate;
+
+    for (pair_idx=0; pair_idx<pd->nPairs; pair_idx++)
+        {
+        length = pd->dists[pair_idx];
+
+        /* numerical errors will ensue if we allow very large or very small branch lengths,
+           which might occur in relaxed clock models */
+
+        /* fill in values */
+        index=0;
+        for (k=0; k<m->numRateCats; k++)
+            {
+
+            t = length * baseRate * catRate[k];
+            MrBayesPrint("Pair %d: length = %f; rate = %f; 't'=%f \n",pair_idx,length,catRate[k],t);
+            if (t < TIME_MIN)
+                {
+                /* Fill in identity matrix */
+                for (i=0; i<4; i++)
+                    {
+                    for (j=0; j<4; j++)
+                        {
+                        if (i == j)
+                            tiP[pair_idx][index++] = 1.0;
+                        else
+                            tiP[pair_idx][index++] = 0.0;
+                        }
+                    }
+                }
+            else if (t > TIME_MAX)
+                {
+                /* Fill in stationary matrix */
+                for (i=0; i<4; i++)
+                    for (j=0; j<4; j++)
+                        tiP[pair_idx][index++] = 0.25;
+                }
+            else
+                {
+                /* calculate probabilities */
+                pChange   = (CLFlt) (0.25 - 0.25 * exp(-(4.0/3.0)*t));
+                pNoChange = (CLFlt) (0.25 + 0.75 * exp(-(4.0/3.0)*t));
+
+                MrBayesPrint("pChange = %f; pNoChange=%f\n", pChange,pNoChange);
+
+                for (i=0; i<4; i++)
+                    {
+                    for (j=0; j<4; j++)
+                        {
+                        if (i == j)
+                            tiP[pair_idx][index++] = pNoChange;
+                        else
+                            tiP[pair_idx][index++] = pChange;
+                        }
+                    }
+                }
+            }
+        }
+
+    return NO_ERROR;
 }
 
 

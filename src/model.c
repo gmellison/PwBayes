@@ -3306,6 +3306,7 @@ int DoLsetParm (char *parmName, char *tkn)
             else
                 return (ERROR);
             }
+
         /* set Ngammacat (numGammaCats) ************************************************************/
         else if (!strcmp(parmName, "Ngammacat"))
             {

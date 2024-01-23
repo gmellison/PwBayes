@@ -50,7 +50,7 @@
 
 
 #define NUMCOMMANDS                     62 + 3    /* The total number of commands in the program  */
-#define NUMPARAMS                       283 + 5   /* The total number of parameters  */
+#define NUMPARAMS                       288   /* The total number of parameters  */
 #define PARAM(i, s, f, l)               p->string = s;    \
                                         p->fp = f;        \
                                         p->valueList = l; \
@@ -322,10 +322,10 @@ CmdType     commands[] =
             { 24,            "Lset",  NO,            DoLset, 20,                                     {28,29,30,31,32,33,34,40,51,52,53,90,91,131,188,189,276,277,280,282},4,                "Sets the parameters of the likelihood model",  IN_CMD, SHOW },
             { 25,          "Manual",  NO,          DoManual,  1,                                                                                            {126},       36,                  "Prints a command reference to a text file",  IN_CMD, SHOW },
             { 26,          "Matrix", YES,          DoMatrix,  1,                                                                                             {11},649252640,                 "Defines matrix of characters in data block", IN_FILE, SHOW },
-            { 27,            "Mcmc",  NO,            DoMcmc, 46,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
-                                                                                     153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215},       36,                   "Starts Markov chain Monte Carlo analysis",  IN_CMD, SHOW },
-            { 28,           "Mcmcp",  NO,           DoMcmcp, 46,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
-                                                                                     153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215},        4,     "Sets parameters of a chain (without starting analysis)",  IN_CMD, SHOW },
+            { 27,            "Mcmc",  NO,            DoMcmc, 47,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
+                                                                                     153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,287},   36,                   "Starts Markov chain Monte Carlo analysis",  IN_CMD, SHOW },
+            { 28,           "Mcmcp",  NO,           DoMcmcp, 47,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
+                                                                                     153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,287},    4,     "Sets parameters of a chain (without starting analysis)",  IN_CMD, SHOW },
             { 29,        "Outgroup", YES,        DoOutgroup,  1,                                                                                             {78},    49152,                                     "Changes outgroup taxon",  IN_CMD, SHOW },
             { 30,           "Pairs", YES,           DoPairs,  1,                                                                                             {92},    32768,        "Defines nucleotide pairs (doublets) for stem models",  IN_CMD, SHOW },
             { 31,       "Partition",  NO,       DoPartition,  1,                                                                                             {16},        4,                              "Assigns a character partition",  IN_CMD, SHOW },
@@ -14832,13 +14832,10 @@ void SetUpParms (void)
     PARAM (281, "Rootfreqpr",     DoPrsetParm,       "Dirichlet|Fixed|\0"); //SK
     PARAM (282, "Statefrmod",     DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
     PARAM (283, "Methylrevmatpr",   DoPrsetParm,     "Dirichlet|Fixed|\0"); //SK
-    PARAM (284, "Dist",           DoPwSetParm,       "\0"); //SK
-    PARAM (285, "Alpha",          DoPwSetParm,       "\0"); //SK
-    PARAM (286, "Relrates",       DoPwSetParm,       "\0"); //SK
-
-
-
-
+    PARAM (284, "Dist",           DoPwSetParm,       "\0"); 
+    PARAM (285, "Alpha",          DoPwSetParm,       "\0"); 
+    PARAM (286, "Relrates",       DoPwSetParm,       "\0"); 
+    PARAM (287, "Pairwise",       DoMcmcParm,        "Yes|No|\0"); 
 
     /* NOTE: If a change is made to the parameter table, make certain you change
             NUMPARAMS (now 283; one more than last index) at the top of this file. */

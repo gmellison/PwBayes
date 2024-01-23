@@ -40,7 +40,7 @@
 #include "model.h"
 #include "sumpt.h"
 #include "utils.h"
-
+#include "pairwise.h"
 
 /* We only do proper command line parsing if we're on a system where the
    unistd.h header is available */

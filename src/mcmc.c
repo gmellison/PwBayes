@@ -2851,6 +2851,9 @@ int DoMcmcParm (char *parmName, char *tkn)
                 }
                 */
             }
+
+
+
         /* set Swapseed (global variable swapSeed) ***************************************************************/
         else if (!strcmp(parmName, "Swapseed"))
             {
@@ -3919,6 +3922,41 @@ int DoMcmcParm (char *parmName, char *tkn)
                 return (ERROR);
                 }
             }
+
+
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "Pairwise"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    if (!strcmp(tempStr, "Yes"))
+                        chainParams.usePairwise = YES;
+                    else
+                        chainParams.usePairwise = NO;
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for Pairwise\n", spacer);
+                    free (tempStr);
+                    return (ERROR);
+                    }
+                if (chainParams.usePairwise == YES)
+                    MrBayesPrint ("%s   Using PW Likelihood in MCMC analysis\n", spacer);
+                else
+                    MrBayesPrint ("%s   Using full Likelihood in MCMC analysis\n", spacer);
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else 
+                {
+                free(tempStr);
+                return (ERROR);
+                }
+            }
+
         /* set Append (chainParams.append) *********************************************/
         else if (!strcmp(parmName, "Append"))
             {
@@ -5699,7 +5737,7 @@ int InitAugmentedModels (void)
 int InitChainCondLikes (void)
 {
     int         c, d, i, j, k, s, t, numReps, condLikesUsed, nIntNodes, nNodes,
-                clIndex, tiIndex, scalerIndex, indexStep;
+                clIndex, tiIndex, tiPwIndex, scalerIndex, indexStep, nPairs;
     BitsLong    *charBits;
     CLFlt       *cL;
     ModelInfo   *m;
@@ -5774,6 +5812,9 @@ int InitChainCondLikes (void)
         nIntNodes = GetTree(m->brlens, 0, 0)->nIntNodes;
         nNodes = GetTree(m->brlens, 0, 0)->nNodes;
 
+        /*  Find number of pairs  */
+        nPairs = (nNodes-nIntNodes) * (nNodes-nIntNodes) / 2;
+
         /* figure out number of cond like arrays */
         m->numCondLikes = (numLocalChains + 1) * (nIntNodes);
         m->numCondLikes += numLocalTaxa;
@@ -5792,6 +5833,8 @@ int InitChainCondLikes (void)
 
         /* figure out length of ti prob array and number of ti prob arrays */
         m->tiProbLength = 0;
+        m->tiProbsPwLength = 0;
+
         if (m->dataType == STANDARD)
             {
             m->numTiCats = 0;   /* We do not have repeated similar transition probability matrices */
@@ -5812,12 +5855,17 @@ int InitChainCondLikes (void)
                 {
                 /* deal with unequal state frequencies */
                 if (m->isTiNeeded[0] == YES)
+                    {
                     m->tiProbLength += 4 * m->numRateCats * m->numBetaCats;
+                    m->tiProbsPwLength += 4 * m->numRateCats * m->numBetaCats;
+                    }
+
                 for (c=0; c<m->numChars; c++)
                     {
                     if (m->nStates[c] > 2 && (m->cType[c] == UNORD || m->cType[c] == ORD))
                         {
                         m->tiProbLength += (m->nStates[c] * m->nStates[c]) * m->numRateCats;
+                        m->tiProbsPwLength += (m->nStates[c] * m->nStates[c]) * m->numRateCats;
                         }
                     }
                 }
@@ -5826,8 +5874,11 @@ int InitChainCondLikes (void)
             {
             m->numTiCats    = m->numRateCats * m->numBetaCats * m->numOmegaCats;   /* A single partition has either gamma, beta or omega categories */
             m->tiProbLength = m->numModelStates * m->numModelStates * m->numTiCats;
+            m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
             }
+
         m->numTiProbs = (numLocalChains + 1) * nNodes;
+        m->numTiProbsPw = (numLocalChains + 1) * nPairs;
         
         /* set info about eigen systems */
         if (InitEigenSystemInfo (m) == ERROR)
@@ -6101,6 +6152,21 @@ int InitChainCondLikes (void)
                 if (!m->tiProbs[i])
                     return (ERROR);
                 }
+
+            /*  allocate pw tiprob space */
+            m->tiProbsPw = (CLFlt***) SafeMalloc(numLocalChains * sizeof(CLFlt**));
+            if (!m->tiProbs)
+                return (ERROR);
+            for (i=0; i<numLocalChains; i++)
+                {
+                m->tiProbsPw[i] = (CLFlt**)SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
+                for (j=0; j<m->numTiProbsPw; j++)
+                    {
+                    m->tiProbsPw[i][j] = (CLFlt*) SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
+                    if (!m->tiProbsPw[i][j])
+                    return (ERROR);
+                    }
+                }
             }
 
         /* allocate eigen system space (needed also for Beagle version */
@@ -6128,8 +6194,21 @@ int InitChainCondLikes (void)
                 return (ERROR);
             }
 
+        /* allocate and set indices from pw edges to ti prob arrays */
+        m->tiProbsPwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int*));
+        if (!m->tiProbsPwIndex)
+            return (ERROR);
+        for (i=0; i<numLocalChains; i++)
+            {
+            m->tiProbsPwIndex[i] = (int*) SafeMalloc (nPairs * sizeof(int));
+            if (!m->tiProbsPwIndex[i])
+                return (ERROR);
+            }
+
         /* set up indices for nodes */
         tiIndex = 0;
+        tiPwIndex = 0;
+
         for (i=0; i<numLocalChains; i++)
             {
             for (j=0; j<nNodes; j++)
@@ -6138,6 +6217,7 @@ int InitChainCondLikes (void)
                 tiIndex += indexStep;
                 }
             }
+            
 
         /* allocate and set up scratch transition prob indices */
         m->tiProbsScratchIndex = (int *) SafeMalloc (nNodes * sizeof(int));
@@ -6148,6 +6228,17 @@ int InitChainCondLikes (void)
             m->tiProbsScratchIndex[i] = tiIndex;
             tiIndex += indexStep;
             }
+
+        /* allocate and set up scratch PW transition prob indices */
+        m->tiProbsPwScratchIndex = (int *) SafeMalloc (nPairs * sizeof(int));
+        if (!m->tiProbsPwScratchIndex)
+            return (ERROR);
+        for (i=0; i<nPairs; i++)
+            {
+            m->tiProbsPwScratchIndex[i] = tiPwIndex;
+            tiPwIndex += indexStep;
+            }
+
 
         /* allocate and set up rescale frequency */
         m->rescaleFreq = (int*) SafeMalloc((numLocalChains) * sizeof(int));

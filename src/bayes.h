@@ -697,6 +697,7 @@ typedef struct param
     int             nSubParams;         /* number of subparams                            */
     Tree            **tree;             /* pointer to tree ptrs (for brlens & topology)   */
     int             treeIndex;          /* index to first tree in mcmcTree                */
+    int             pwdIndex;           /* index to first pwd in mcmcPwd                  */
     int             hasBinaryStd;       /* has binary standard chars                      */
     int             *sympiBsIndex;      /* pointer to sympi bsIndex (std chars)           */
     int             *sympinStates;      /* pointer to sympi nStates (std chars)           */
@@ -719,6 +720,7 @@ typedef struct param
     MrBFlt*         priorParams;        /* pointer to the prior parameters                */
     LnPriorProbFxn  LnPriorProb;        /* ln prior prob function                         */
     LnPriorRatioFxn LnPriorRatio;       /* ln prior prob ratio function                   */
+
     } Param;
 
 /* parameter ID values */
@@ -1255,6 +1257,8 @@ typedef struct chain
     int         append;                /* order taxa before printing tree to file?      */
     int         autotune;              /* autotune tuning parameters of proposals ?     */
     int         tuneFreq;              /* autotuning frequency                          */
+
+    int         usePairwise;
     } Chain;
 
 typedef struct modelinfo
@@ -1424,6 +1428,7 @@ typedef struct modelinfo
     int         useVec;                     /* use SSE for this partition?                  */
     int*        rescaleFreq;                /* rescale frequency for each chain             */
 
+
 #if defined (BEAGLE_ENABLED)
     /* Beagle variables */
     int         useBeagleResource;          /* try to use this BEAGLE resource number       */
@@ -1453,12 +1458,24 @@ typedef struct modelinfo
 #if defined (BEAGLE_V3_ENABLED)
     int         numCharsAll;                /* number of compressed chars for all divisions */
     MrBFlt*     logLikelihoodsAll;          /* array of log likelihoods for all divisions   */
+    MrBFlt*     logLikelihoodsPwAll;        /* array of pairwise log likelihoods for all divisions   */
     int*        cijkIndicesAll;             /* cijk array for all divisions                 */
     int*        categoryRateIndicesAll;     /* category rate array for all divisions        */
     BeagleOperationByPartition* operationsAll; /* array of all operations across divisions  */
     BeagleOperationByPartition* operationsByPartition; /* array of division operations to be sent to Beagle     */
 #endif /* BEAGLE_V3_ENABLED */
 #endif /* BEAGLE_ENABLED */
+
+    /*  Pairwise model information */
+    int         usePairwise;                  /*  Flag for whether pairwise likelihood is used in mcmc */
+    int         **doubletCounts;              /*   */
+    int         **tiProbsPwIndex;             /*   */
+    int         tiProbsPwLength;              /*   */
+    CLFlt       ***tiProbsPw;
+    int         *tiProbsPwScratchIndex;       /* index to scratch space for branch ti probs   */
+    int         numTiProbsPw;                 /* number of ti prob arrays                     */
+    int         condLikeLengthPw;             /* length of cond like array (incl. ti cats)    */
+    MrBFlt      lnLikePw[MAX_CHAINS];         /* log like for chain                           */
 
     } ModelInfo;
 
