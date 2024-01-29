@@ -43,6 +43,7 @@
 #include "proposal.h"
 #include "sumpt.h"
 #include "utils.h"
+#include "pairwise.h"
 #if defined(__MWERKS__)
 #include "SIOUX.h"
 #endif
@@ -3306,6 +3307,63 @@ int DoLsetParm (char *parmName, char *tkn)
             else
                 return (ERROR);
             }
+
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "Pairwise"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if (activeParts[i] == YES || nApplied == 0)
+                            {
+                            if (modelParams[i].dataType == DNA)
+                                {
+                                if (!strcmp(tempStr, "Yes"))
+                                    {
+                                    modelParams[i].usePairwise = YES;
+                                    }
+                                else
+                                    modelParams[i].usePairwise = NO;
+
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting Pairwise flag to %d\n", spacer, modelParams[i].usePairwise);
+                                else
+                                    MrBayesPrint ("%s   Setting Pairwise flag to %d for partition %d\n", 
+                                                    spacer, modelParams[i].usePairwise, i+1);
+                                }
+                            else 
+                                {
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Pairwise flag unchanged ", spacer);
+                                else
+                                    MrBayesPrint ("%s   Pairwise flag unchanged for partition %d ", 
+                                                    spacer, i+1);
+                                MrBayesPrint ("because dataType is not DNA\n");
+                                }
+
+                            } 
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for Pairwise\n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else 
+                {
+                return (ERROR);
+                }
+            }
+
 
         /* set Ngammacat (numGammaCats) ************************************************************/
         else if (!strcmp(parmName, "Ngammacat"))
@@ -21448,6 +21506,9 @@ int SetUpAnalysis (RandLong *seed)
 
     /* Compress data and calculate some things needed for setting up params. */
     if (CompressData() == ERROR)
+        return (ERROR);
+
+    if (CountPairwise() == ERROR)
         return (ERROR);
 
     /* Add dummy characters, if needed. */

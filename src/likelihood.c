@@ -41,6 +41,7 @@
 #include "model.h"
 #include "utils.h"
 #include "pairwise.h"
+#include "command.h"
 #define LIKE_EPSILON                1.0e-300
 
 /* global variables declared here */
@@ -932,7 +933,6 @@ int CondLikeDown_NUC4 (TreeNode *p, int division, int chain)
                     }
                 }
         }
-
     return NO_ERROR;
 }
 
@@ -7855,10 +7855,11 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
     TreeNode        *p;
     ModelInfo       *m;
     Tree            *tree;
+
 #   if defined (TIMING_ANALIZ)
     clock_t         CPUTimeStart;
 #   endif
-    
+   
     m = &modelSettings[d];
     tree = GetTree(m->brlens, chain, state[chain]);
     
@@ -7879,7 +7880,27 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
         return;
         }
 #   endif
-        
+
+     if (modelParams[d].usePairwise == YES) 
+        {
+        /*   
+         *   m = &modelSettings[d];
+         *   tree = GetTree(m->brlens, chain, state[chain]);
+         */
+
+        MrBayesPrint("Doing some pw stuff... \n");
+
+        CalcPairwiseDists_ReverseDownpass(tree,m->pwDists[chain]);
+        Probs_Pairwise_JukesCantor(d,chain);
+
+        /*  update pw probabilities for current paramter state */
+        /*   TiProbs_JukesCantor_Pairwise(pd, d, chain);  */
+
+        /*  TODO: Update pw likelihoods  */
+        /*   TIME(m->Likelihood_Pw (tree->pairwiseDists, d, chain, lnL_pw, (chainId[chain] % chainParams.numChains)),CPULilklihood);
+        */
+        }
+               
     if (m->parsModelId == NO && m->dataType != CONTINUOUS)
         {
         /* get site scalers ready */
@@ -7890,122 +7911,87 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
             CopySiteScalers(m, chain);
 
         /* pass over tree */
-        if (m->usePairwise == NO) 
+        for (i=0; i<tree->nIntNodes; i++)
             {
-            for (i=0; i<tree->nIntNodes; i++)
+            p = tree->intDownPass[i];
+            
+            if (p->left->upDateTi == YES)
                 {
-                p = tree->intDownPass[i];
-                
-                if (p->left->upDateTi == YES)
+                /* shift state of ti probs for node */
+                FlipTiProbsSpace (m, chain, p->left->index);
+                m->TiProbs (p->left, d, chain);
+                }
+            
+            if (p->right->upDateTi == YES)
+                {
+                /* shift state of ti probs for node */
+                FlipTiProbsSpace (m, chain, p->right->index);
+                m->TiProbs (p->right, d, chain);
+                }
+            
+            if (tree->isRooted == NO)
+                {
+                if (p->anc->anc == NULL /* && p->upDateTi == YES */)
                     {
                     /* shift state of ti probs for node */
-                    FlipTiProbsSpace (m, chain, p->left->index);
-                    m->TiProbs (p->left, d, chain);
+                    FlipTiProbsSpace (m, chain, p->index);
+                    m->TiProbs (p, d, chain);
                     }
-                
-                if (p->right->upDateTi == YES)
-                    {
-                    /* shift state of ti probs for node */
-                    FlipTiProbsSpace (m, chain, p->right->index);
-                    m->TiProbs (p->right, d, chain);
-                    }
-                
+                }
+            
+            if (p->upDateCl == YES)
+                {
                 if (tree->isRooted == NO)
                     {
-                    if (p->anc->anc == NULL /* && p->upDateTi == YES */)
+                    if (p->anc->anc == NULL)
                         {
-                        /* shift state of ti probs for node */
-                        FlipTiProbsSpace (m, chain, p->index);
-                        m->TiProbs (p, d, chain);
-                        }
-                    }
-                
-                if (p->upDateCl == YES)
-                    {
-                    if (tree->isRooted == NO)
-                        {
-                        if (p->anc->anc == NULL)
-                            {
-                            TIME(m->CondLikeRoot (p, d, chain),CPUCondLikeRoot);
-                            }
-                        else
-                            {
-                            TIME(m->CondLikeDown (p, d, chain),CPUCondLikeDown);                        
-                            }
+                        TIME(m->CondLikeRoot (p, d, chain),CPUCondLikeRoot);
                         }
                     else
                         {
-                        TIME(m->CondLikeDown (p, d, chain),CPUCondLikeDown);
+                        TIME(m->CondLikeDown (p, d, chain),CPUCondLikeDown);                        
                         }
+                    }
+                else
+                    {
+                    TIME(m->CondLikeDown (p, d, chain),CPUCondLikeDown);
+                    }
 
-                    if (m->unscaledNodes[chain][p->index] == 0 && m->upDateAll == NO)
+                if (m->unscaledNodes[chain][p->index] == 0 && m->upDateAll == NO)
+                    {
+#if defined(SSE_ENABLED)
+                    if (m->useVec == VEC_SSE)
                         {
-#if defined (SSE_ENABLED)
-                        if (m->useVec == VEC_SSE)
-                            {
-                            TIME(RemoveNodeScalers_SSE (p, d, chain),CPUScalersRemove);
-                            }
-#if defined (AVX_ENABLED)
-                        else if (m->useVec == VEC_AVX)
-                            {
-                            TIME(RemoveNodeScalers_AVX (p, d, chain),CPUScalersRemove);
-                            }
+                        TIME(RemoveNodeScalers_SSE (p, d, chain),CPUScalersRemove);
+                        }
+#if defined(AVX_ENABLED)
+                    else if (m->useVec == VEC_AVX)
+                        {
+                        TIME(RemoveNodeScalers_AVX (p, d, chain),CPUScalersRemove);
+                        }
 #endif
-                        else
-                            {
-                            TIME(RemoveNodeScalers (p, d, chain),CPUScalersRemove);
-                            }
-#else    
+                    else
+                        {
                         TIME(RemoveNodeScalers (p, d, chain),CPUScalersRemove);
+                        }
+#else   
+                    TIME(RemoveNodeScalers (p, d, chain),CPUScalersRemove);
 #endif
-                        }
-                    FlipNodeScalerSpace (m, chain, p->index);
-                    m->unscaledNodes[chain][p->index] = 1 + m->unscaledNodes[chain][p->left->index] + m->unscaledNodes[chain][p->right->index];
-                    
-                    if (m->unscaledNodes[chain][p->index] >= m->rescaleFreq[chain] && p->anc->anc != NULL)
-                        {
-                        TIME(m->CondLikeScaler (p, d, chain),CPUScalers);
-                        }
+                    }
+                FlipNodeScalerSpace (m, chain, p->index);
+                m->unscaledNodes[chain][p->index] = 1 + m->unscaledNodes[chain][p->left->index] + m->unscaledNodes[chain][p->right->index];
+                
+                if (m->unscaledNodes[chain][p->index] >= m->rescaleFreq[chain] && p->anc->anc != NULL)
+                    {
+                    TIME(m->CondLikeScaler (p, d, chain),CPUScalers);
                     }
                 }
             }
 
         /* call likelihood function to summarize result */
         TIME(m->Likelihood (tree->root->left, d, chain, lnL, (chainId[chain] % chainParams.numChains)),CPULilklihood);
-
         } 
-    if (chainParams.usePairwise == YES) 
-        {
-            /*   
-             *   m = &modelSettings[d];
-             *   tree = GetTree(m->brlens, chain, state[chain]);
-             */
 
-            PairwiseDists *pd;
-            pd = AllocatePairwiseDists();    
-            InitPairwiseDists(tree, pd);
-
-            ShowTree(tree);
-            PrintNodes(tree);
-            PrintPairwiseDists(pd);  
-
-            /*  update pw probabilities for current paramter state */
-            /*   TiProbs_JukesCantor_Pairwise(pd, d, chain);  */
-
-            /*  TODO: Update pw transition probs */
-            /* 
-            MrBayesPrint(" %s Pairwise Distance 1: %f \n",spacer,pd->dists[0]);
-
-            MrBayesPrint(" %s TiProb 1: %f \n",spacer,m->tiProbsPw[0][0][0]);
-            MrBayesPrint(" %s TiProb 2: %f \n",spacer,m->tiProbsPw[0][0][1]);
-            MrBayesPrint(" %s TiProb 3: %f \n",spacer,m->tiProbsPw[0][0][2]);
-            MrBayesPrint(" %s TiProb 4: %f \n",spacer,m->tiProbsPw[0][0][3]);
-            */
-            /*  TODO: Update pw likelihoods  */
-            /*   TIME(m->Likelihood_Pw (tree->pairwiseDists, d, chain, lnL_pw, (chainId[chain] % chainParams.numChains)),CPULilklihood);
-             */
-        }
-        
     
     return;
 }

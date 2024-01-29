@@ -38,12 +38,9 @@ typedef struct pairwisedists
 
 typedef int (*TiProbFxn_Pw)(PairwiseDists *, int, int);
 
-extern int    *doubletCounts;
-extern int    **tripletCounts;
+extern int    **doubletCounts;
 
-/*  globals for pairwise likelihood computations  */
-extern PairwiseDists    **mcmcPwd;      /*  pointers to mcmc Pwd   */
-extern int              numPwd;         /*  number of pwd in chain */
+/* extern int    **tripletCounts;  */
 
 void CountFreqs(void);
 int  CountDoublets(int nPairs);
@@ -59,11 +56,14 @@ int  DoPwSetParm(char *parmName, char *tkn); // param set -- see param list at e
 void PrintPairwiseDists(PairwiseDists *pd);
 
 PairwiseDists* AllocatePairwiseDists(void);
+int FreePairwiseDists(PairwiseDists* pd);
+
 void InitPairwiseDists(Tree *tree, PairwiseDists  *pd);
 void InitPairwiseDistsPolyTree(PolyTree *tree, PairwiseDists *pd);
 
-int TiProbs_JukesCantor_Pairwise (PairwiseDists *pd, int division, int chain);
-
+int Probs_Pairwise_JukesCantor (int division, int chain);
+int CalcPairwiseDists_ReverseDownpass(Tree *t, MrBFlt *dists);
+int CountPairwise(void);
 
 #endif /* end of include guard PAIRWISE_H */
 

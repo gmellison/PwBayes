@@ -5445,11 +5445,11 @@ void PrintNodes (Tree *t)
     int         i;
     TreeNode    *p;
 
-    printf ("Node\tleft\tright\tanc\tlength\n");
+    printf ("Node\tleft\tright\tanc  \tlength    \n");
     for (i=0; i<t->nNodes; i++)
         {
         p = &t->nodes[i];
-        printf ("%d\t%d\t%d\t%d\t%f\t%f\n",
+        printf ("%d   \t%d   \t%d   \t%d\t%f\t%f\n",
             p->index,
             p->left == NULL ? -1 : p->left->index,
             p->right == NULL ? -1 : p->right->index,

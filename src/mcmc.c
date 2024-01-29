@@ -3923,40 +3923,6 @@ int DoMcmcParm (char *parmName, char *tkn)
                 }
             }
 
-
-        /* set  Pairwise flag (pairwise) **********************************************************************/
-        else if (!strcmp(parmName, "Pairwise"))
-            {
-            if (expecting == Expecting(EQUALSIGN))
-                expecting = Expecting(ALPHA);
-            else if (expecting == Expecting(ALPHA))
-                {
-                if (IsArgValid(tkn, tempStr) == NO_ERROR)
-                    {
-                    if (!strcmp(tempStr, "Yes"))
-                        chainParams.usePairwise = YES;
-                    else
-                        chainParams.usePairwise = NO;
-                    }
-                else
-                    {
-                    MrBayesPrint ("%s   Invalid argument for Pairwise\n", spacer);
-                    free (tempStr);
-                    return (ERROR);
-                    }
-                if (chainParams.usePairwise == YES)
-                    MrBayesPrint ("%s   Using PW Likelihood in MCMC analysis\n", spacer);
-                else
-                    MrBayesPrint ("%s   Using full Likelihood in MCMC analysis\n", spacer);
-                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
-                }
-            else 
-                {
-                free(tempStr);
-                return (ERROR);
-                }
-            }
-
         /* set Append (chainParams.append) *********************************************/
         else if (!strcmp(parmName, "Append"))
             {
@@ -4436,7 +4402,7 @@ TreeNode *FindBestNode (Tree *t, TreeNode *p, TreeNode *addNode, CLFlt *minLengt
 
 void FreeChainMemory (void)
 {
-    int         i, j, k, nRates;
+    int         i, j, k, l, nRates;
     ModelInfo   *m;
 
     /* free model variables for Gibbs gamma */
@@ -4553,7 +4519,40 @@ void FreeChainMemory (void)
             free (m->tiProbs);
             m->tiProbs = NULL;
             }
-                
+
+        /* free pairwise dists and transition probs  */        
+        if (m->pwDists)
+            {
+            for (j=0; j<numLocalChains; j++)
+                if (m->pwDists[j])
+                    free(m->pwDists[j]);
+            free(m->pwDists);
+            }
+        if (m->tiProbsPw)
+            {
+            for (j=0; j<numLocalChains; j++)
+                if (m->tiProbsPw[j]) /*  chain pw probs */
+                    {
+                    for (k=0; k<m->numPairs; k++)
+                        free(m->tiProbsPw[j][k]);
+                    free(m->tiProbsPw[j]);
+                    }
+            free(m->tiProbsPw);
+            }
+        if (m->doubletProbs)
+            {
+            for (j=0; j<numLocalChains; j++)
+                if (m->doubletProbs[j]) /*  chain pw probs */
+                    {
+                    for (k=0; k<m->numPairs; k++)
+                        free(m->doubletProbs[j][k]);
+                    free(m->doubletProbs[j]);
+                    }
+            free(m->doubletProbs);
+
+            MrBayesPrint("freed tiprobs successfully? \n");
+            }
+
         if (m->cijks)
             {
             for (j=0; j<numLocalChains+1; j++)
@@ -5857,7 +5856,6 @@ int InitChainCondLikes (void)
                 if (m->isTiNeeded[0] == YES)
                     {
                     m->tiProbLength += 4 * m->numRateCats * m->numBetaCats;
-                    m->tiProbsPwLength += 4 * m->numRateCats * m->numBetaCats;
                     }
 
                 for (c=0; c<m->numChars; c++)
@@ -5865,8 +5863,7 @@ int InitChainCondLikes (void)
                     if (m->nStates[c] > 2 && (m->cType[c] == UNORD || m->cType[c] == ORD))
                         {
                         m->tiProbLength += (m->nStates[c] * m->nStates[c]) * m->numRateCats;
-                        m->tiProbsPwLength += (m->nStates[c] * m->nStates[c]) * m->numRateCats;
-                        }
+                                                }
                     }
                 }
             }
@@ -5875,11 +5872,13 @@ int InitChainCondLikes (void)
             m->numTiCats    = m->numRateCats * m->numBetaCats * m->numOmegaCats;   /* A single partition has either gamma, beta or omega categories */
             m->tiProbLength = m->numModelStates * m->numModelStates * m->numTiCats;
             m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
+            m->doubletProbLength = m->numModelStates * m->numModelStates;
             }
 
         m->numTiProbs = (numLocalChains + 1) * nNodes;
         m->numTiProbsPw = (numLocalChains + 1) * nPairs;
-        
+        m->numTiProbsPw = (numLocalChains + 1) * nPairs;
+
         /* set info about eigen systems */
         if (InitEigenSystemInfo (m) == ERROR)
             return (ERROR);
@@ -6139,7 +6138,7 @@ int InitChainCondLikes (void)
                         return (ERROR);
                     }
 #endif
-#   endif
+#endif
                 }
 
             /* allocate tiprob space */
@@ -6153,21 +6152,77 @@ int InitChainCondLikes (void)
                     return (ERROR);
                 }
 
-            /*  allocate pw tiprob space */
-            m->tiProbsPw = (CLFlt***) SafeMalloc(numLocalChains * sizeof(CLFlt**));
-            if (!m->tiProbs)
-                return (ERROR);
-            for (i=0; i<numLocalChains; i++)
+            /*  allocate pw stuff, if pairwise is set */
+            if (modelParams->usePairwise) 
                 {
-                m->tiProbsPw[i] = (CLFlt**)SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
-                for (j=0; j<m->numTiProbsPw; j++)
-                    {
-                    m->tiProbsPw[i][j] = (CLFlt*) SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
-                    if (!m->tiProbsPw[i][j])
+                m->numPairs=(int)numTaxa*(numTaxa-1)/2;
+
+                /*  allocate space for pw distances */
+                m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+                for (i=0; i<numLocalChains; i++)
+                    m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
+
+                /*  allocate space for pw ti probs  */
+                m->tiProbsPw = (CLFlt***) SafeMalloc(numLocalChains * sizeof(CLFlt**));
+                if (!m->tiProbs)
                     return (ERROR);
+                for (i=0; i<numLocalChains; i++)
+                    {
+                    m->tiProbsPw[i] = (CLFlt**)SafeMalloc(m->numPairs * sizeof(CLFlt*));
+                    for (j=0; j<m->numPairs; j++)
+                        {
+                        m->tiProbsPw[i][j] = (CLFlt*) SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
+                        if (!m->tiProbsPw[i][j])
+                            return (ERROR);
+                        }
+                    }
+
+                /*  allocate space for pw doublet probs  */
+                m->doubletProbs = (CLFlt***) SafeMalloc(numLocalChains * sizeof(CLFlt**));
+                if (!m->doubletProbs)
+                    return (ERROR);
+                for (i=0; i<numLocalChains; i++)
+                    {
+                    m->doubletProbs[i] = (CLFlt**)SafeMalloc(m->numPairs * sizeof(CLFlt*));
+                    for (j=0; j<m->numPairs; j++)
+                        {
+                        m->doubletProbs[i][j] = (CLFlt*) SafeMalloc(m->doubletProbLength * sizeof(CLFlt));
+                        if (!m->doubletProbs[i][j])
+                            return (ERROR);
+                        }
                     }
                 }
+
+
+            } /*  end of outer loop  */
+
+        /* allocate and set indices from pw edges to ti prob arrays */
+        /*  -- just kidding; don't need these since they aren't associated with  
+         *  the node structure of the tree 
+        m->tiProbsPwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int*));
+        if (!m->tiProbsPwIndex)
+            return (ERROR);
+        for (i=0; i<numLocalChains; i++)
+            {
+            m->tiProbsPwIndex[i] = (int*) SafeMalloc (nPairs * sizeof(int));
+            if (!m->tiProbsPwIndex[i])
+                return (ERROR);
             }
+         */
+        /*  tiPwIndex = 0; */
+
+        /* allocate and set up scratch PW transition prob indices */
+        /*
+        m->tiProbsPwScratchIndex = (int *) SafeMalloc (nPairs * sizeof(int));
+        if (!m->tiProbsPwScratchIndex)
+            return (ERROR);
+        for (i=0; i<nPairs; i++)
+            {
+            m->tiProbsPwScratchIndex[i] = tiPwIndex;
+            tiPwIndex += indexStep;
+            }
+        */
+
 
         /* allocate eigen system space (needed also for Beagle version */
         if (m->nCijkParts > 0)
@@ -6194,20 +6249,9 @@ int InitChainCondLikes (void)
                 return (ERROR);
             }
 
-        /* allocate and set indices from pw edges to ti prob arrays */
-        m->tiProbsPwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int*));
-        if (!m->tiProbsPwIndex)
-            return (ERROR);
-        for (i=0; i<numLocalChains; i++)
-            {
-            m->tiProbsPwIndex[i] = (int*) SafeMalloc (nPairs * sizeof(int));
-            if (!m->tiProbsPwIndex[i])
-                return (ERROR);
-            }
-
         /* set up indices for nodes */
         tiIndex = 0;
-        tiPwIndex = 0;
+
 
         for (i=0; i<numLocalChains; i++)
             {
@@ -6228,17 +6272,6 @@ int InitChainCondLikes (void)
             m->tiProbsScratchIndex[i] = tiIndex;
             tiIndex += indexStep;
             }
-
-        /* allocate and set up scratch PW transition prob indices */
-        m->tiProbsPwScratchIndex = (int *) SafeMalloc (nPairs * sizeof(int));
-        if (!m->tiProbsPwScratchIndex)
-            return (ERROR);
-        for (i=0; i<nPairs; i++)
-            {
-            m->tiProbsPwScratchIndex[i] = tiPwIndex;
-            tiPwIndex += indexStep;
-            }
-
 
         /* allocate and set up rescale frequency */
         m->rescaleFreq = (int*) SafeMalloc((numLocalChains) * sizeof(int));

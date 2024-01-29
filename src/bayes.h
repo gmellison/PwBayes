@@ -428,7 +428,7 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define ALLOC_BEST               88
 #define ALLOC_SPECIESPARTITIONS  89
 #define ALLOC_SS                 90
-
+#define ALLOC_PAIRWISE           91
 #define LINKED                  0
 #define UNLINKED                1
 
@@ -697,7 +697,6 @@ typedef struct param
     int             nSubParams;         /* number of subparams                            */
     Tree            **tree;             /* pointer to tree ptrs (for brlens & topology)   */
     int             treeIndex;          /* index to first tree in mcmcTree                */
-    int             pwdIndex;           /* index to first pwd in mcmcPwd                  */
     int             hasBinaryStd;       /* has binary standard chars                      */
     int             *sympiBsIndex;      /* pointer to sympi bsIndex (std chars)           */
     int             *sympinStates;      /* pointer to sympi nStates (std chars)           */
@@ -1198,6 +1197,8 @@ typedef struct model
     char        inferSiteOmegas[5];    /* should site omega vals be inferred (Yes/No)?  */
     char        inferSiteRates[5];     /* should site rates be inferred (Yes/No)?       */
     char        inferPosSel[5];        /* should site selection be inferred (Yes/No)?   */
+
+    int         usePairwise;
     } Model, ModelParams;
 
 typedef struct chain
@@ -1258,7 +1259,6 @@ typedef struct chain
     int         autotune;              /* autotune tuning parameters of proposals ?     */
     int         tuneFreq;              /* autotuning frequency                          */
 
-    int         usePairwise;
     } Chain;
 
 typedef struct modelinfo
@@ -1458,7 +1458,6 @@ typedef struct modelinfo
 #if defined (BEAGLE_V3_ENABLED)
     int         numCharsAll;                /* number of compressed chars for all divisions */
     MrBFlt*     logLikelihoodsAll;          /* array of log likelihoods for all divisions   */
-    MrBFlt*     logLikelihoodsPwAll;        /* array of pairwise log likelihoods for all divisions   */
     int*        cijkIndicesAll;             /* cijk array for all divisions                 */
     int*        categoryRateIndicesAll;     /* category rate array for all divisions        */
     BeagleOperationByPartition* operationsAll; /* array of all operations across divisions  */
@@ -1468,12 +1467,17 @@ typedef struct modelinfo
 
     /*  Pairwise model information */
     int         usePairwise;                  /*  Flag for whether pairwise likelihood is used in mcmc */
-    int         **doubletCounts;              /*   */
-    int         **tiProbsPwIndex;             /*   */
+    int         numPairs;
+    MrBFlt       **pwDists;
+    /*  int     **tiProbsPwIndex;               */
     int         tiProbsPwLength;              /*   */
     CLFlt       ***tiProbsPw;
-    int         *tiProbsPwScratchIndex;       /* index to scratch space for branch ti probs   */
+    /*  int     *tiProbsPwScratchIndex;  */     /* index to scratch space for branch ti probs   */
     int         numTiProbsPw;                 /* number of ti prob arrays                     */
+    CLFlt       ***doubletProbs;              
+    int         doubletProbLength;
+    int         numDoubletProbs;
+
     int         condLikeLengthPw;             /* length of cond like array (incl. ti cats)    */
     MrBFlt      lnLikePw[MAX_CHAINS];         /* log like for chain                           */
 
@@ -1855,5 +1859,7 @@ extern int              num_procs;                              /* number of act
 extern MrBFlt           myStateInfo[7];                         /* likelihood/prior/heat/ran/moveInfo vals of me              */
 extern MrBFlt           partnerStateInfo[7];                    /* likelihood/prior/heat/ran/moveInfo vals of partner         */
 #endif
+
+extern int              *pairwiseCounts;
 
 #endif  /* __BAYES_H__ */

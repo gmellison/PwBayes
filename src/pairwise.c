@@ -55,7 +55,7 @@ int defTriples = NO;
 MrBFlt alpha=0.1;
 MrBFlt dist=0.1;
 
-int *doubletCounts;
+int *pairwiseCounts;
 int **tripletCounts;
 
 // local prototypes:
@@ -64,7 +64,6 @@ void             SetupQMat(MrBFlt **Q);
 MrBFlt*          AllocateDists(int nPairs);
 int***           AllocateDoubletCounts(int nPairs);
 void             FreeDoubletCounts(int ***doubletCounts, int np);
-int              CalcPairwiseDists(Tree *t, PairwiseDists *pd);
 int              CalcPairwiseDistsPolyTree(PolyTree *t, PairwiseDists *pd);
 int              pairIdx(int i, int j, int n);
 int              tripletIdx(int i, int j, int k, int n);
@@ -573,7 +572,7 @@ void InitPairwiseDists(Tree *t, PairwiseDists *pd)
     pd->nTaxa=(t->nNodes-t->nIntNodes);
     pd->nPairs=(pd->nTaxa)*(pd->nTaxa-1)/2;
     pd->dists=AllocateDists(pd->nTaxa);
-    CalcPairwiseDists(t, pd);
+    CalcPairwiseDists_ReverseDownpass(t, pd);
 }
 
 
@@ -592,16 +591,17 @@ int FreePairwiseDists(PairwiseDists* pd)
     return(NO_ERROR);
 }
 
-int CalcPairwiseDists(Tree *t, PairwiseDists *pd)
+int CalcPairwiseDists_ReverseDownpass(Tree *t, MrBFlt *dists)
 {
     int         i,j,a,d,k;
     TreeNode    *p;
     double      x;
+    MrBFlt      **distsTemp;
 
     int numExtNodes = t->nNodes - t->nIntNodes;
+    MrBayesPrint("Num External Nodex",numExtNodes);
 
     /*  We'll calculate (in distsTemp) all node dists including internal nodes  */
-    MrBFlt **distsTemp;
     distsTemp=(MrBFlt**)malloc(t->nNodes*sizeof(MrBFlt*)); 
     for (k=0;k<t->nNodes;k++)
             distsTemp[k]=(MrBFlt*)malloc(t->nNodes*sizeof(MrBFlt));
@@ -612,9 +612,9 @@ int CalcPairwiseDists(Tree *t, PairwiseDists *pd)
                 distsTemp[i][j]=0.0;
 
     /* loop over all nodes  */
-    for (i=1; i<t->nNodes; i++)
+    for (i=(t->nNodes)-2; i>=0; i--)
         {
-        p = &t->nodes[i];
+        p = t->allDownPass[i];
         a = p->anc->index;   
         d = p->index;
         x = p->length;
@@ -624,9 +624,9 @@ int CalcPairwiseDists(Tree *t, PairwiseDists *pd)
         distsTemp[a][d] = x;
 
         /* now revisit previously visited nodes, updating distances  */ 
-        for (j=i-1; j>=0; j--)
+        for (j=i+1; j<t->nNodes; j++)
             {
-                k=(&t->nodes[j])->index;
+                k=t->allDownPass[j]->index;
                 if (k==a) 
                     continue;
 
@@ -641,17 +641,9 @@ int CalcPairwiseDists(Tree *t, PairwiseDists *pd)
     /*  set the distances in the output array */
     for (i=0; i<(numExtNodes-1); i++) {
         for (j=i+1; j<numExtNodes; j++) {
-            pd->dists[pairIdx(i,j,pd->nTaxa)]=distsTemp[i][j];
+            dists[pairIdx(i,j,numExtNodes)]=distsTemp[i][j];
         }
     }
-
-    /*  set the distances in the output array */
-    for (i=0; i<(t->nNodes-1); i++) {
-        for (j=i+1; j<t->nNodes; j++) {
-            pd->dists[pairIdx(i,j,pd->nTaxa)]=distsTemp[i][j];
-        }
-    }
-
 
     /*  free temp array and return pointer to taxa pairwise distances */
     for (k=0;k<t->nNodes;k++)
@@ -660,6 +652,8 @@ int CalcPairwiseDists(Tree *t, PairwiseDists *pd)
 
     return(NO_ERROR);
 }
+
+
 
 int CalcPairwiseDistsPolyTree(PolyTree *t, PairwiseDists *pd)
 {
@@ -1369,20 +1363,25 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
 |       with or without rate variation
 |
 ------------------------------------------------------------------*/
-int TiProbs_JukesCantor_Pairwise (PairwiseDists *pd, int division, int chain)
+int Probs_Pairwise_JukesCantor (int division, int chain)
 {
     /* calculate Jukes Cantor transition probabilities */
     
-    int         i, j, k, index, pair_idx;
+    int         i, j, k, index, pair_idx, dpIdx;
+    MrBFlt      *dists; 
     MrBFlt      t, *catRate, baseRate, theRate, length;
     CLFlt       pNoChange, pChange;
-    CLFlt       **tiP;   
+    CLFlt       **tiP, **doubP;   
     ModelInfo   *m;
-    
-    m = &modelSettings[division];
 
-    /* find transition probabilities */
+    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+    m = &modelSettings[division];
+    /* bs = GetParamSubVals (m->stateFreq, chain, state[chain]);  */
+
+    /* find pw dists and transition probabilities */
+    dists = m->pwDists[chain];
     tiP = m->tiProbsPw[chain];
+    doubP = m->doubletProbs[chain];
 
     /* get base rate */
     baseRate = GetRate (division, chain);
@@ -1400,9 +1399,9 @@ int TiProbs_JukesCantor_Pairwise (PairwiseDists *pd, int division, int chain)
     else
         catRate = &theRate;
 
-    for (pair_idx=0; pair_idx<pd->nPairs; pair_idx++)
+    for (pair_idx=0; pair_idx<m->numPairs; pair_idx++)
         {
-        length = pd->dists[pair_idx];
+        length = dists[pair_idx];
 
         /* numerical errors will ensue if we allow very large or very small branch lengths,
            which might occur in relaxed clock models */
@@ -1441,8 +1440,7 @@ int TiProbs_JukesCantor_Pairwise (PairwiseDists *pd, int division, int chain)
                 pChange   = (CLFlt) (0.25 - 0.25 * exp(-(4.0/3.0)*t));
                 pNoChange = (CLFlt) (0.25 + 0.75 * exp(-(4.0/3.0)*t));
 
-                MrBayesPrint("pChange = %f; pNoChange=%f\n", pChange,pNoChange);
-
+                dpIdx=0;
                 for (i=0; i<4; i++)
                     {
                     for (j=0; j<4; j++)
@@ -1451,13 +1449,91 @@ int TiProbs_JukesCantor_Pairwise (PairwiseDists *pd, int division, int chain)
                             tiP[pair_idx][index++] = pNoChange;
                         else
                             tiP[pair_idx][index++] = pChange;
+
                         }
                     }
                 }
             }
-        }
 
-    return NO_ERROR;
+        /*  Pw transition probabilities are done, now let's fill in the doublet probs: */
+        index=0;
+        for (k=0; k<m->numRateCats; k++) 
+            {
+            dpIdx=0;
+            for (i=0; i<4; i++)
+                {    
+                for (j=0; j<4; j++)
+                    /*   doubP[pair_idx][dpIdx++] += bs[i]*tiP[pair_idx][index++]/(m->numRateCats); */
+                    doubP[pair_idx][dpIdx++] += 0.25*tiP[pair_idx][index++]/(m->numRateCats);
+                }
+            }
+
+        } /*  end loop over pairs */
+
+    return (NO_ERROR);
 }
 
+int CountPairwise() {
+
+    int             i,j,k,c,id1,id2;
+    ModelInfo       *m;
+    ModelParams     *mp;
+    
+
+    /*  For now, only inplemented for a single partition 
+     *  of DNA type data */
+
+    if (m->dataType!=DNA || m->dataType != RNA)
+        { 
+        MrBayesPrint("%s Can't count pairwise site-patterns for non DNA data  \n", spacer);
+        return(ERROR);
+        }
+
+    if (numDefinedPartitions > 1)    
+        { 
+        MrBayesPrint("%s Pairwise count likelihood only implemented for a single partition  \n", spacer);
+        return(ERROR);
+        }
+
+    if (memAllocs[ALLOC_PAIRWISE] == YES) 
+        {
+        free(pairwiseCounts);
+        pairwiseCounts=NULL;
+        memAllocs[ALLOC_PAIRWISE] = NO;
+        }
+    memAllocs[ALLOC_PAIRWISE]=YES;
+
+    /* first allocate pairwise doublet counts:  */
+    pairwiseCounts=(int*)SafeMalloc(m->numPairs * 16 * sizeof(int));
+    if (!pairwiseCounts)
+        {
+        free(pairwiseCounts);
+        MrBayesPrint("%s Problem allocating pairwise counts! \n", spacer);
+        return(ERROR);
+        }
+
+    /* now count the doublets across taxa pairs */
+    for (i=0; i<(numTaxa-1); i++)
+        {
+        for (j=i+1; j<numTaxa; j++)
+            {
+            k=pairIdx(i,j,numTaxa);
+            for (c=0;c<numChar;c++)
+                {
+                if (matrix[pos(i,c,numChar)]==GAP | matrix[pos(j,c,numChar)]==GAP)
+                    continue;
+
+                 /* nucleotides at position x of sequences i & j   */        
+                id2=toIdx(matrix[pos(j,c,numChar)]);
+                id1=toIdx(matrix[pos(i,c,numChar)]);
+
+                /* increment the count of that nucleotide pair, at pair k  */
+                pairwiseCounts[tIdx(k,id1,id2,4,4)]++;
+
+               }
+            }
+        }
+
+    return (NO_ERROR);
+}
 
