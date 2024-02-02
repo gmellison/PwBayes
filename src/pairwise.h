@@ -38,14 +38,22 @@ typedef struct pairwisedists
 
 typedef int (*TiProbFxn_Pw)(PairwiseDists *, int, int);
 
-extern int    **doubletCounts;
+extern int    *pairwiseCounts;
+extern int    **tripleCounts;
+extern int    numTrips;
+extern int    numPairs;
+extern int    defPairwise;
+extern int    defTriples;
+extern int    usePairwise;
+extern int    useTriples;
+
 
 /* extern int    **tripletCounts;  */
 
 void CountFreqs(void);
 int  CountDoublets(int nPairs);
 int  CompressDoubletData(void);
-void CountTriples(void);
+int  CountTriples(void);
 int  triplePos(int i, int j, int k);
 
 int DoEstQPairwise(void);
@@ -61,9 +69,15 @@ int FreePairwiseDists(PairwiseDists* pd);
 void InitPairwiseDists(Tree *tree, PairwiseDists  *pd);
 void InitPairwiseDistsPolyTree(PolyTree *tree, PairwiseDists *pd);
 
-int Probs_Pairwise_JukesCantor (int division, int chain);
+int TiProbsPairwise_JukesCantor (int division, int chain);
+int DoubletProbs_JukesCantor(int division, int chain);
+int TiProbsPairwise_Gen (int division, int chain);
+int DoubletProbs_Gen(int division, int chain);
 int CalcPairwiseDists_ReverseDownpass(Tree *t, MrBFlt *dists);
 int CountPairwise(void);
+int Likelihood_Pairwise(int division, int chain, MrBFlt *lnL);
+
+int CountTriplets(void);
 
 #endif /* end of include guard PAIRWISE_H */
 

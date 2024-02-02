@@ -1468,15 +1468,23 @@ typedef struct modelinfo
     /*  Pairwise model information */
     int         usePairwise;                  /*  Flag for whether pairwise likelihood is used in mcmc */
     int         numPairs;
-    MrBFlt       **pwDists;
-    /*  int     **tiProbsPwIndex;               */
+    MrBFlt      **pwDists;
+    int         **pwIndex;               
     int         tiProbsPwLength;              /*   */
-    CLFlt       ***tiProbsPw;
+    CLFlt       **tiProbsPw;
     /*  int     *tiProbsPwScratchIndex;  */     /* index to scratch space for branch ti probs   */
     int         numTiProbsPw;                 /* number of ti prob arrays                     */
-    CLFlt       ***doubletProbs;              
-    int         doubletProbLength;
+    CLFlt       **doubletProbs;              
+    int         doubletProbsLength;
     int         numDoubletProbs;
+
+
+    /*  Triplelet model information */
+    int         useTriples;
+    int         **tripleCnDists;  /*  [chainId][tripleIndex * 3]   */
+    int         **tripleTiProbs   /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
+    int         **tripleProbs;    /*  site pattern probs: [chainId*triptId][64] */ 
+    int         **tripletIndex;   /*  holds indices for triplets: [chainId][tripId]  */
 
     int         condLikeLengthPw;             /* length of cond like array (incl. ti cats)    */
     MrBFlt      lnLikePw[MAX_CHAINS];         /* log like for chain                           */
@@ -1859,7 +1867,5 @@ extern int              num_procs;                              /* number of act
 extern MrBFlt           myStateInfo[7];                         /* likelihood/prior/heat/ran/moveInfo vals of me              */
 extern MrBFlt           partnerStateInfo[7];                    /* likelihood/prior/heat/ran/moveInfo vals of partner         */
 #endif
-
-extern int              *pairwiseCounts;
 
 #endif  /* __BAYES_H__ */

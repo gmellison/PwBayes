@@ -4524,33 +4524,37 @@ void FreeChainMemory (void)
         if (m->pwDists)
             {
             for (j=0; j<numLocalChains; j++)
+                {
                 if (m->pwDists[j])
                     free(m->pwDists[j]);
+                }
             free(m->pwDists);
             }
+
         if (m->tiProbsPw)
             {
-            for (j=0; j<numLocalChains; j++)
+            for (j=0; j<m->numTiProbsPw; j++)
                 if (m->tiProbsPw[j]) /*  chain pw probs */
-                    {
-                    for (k=0; k<m->numPairs; k++)
-                        free(m->tiProbsPw[j][k]);
                     free(m->tiProbsPw[j]);
-                    }
             free(m->tiProbsPw);
             }
+
         if (m->doubletProbs)
             {
-            for (j=0; j<numLocalChains; j++)
+            for (j=0; j<m->numDoubletProbs; j++)
                 if (m->doubletProbs[j]) /*  chain pw probs */
-                    {
-                    for (k=0; k<m->numPairs; k++)
-                        free(m->doubletProbs[j][k]);
                     free(m->doubletProbs[j]);
-                    }
             free(m->doubletProbs);
+            }
 
-            MrBayesPrint("freed tiprobs successfully? \n");
+        if (m->pwIndex)
+            {
+            for (j=0; j<numLocalChains; j++)
+                {
+                if (m->pwIndex[j]) /*  chain pw probs */
+                    free(m->pwIndex[j]);
+                }
+            free(m->pwIndex);
             }
 
         if (m->cijks)
@@ -5736,7 +5740,7 @@ int InitAugmentedModels (void)
 int InitChainCondLikes (void)
 {
     int         c, d, i, j, k, s, t, numReps, condLikesUsed, nIntNodes, nNodes,
-                clIndex, tiIndex, tiPwIndex, scalerIndex, indexStep, nPairs;
+                clIndex, tiIndex, tiPwIndex, scalerIndex, indexStep, nPairs, pwIdx;
     BitsLong    *charBits;
     CLFlt       *cL;
     ModelInfo   *m;
@@ -5872,12 +5876,12 @@ int InitChainCondLikes (void)
             m->numTiCats    = m->numRateCats * m->numBetaCats * m->numOmegaCats;   /* A single partition has either gamma, beta or omega categories */
             m->tiProbLength = m->numModelStates * m->numModelStates * m->numTiCats;
             m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
-            m->doubletProbLength = m->numModelStates * m->numModelStates;
+            m->doubletProbsLength = m->numModelStates * m->numModelStates;
             }
 
         m->numTiProbs = (numLocalChains + 1) * nNodes;
         m->numTiProbsPw = (numLocalChains + 1) * nPairs;
-        m->numTiProbsPw = (numLocalChains + 1) * nPairs;
+        m->numDoubletProbs = (numLocalChains + 1) * nPairs;
 
         /* set info about eigen systems */
         if (InitEigenSystemInfo (m) == ERROR)
@@ -6155,7 +6159,6 @@ int InitChainCondLikes (void)
             /*  allocate pw stuff, if pairwise is set */
             if (modelParams->usePairwise) 
                 {
-                m->numPairs=(int)numTaxa*(numTaxa-1)/2;
 
                 /*  allocate space for pw distances */
                 m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
@@ -6163,38 +6166,52 @@ int InitChainCondLikes (void)
                     m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
 
                 /*  allocate space for pw ti probs  */
-                m->tiProbsPw = (CLFlt***) SafeMalloc(numLocalChains * sizeof(CLFlt**));
+                m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
                 if (!m->tiProbs)
                     return (ERROR);
-                for (i=0; i<numLocalChains; i++)
+                for (i=0; i<m->numTiProbsPw; i++)
                     {
-                    m->tiProbsPw[i] = (CLFlt**)SafeMalloc(m->numPairs * sizeof(CLFlt*));
-                    for (j=0; j<m->numPairs; j++)
-                        {
-                        m->tiProbsPw[i][j] = (CLFlt*) SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
-                        if (!m->tiProbsPw[i][j])
-                            return (ERROR);
-                        }
+                    m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
+                    if (m->tiProbsPw[i] == NULL)
+                         return (ERROR);
                     }
 
                 /*  allocate space for pw doublet probs  */
-                m->doubletProbs = (CLFlt***) SafeMalloc(numLocalChains * sizeof(CLFlt**));
+                m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
                 if (!m->doubletProbs)
                     return (ERROR);
-                for (i=0; i<numLocalChains; i++)
+                for (i=0; i<m->numDoubletProbs; i++)
                     {
-                    m->doubletProbs[i] = (CLFlt**)SafeMalloc(m->numPairs * sizeof(CLFlt*));
-                    for (j=0; j<m->numPairs; j++)
-                        {
-                        m->doubletProbs[i][j] = (CLFlt*) SafeMalloc(m->doubletProbLength * sizeof(CLFlt));
-                        if (!m->doubletProbs[i][j])
-                            return (ERROR);
-                        }
+                    m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
+                    if (!m->doubletProbs[i])
+                        return (ERROR);
                     }
                 }
 
+            } /*  end of (if usebeagle==false)  */
 
-            } /*  end of outer loop  */
+        /* allocate and set indices from tree edges to ti prob arrays */
+        m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+        if (!m->pwIndex)
+            return (ERROR);
+        for (i=0; i<numLocalChains; i++)
+            {
+            m->pwIndex[i] = (int *) SafeMalloc (nPairs * sizeof(int));
+            if (!m->pwIndex[i])
+                return (ERROR);
+            }
+
+        /* set up indices for nodes */
+        pwIdx = 0;
+        for (i=0; i<numLocalChains; i++)
+            {
+            for (j=0; j<m->numPairs; j++)
+                {
+                m->pwIndex[i][j] = pwIdx;
+                pwIdx += indexStep;
+                }
+            }
+            
 
         /* allocate and set indices from pw edges to ti prob arrays */
         /*  -- just kidding; don't need these since they aren't associated with  
@@ -6251,7 +6268,6 @@ int InitChainCondLikes (void)
 
         /* set up indices for nodes */
         tiIndex = 0;
-
 
         for (i=0; i<numLocalChains; i++)
             {

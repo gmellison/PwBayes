@@ -7883,25 +7883,19 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
 
      if (modelParams[d].usePairwise == YES) 
         {
+
         /*   
          *   m = &modelSettings[d];
          *   tree = GetTree(m->brlens, chain, state[chain]);
          */
 
-        MrBayesPrint("Doing some pw stuff... \n");
-
         CalcPairwiseDists_ReverseDownpass(tree,m->pwDists[chain]);
-        Probs_Pairwise_JukesCantor(d,chain);
-
-        /*  update pw probabilities for current paramter state */
-        /*   TiProbs_JukesCantor_Pairwise(pd, d, chain);  */
-
-        /*  TODO: Update pw likelihoods  */
-        /*   TIME(m->Likelihood_Pw (tree->pairwiseDists, d, chain, lnL_pw, (chainId[chain] % chainParams.numChains)),CPULilklihood);
-        */
+        TiProbsPairwise_Gen(d,chain);
+        DoubletProbs_Gen(d,chain);
+        TIME(Likelihood_Pairwise(d,chain,lnL),CPULilklihood);
         }
                
-    if (m->parsModelId == NO && m->dataType != CONTINUOUS)
+     else if (m->parsModelId == NO && m->dataType != CONTINUOUS)
         {
         /* get site scalers ready */
         FlipSiteScalerSpace(m, chain);
