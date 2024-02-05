@@ -38,15 +38,14 @@ typedef struct pairwisedists
 
 typedef int (*TiProbFxn_Pw)(PairwiseDists *, int, int);
 
+extern int    numPairs;
+extern int    numTrips;
 extern int    *pairwiseCounts;
 extern int    **tripleCounts;
-extern int    numTrips;
-extern int    numPairs;
 extern int    defPairwise;
 extern int    defTriples;
 extern int    usePairwise;
 extern int    useTriples;
-
 
 /* extern int    **tripletCounts;  */
 

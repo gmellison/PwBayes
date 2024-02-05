@@ -496,7 +496,7 @@ char **readline_completion (const char *text, int start, int stop)
 void GetTimeSeed (void)
 {
     time_t      curTime;
-m
+
 #   if defined (MPI_ENABLED)
     int         ierror;
     

@@ -1367,6 +1367,8 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
     return (ll);
 }
 
+
+
 /*-----------------------------------------------------------------
 |
 |   TiProbs_JukesCantor: update transition probabilities for 4by4
@@ -1797,6 +1799,13 @@ int CountPairwise() {
 }
 
 
+/* 
+ *
+ * Triplet based quasi-likelihood stuff
+ *
+ *
+ */
+
 int CountTriplets() {
 
     int             i,j,k,c,id1,id2,id3,tripIdx;
@@ -1878,6 +1887,144 @@ int CountTriplets() {
 
     return (NO_ERROR);
 }
+
+
+int CalcTripletCnDists(int chain, int division)
+{
+    int         i,j,k,tripIdx;
+    MrBFlt      *pwDists, *cnDists, pwd1, pwd2, pwd3; 
+    ModelInfo   *m;  
+
+    m=&modelSettings[division];
+    pwDists=m->pwDists[chain];
+    cnDists=m->tripleCnDists[chain];
+
+    tripIdx=0;
+
+    for (i=0; i<(numTaxa-2); i++)
+        {
+        for (j=i+1; j<(numTaxa-1); j++)
+            {
+            pwd1=pwDists[dIdx(i,j,numTaxa)];
+            for (k=j+1; k<numTaxa; k++)
+                {
+                pwd2=pwDists[dIdx(i,k,numTaxa)];
+                pwd3=pwDists[dIdx(j,k,numTaxa)];
+
+                cnDists[tripIdx++]=(pwd1+pwd2-pwd3)/(2.0);
+                cnDists[tripIdx++]=(pwd1+pwd3-pwd2)/(2.0);
+                cnDists[tripIdx++]=(pwd2+pwd2-pwd1)/(2.0);
+                }
+            }
+        }
+
+    
+    return(NO_ERROR);
+}
+
+
+/*-----------------------------------------------------------------
+|
+|   TiProbsTriplet_JukesCantor: update transition probabilities for 4by4
+|       nucleotide model with nst == 1 (Jukes-Cantor)
+|       with or without rate variation
+|
+------------------------------------------------------------------*/
+int TiProbsTriplet (int division, int chain)
+{
+    /* calculate Jukes Cantor transition probabilities */
+    int         i, j, k, p, index;
+    MrBFlt      *tripDists; 
+    MrBFlt      t, *catRate, baseRate, theRate, length;
+    CLFlt       pNoChange, pChange;
+    CLFlt       *tiP, *doubP;   
+    ModelInfo   *m;
+
+    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+    m = &modelSettings[division];
+
+    /* find pw dists and transition probabilities */
+    tripleDists = m->tripleCnDists[chain];
+
+    /* get base rate */
+    baseRate = GetRate (division, chain);
+    
+    /* compensate for invariable sites if appropriate */
+    if (m->pInvar != NULL)
+        baseRate /= (1.0 - (*GetParamVals(m->pInvar, chain, state[chain])));
+   
+    /* get category rates */
+    theRate = 1.0;
+    if (m->shape != NULL)
+        catRate = GetParamSubVals (m->shape, chain, state[chain]);
+    else if (m->mixtureRates != NULL)
+        catRate = GetParamSubVals (m->mixtureRates, chain, state[chain]);
+    else
+        catRate = &theRate;
+
+    for (p=0; p<m->numPairs; p++)
+        {
+
+        tiP = m->tiProbsPw[m->pwIndex[chain][p]];
+        doubP = m->doubletProbs[m->pwIndex[chain][p]];
+
+        length = dists[p];
+
+        /* fill in values */
+        index=0;
+        for (k=0; k<m->numRateCats; k++)
+            {
+
+            t = length * baseRate * catRate[k];
+
+            /* numerical errors will ensue if we allow very large or very small branch lengths,
+            which might occur in relaxed clock models */
+            if (t < TIME_MIN)
+                {
+                /* Fill in identity matrix */
+                for (i=0; i<4; i++)
+                    {
+                    for (j=0; j<4; j++)
+                        {
+                        if (i == j)
+                            tiP[index++] = 1.0;
+                        else
+                            tiP[index++] = 0.0;
+                        }
+                    }
+                }
+            else if (t > TIME_MAX)
+                {
+                /* Fill in stationary matrix */
+                for (i=0; i<4; i++)
+                    for (j=0; j<4; j++)
+                        tiP[index++] = 0.25;
+                }
+            else
+                {
+                /* calculate probabilities */
+                pChange   = (CLFlt) (0.25 - 0.25 * exp(-(4.0/3.0)*t));
+                pNoChange = (CLFlt) (0.25 + 0.75 * exp(-(4.0/3.0)*t));
+
+                for (i=0; i<4; i++)
+                    {
+                    for (j=0; j<4; j++)
+                        {
+                        if (i == j)
+                            tiP[index++] = pNoChange;
+                        else
+                            tiP[index++] = pChange;
+
+                        }
+                    }
+                }
+            }
+        } /*  end loop over pairs */
+
+        /*  Pw transition probabilities are done, now let's fill in the doublet probs: */
+    return (NO_ERROR);
+}
+
 
 
 int FreePairwise() 

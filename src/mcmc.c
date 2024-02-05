@@ -278,6 +278,14 @@ extern CLFlt     *preLikeL;                  /* precalculated cond likes for lef
 extern CLFlt     *preLikeR;                  /* precalculated cond likes for right descendant*/
 extern CLFlt     *preLikeA;                  /* precalculated cond likes for ancestor        */
 
+/*  defined in pairwise.c  */
+extern int    numPairs;
+extern int    numTrips;
+extern int    *pairwiseCounts;
+extern int    **tripleCounts;
+extern int    usePairwise;
+extern int    useTriples;
+
 /* local (to this file) variables */
 int             numLocalChains;              /* number of Markov chains                      */
 int             *chainId = NULL;             /* information on the id (0 ...) of the chain   */
@@ -5740,7 +5748,7 @@ int InitAugmentedModels (void)
 int InitChainCondLikes (void)
 {
     int         c, d, i, j, k, s, t, numReps, condLikesUsed, nIntNodes, nNodes,
-                clIndex, tiIndex, tiPwIndex, scalerIndex, indexStep, nPairs, pwIdx;
+                clIndex, tiIndex, tiPwIndex, scalerIndex, indexStep, nPairs, pwIdx, tripIdx;
     BitsLong    *charBits;
     CLFlt       *cL;
     ModelInfo   *m;
@@ -5815,9 +5823,6 @@ int InitChainCondLikes (void)
         nIntNodes = GetTree(m->brlens, 0, 0)->nIntNodes;
         nNodes = GetTree(m->brlens, 0, 0)->nNodes;
 
-        /*  Find number of pairs  */
-        nPairs = (nNodes-nIntNodes) * (nNodes-nIntNodes) / 2;
-
         /* figure out number of cond like arrays */
         m->numCondLikes = (numLocalChains + 1) * (nIntNodes);
         m->numCondLikes += numLocalTaxa;
@@ -5836,7 +5841,6 @@ int InitChainCondLikes (void)
 
         /* figure out length of ti prob array and number of ti prob arrays */
         m->tiProbLength = 0;
-        m->tiProbsPwLength = 0;
 
         if (m->dataType == STANDARD)
             {
@@ -5877,11 +5881,15 @@ int InitChainCondLikes (void)
             m->tiProbLength = m->numModelStates * m->numModelStates * m->numTiCats;
             m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
             m->doubletProbsLength = m->numModelStates * m->numModelStates;
+
+            m->tripleProbsLength = m->numModelStates * m->numModelStates * m->numModelStates;
             }
 
         m->numTiProbs = (numLocalChains + 1) * nNodes;
-        m->numTiProbsPw = (numLocalChains + 1) * nPairs;
-        m->numDoubletProbs = (numLocalChains + 1) * nPairs;
+        m->numTiProbsPw = (numLocalChains + 1) * numPairs;
+        m->numDoubletProbs = (numLocalChains + 1) * numPairs;
+        m->numTiProbsTrip = (numLocalChains + 1) * numTrips * 3;
+        m->numTripleProbs = (numLocalChains + 1) * numTrips;
 
         /* set info about eigen systems */
         if (InitEigenSystemInfo (m) == ERROR)
@@ -6157,7 +6165,7 @@ int InitChainCondLikes (void)
                 }
 
             /*  allocate pw stuff, if pairwise is set */
-            if (modelParams->usePairwise) 
+            if (usePairwise) 
                 {
 
                 /*  allocate space for pw distances */
@@ -6188,20 +6196,41 @@ int InitChainCondLikes (void)
                     }
                 }
 
+            /*  allocate triplet stuff if necessary */
+            if (useTriples) 
+                {
+                /*  allocate triple cn distances */
+                m->tripleCnDists=(MrBFlt**)SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+                for (i=0;i<numLocalChains;i++)
+                    m->tripleCnDists[i]=(MrBFlt*)SafeMalloc(numTrips * 3 * sizeof(MrBFlt));
+
+
+                /*  allocate triple ti probabilities */
+                m->tripleTiProbs=(CLFlt**)SafeMalloc(numLocalChains * sizeof(CLFlt*));
+                for (i=0;i<numLocalChains;i++)
+                    m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->numTiProbsTrip * sizeof(CLFlt));
+
+                /*  allocate triple site pattern probabilities */
+                m->tripleTiProbs=(CLFlt**)SafeMalloc(numLocalChains * sizeof(CLFlt*));
+                for (i=0;i<numLocalChains;i++)
+                    m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->numTripleProbs * sizeof(CLFlt));
+
+                }
+
             } /*  end of (if usebeagle==false)  */
 
-        /* allocate and set indices from tree edges to ti prob arrays */
+        /* allocate and set indices from chain/pair to pw probs */
         m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
         if (!m->pwIndex)
             return (ERROR);
         for (i=0; i<numLocalChains; i++)
             {
-            m->pwIndex[i] = (int *) SafeMalloc (nPairs * sizeof(int));
+            m->pwIndex[i] = (int *) SafeMalloc (numPairs * sizeof(int));
             if (!m->pwIndex[i])
                 return (ERROR);
             }
 
-        /* set up indices for nodes */
+        /* set up pw indices */
         pwIdx = 0;
         for (i=0; i<numLocalChains; i++)
             {
@@ -6212,6 +6241,27 @@ int InitChainCondLikes (void)
                 }
             }
             
+        /*  allocate triple indices  */
+        m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+        if (!m->tripIndex)
+            return (ERROR);
+        for (i=0; i<numLocalChains; i++)
+            {
+            m->tripIndex[i] = (int *) SafeMalloc (numTrips * sizeof(int));
+            if (!m->tripIndex[i])
+                return (ERROR);
+            }
+
+        /* set up pw indices */
+        tripIdx = 0;
+        for (i=0; i<numLocalChains; i++)
+            {
+            for (j=0; j<m->numPairs; j++)
+                {
+                m->tripIndex[i][j] = tripIdx;
+                tripIdx += indexStep;
+                }
+            }
 
         /* allocate and set indices from pw edges to ti prob arrays */
         /*  -- just kidding; don't need these since they aren't associated with  

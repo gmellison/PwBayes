@@ -1479,14 +1479,19 @@ typedef struct modelinfo
     int         numDoubletProbs;
 
 
-    /*  Triplelet model information */
+    /*  Triplet model information */
     int         useTriples;
-    int         **tripleCnDists;  /*  [chainId][tripleIndex * 3]   */
-    int         **tripleTiProbs   /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
-    int         **tripleProbs;    /*  site pattern probs: [chainId*triptId][64] */ 
-    int         **tripletIndex;   /*  holds indices for triplets: [chainId][tripId]  */
-
+    MrBFlt      **tripleCnDists;    /*  [chainId][tripleIndex * 3]   */
+    CLFlt       **tripleTiProbs;    /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
+    CLFlt       **tripleProbs;      /*  site pattern probs: [chainId*triptId][64] */ 
+    int         **tripIndex;     /*  holds indices for triplets: [chainId][tripId]  */
+    int         numTripleProbs;
+    int         numTiProbsTrip;
+    int         tiProbsTripLength;
+    int         tripleProbsLength;
     int         condLikeLengthPw;             /* length of cond like array (incl. ti cats)    */
+
+
     MrBFlt      lnLikePw[MAX_CHAINS];         /* log like for chain                           */
 
     } ModelInfo;

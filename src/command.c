@@ -130,7 +130,7 @@ int      DoTaxasetParm (char *parmName, char *tkn);
 int      DoTaxaStat (void);
 int      DoTaxlabels (void);
 int      DoTaxlabelsParm (char *parmName, char *tkn);
-ihnt      DoTranslate (void);
+int      DoTranslate (void);
 int      DoTranslateParm (char *parmName, char *tkn);
 int      DoTree (void);
 int      DoTreeParm (char *parmName, char *tkn);
