@@ -14836,7 +14836,7 @@ void SetUpParms (void)
     PARAM (285, "Alpha",          DoPwSetParm,       "\0"); 
     PARAM (286, "Relrates",       DoPwSetParm,       "\0"); 
     PARAM (287, "Pairwise",       DoLsetParm,        "Yes|No|\0"); 
-    PARAM (288, "PwAlpha",        DoLsetParm,        "None|Full|Triplet\0"); 
+    PARAM (288, "PwAlphaLike",        DoLsetParm,        "None|Full|Triplet|\0"); 
 
 
     /* NOTE: If a change is made to the parameter table, make certain you change

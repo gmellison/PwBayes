@@ -283,8 +283,12 @@ extern int    numPairs;
 extern int    numTrips;
 extern int    *pairwiseCounts;
 extern int    **tripleCounts;
+
+/*  defined in model.c */
 extern int    usePairwise;
 extern int    useTriples;
+extern int    useFullForAlpha;
+
 
 /* local (to this file) variables */
 int             numLocalChains;              /* number of Markov chains                      */
@@ -692,7 +696,7 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
                 lnLikeStateBonDataA = 0.0;
                 for (d=0; d<numCurrentDivisions; d++)
                     {
-                    m = &modelSettings[d];
+                    m = &model
                     tree = GetTree(m->brlens, whichElementB, state[whichElementB]);
                     lnL = 0.0;
                     m->Likelihood (tree->root->left, d, whichElementB, &lnL, chainId[whichElementA] % chainParams.numChains);
@@ -4410,7 +4414,7 @@ TreeNode *FindBestNode (Tree *t, TreeNode *p, TreeNode *addNode, CLFlt *minLengt
 
 void FreeChainMemory (void)
 {
-    int         i, j, k, l, nRates;
+    int         i, j, k, nRates;
     ModelInfo   *m;
 
     /* free model variables for Gibbs gamma */
@@ -4564,6 +4568,56 @@ void FreeChainMemory (void)
                 }
             free(m->pwIndex);
             }
+
+        /*  free triplet dists and probabilities  */
+        if (m->tripleCnDists)
+            {
+            for (j=0; j<numLocalChains; j++)
+                {
+                if (m->tripleCnDists[j])
+                    free(m->tripleCnDists[j]);
+                }
+            free(m->tripleCnDists);
+            }
+
+        if (m->tripleTiProbs)
+            {
+            for (i=0; j<numLocalChains; i++)
+                if (m->tripleTiProbs[i]) 
+                    free(m->tripleTiProbs[i]);
+            free(m->tripleTiProbs);
+            }
+
+        if (m->tripleProbs)
+            {
+            for (i=0; i<numLocalChains; i++)
+                if (m->tripleProbs[i]) 
+                    free(m->tripleProbs[i]);
+            free(m->tripleProbs);
+            }
+
+        if (m->tripIndex)
+            {
+            for (j=0; j<numLocalChains; j++)
+                {
+                if (m->tripIndex[j]) /*  chain pw probs */
+                    free(m->tripIndex[j]);
+                }
+            free(m->tripIndex);
+            }
+
+        if (m->tripDistIndex)
+            {
+            for (j=0; j<numLocalChains; j++)
+                {
+                if (m->tripDistIndex[j]) /*  chain pw probs */
+                    free(m->tripDistIndex[j]);
+                }
+            free(m->tripDistIndex);
+            }
+        MrBayesPrint("Freed 4\n");
+
+
 
         if (m->cijks)
             {
@@ -5748,7 +5802,7 @@ int InitAugmentedModels (void)
 int InitChainCondLikes (void)
 {
     int         c, d, i, j, k, s, t, numReps, condLikesUsed, nIntNodes, nNodes,
-                clIndex, tiIndex, tiPwIndex, scalerIndex, indexStep, nPairs, pwIdx, tripIdx;
+                clIndex, tiIndex, scalerIndex, indexStep, pwIdx, tripIdx;
     BitsLong    *charBits;
     CLFlt       *cL;
     ModelInfo   *m;
@@ -5880,8 +5934,8 @@ int InitChainCondLikes (void)
             m->numTiCats    = m->numRateCats * m->numBetaCats * m->numOmegaCats;   /* A single partition has either gamma, beta or omega categories */
             m->tiProbLength = m->numModelStates * m->numModelStates * m->numTiCats;
             m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
+            m->tiProbsTripLength = m->numModelStates * m->numModelStates * m->numTiCats;
             m->doubletProbsLength = m->numModelStates * m->numModelStates;
-
             m->tripleProbsLength = m->numModelStates * m->numModelStates * m->numModelStates;
             }
 
@@ -6171,7 +6225,7 @@ int InitChainCondLikes (void)
                 /*  allocate space for pw distances */
                 m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
                 for (i=0; i<numLocalChains; i++)
-                    m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
+                    m->pwDists[i] = (MrBFlt*) SafeMalloc(numPairs * sizeof(MrBFlt));
 
                 /*  allocate space for pw ti probs  */
                 m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
@@ -6206,15 +6260,15 @@ int InitChainCondLikes (void)
 
 
                 /*  allocate triple ti probabilities */
-                m->tripleTiProbs=(CLFlt**)SafeMalloc(numLocalChains * sizeof(CLFlt*));
-                for (i=0;i<numLocalChains;i++)
-                    m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->numTiProbsTrip * sizeof(CLFlt));
+                m->tripleTiProbs=(CLFlt**)SafeMalloc(m->numTiProbsTrip * sizeof(CLFlt*));
+                for (i=0;i<m->numTiProbsTrip;i++)
+                    m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->tiProbsTripLength * sizeof(CLFlt));
+                MrBayesPrint("TripleTiProbs Size: %d, %d \n", m->numTiProbsTrip, m->tiProbsTripLength);
 
                 /*  allocate triple site pattern probabilities */
-                m->tripleTiProbs=(CLFlt**)SafeMalloc(numLocalChains * sizeof(CLFlt*));
-                for (i=0;i<numLocalChains;i++)
-                    m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->numTripleProbs * sizeof(CLFlt));
-
+                m->tripleProbs=(CLFlt**)SafeMalloc(m->numTripleProbs * sizeof(CLFlt*));
+                for (i=0;i<m->numTripleProbs;i++)
+                    m->tripleProbs[i]=(CLFlt*)SafeMalloc(m->tripleProbsLength * sizeof(CLFlt));
                 }
 
             } /*  end of (if usebeagle==false)  */
@@ -6234,7 +6288,7 @@ int InitChainCondLikes (void)
         pwIdx = 0;
         for (i=0; i<numLocalChains; i++)
             {
-            for (j=0; j<m->numPairs; j++)
+            for (j=0; j<numPairs; j++)
                 {
                 m->pwIndex[i][j] = pwIdx;
                 pwIdx += indexStep;
@@ -6252,13 +6306,36 @@ int InitChainCondLikes (void)
                 return (ERROR);
             }
 
-        /* set up pw indices */
+        /* set up triple indices */
         tripIdx = 0;
         for (i=0; i<numLocalChains; i++)
             {
-            for (j=0; j<m->numPairs; j++)
+            for (j=0; j<numTrips; j++)
                 {
                 m->tripIndex[i][j] = tripIdx;
+                tripIdx += indexStep;
+                }
+            }
+
+
+        /*  allocate triple indices  */
+        m->tripDistIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+        if (!m->tripDistIndex)
+            return (ERROR);
+        for (i=0; i<numLocalChains; i++)
+            {
+            m->tripDistIndex[i] = (int *) SafeMalloc ((numTrips * 3) * sizeof(int));
+            if (!m->tripDistIndex[i])
+                return (ERROR);
+            }
+
+        /* set up triple indices */
+        tripIdx = 0;
+        for (i=0; i<numLocalChains; i++)
+            {
+            for (j=0; j<(numTrips*3); j++)
+                {
+                m->tripDistIndex[i][j] = tripIdx;
                 tripIdx += indexStep;
                 }
             }
@@ -16997,6 +17074,7 @@ int RunChain (RandLong *seed)
                 {
                 lnLikelihoodRatio = lnLike - curLnL[chn];
                 lnPrior = curLnPr[chn] + lnPriorRatio;
+                
 
 #   ifndef NDEBUG
                 /* We check various aspects of calculations in debug version of code */
@@ -17106,14 +17184,13 @@ int RunChain (RandLong *seed)
                 theMove->nAccepted[i] = 0;
                 theMove->nBatches[i]++;                                     /* we only autotune at most 10000 times */
                 if (chainParams.autotune == YES && theMove->moveType->Autotune != NULL && theMove->nBatches[i] < MAXTUNINGPARAM)
-                    {
+                    
                     theMove->moveType->Autotune(theMove->lastAcceptanceRate[i],
                                                 theMove->targetRate[i],
                                                 theMove->nBatches[i],
                                                 &theMove->tuningParam[i][0],
                                                 theMove->moveType->minimum[0],
                                                 theMove->moveType->maximum[0]);
-                    }
                 }
 
             /* ShowValuesForChain (chn); */

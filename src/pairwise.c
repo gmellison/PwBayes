@@ -57,15 +57,24 @@ int defDoublets = NO;
 MrBFlt alpha=0.1;
 MrBFlt dist=0.1;
 
+
 int *pairwiseCounts;
 int **tripleCounts;
 int numTrips;
+int numPairs;
+
+/* globals declared here */
 int defPairwise=NO;
 int defTriples=NO;
 int allocPairwise=NO;
 int allocTriples=NO;
+
+/*  
 int usePairwise=NO;
 int useTriples=NO;
+int useFullForAlpha=NO;
+ */
+
 
 // local prototypes:
 int              toIdx(int x);
@@ -579,6 +588,7 @@ PairwiseDists* AllocatePairwiseDists(void) {
     return(pd);
 }
 
+/*
 void InitPairwiseDists(Tree *t, PairwiseDists *pd) 
 {
     pd->nTaxa=(t->nNodes-t->nIntNodes);
@@ -586,7 +596,7 @@ void InitPairwiseDists(Tree *t, PairwiseDists *pd)
     pd->dists=AllocateDists(pd->nTaxa);
     CalcPairwiseDists_ReverseDownpass(t, pd);
 }
-
+*/
 
 void InitPairwiseDistsPolyTree(PolyTree *pt, PairwiseDists *pd) 
 {
@@ -603,13 +613,18 @@ int FreePairwiseDists(PairwiseDists* pd)
     return(NO_ERROR);
 }
 
-int CalcPairwiseDists_ReverseDownpass(Tree *t, MrBFlt *dists)
+int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
 {
     int         i,j,a,d,k;
     TreeNode    *p;
     double      x;
-    MrBFlt      **distsTemp;
+    MrBFlt      *dists, **distsTemp;
+    ModelInfo   *m;
 
+    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+    m = &modelSettings[division];
+
+    dists = m->pwDists[chain];
     int numExtNodes = t->nNodes - t->nIntNodes;
 
     /*  We'll calculate (in distsTemp) all node dists including internal nodes  */
@@ -829,67 +844,6 @@ int triplePos(int i, int j, int k) {
     return i*16 +j*4 + k;
 }
 
-
-void CountTriples(void) {
-
-    int s, seqi, seqj, seqk;
-    int i,j,k;
-    int seqIdx, spIdx;
-
-    numTriples = numTaxa * (numTaxa-1) * (numTaxa-2) / 6;
-
-    tripletCounts = (int**)malloc(numTriples * sizeof(int*));
-    for (i=0; i<numTriples; i++)
-        tripletCounts[i] = malloc( 64 * sizeof(int));
-
-    // initialize triplet counts to 0
-    for (seqi=0; seqi<(numTaxa-2); seqi++) {
-        for (seqj=(seqi+1); seqj<(numTaxa-1); seqj++) {
-            for (seqk=(seqj+1);seqk<(numTaxa);seqk++) {
-
-                seqIdx=tripletIdx(seqi,seqj,seqk,numTaxa);
-                MrBayesPrint("triplet index: %d \n", seqIdx);
-
-                for (i=0; i<4; i++) {
-                    for (j=0; j<4; j++) {
-                        for (k=0;k<4;k++) {
-                            spIdx = tIdx(i,j,k,4,4);
-                            tripletCounts[seqIdx][spIdx]=0; 
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // now loop and count the triple site patterns
-    for (s=0;s<numChar;s++) {
-
-        for (seqi=0;seqi<(numTaxa-2);seqi++) {
-            if (matrix[pos(seqi,s,numChar)]==GAP)
-                continue;
-
-            i=toIdx(matrix[pos(seqi,s,numChar)]);
-
-            for (seqj=(seqi+1);seqj<(numTaxa-1);seqj++) {
-                 if (matrix[pos(seqj,s,numChar)]==GAP)
-                    continue;
-                 j = toIdx(matrix[pos(seqj,s,numChar)]);
-
-                for (seqk=(seqj+1);seqk<numTaxa;seqk++) {
-                     if (matrix[pos(seqk,s,numChar)]==GAP)
-                        continue;
-                     k = toIdx(matrix[pos(seqk,s,numChar)]);
-
-                     seqIdx=tripletIdx(seqi,seqj,seqk,numTaxa);
-                     spIdx=tIdx(i,j,k,4,4);
-                     tripletCounts[seqIdx][spIdx]++;
-                }
-            }
-        }
-    }
-    defTriples=YES;
-}
 void SetupQMat(MrBFlt **Q) {
 
     int i, j;
@@ -1105,7 +1059,7 @@ int DoTripletLogLike(void) {
 
     if (defTriples==NO)
     {
-        CountTriples();
+        CountTriplets();
     }
 
     PairwiseDists* pd;
@@ -1230,7 +1184,7 @@ MrBFlt CalcTripletLogLike_JC(PairwiseDists *pd) {
                             nucidx = tIdx(i,j,k,4,4);
 
                             // no need to calculate probs for not present in data
-                            if (tripletCounts[tripidx][nucidx] == 0) continue;  
+                            if (tripleCounts[tripidx][nucidx] == 0) continue;  
 
                             // ensure triple site pattern prob is init to 0:
                             tripleProbs[nucidx] = 0.0;
@@ -1257,7 +1211,7 @@ MrBFlt CalcTripletLogLike_JC(PairwiseDists *pd) {
                                 tripleProbs[nucidx]+=0.25*probByRateCat[ri];
                             }
 
-                            ll += tripletCounts[tripidx][nucidx] * log(tripleProbs[nucidx]);
+                            ll += tripleCounts[tripidx][nucidx] * log(tripleProbs[nucidx]);
                         }
                     }
                 }
@@ -1295,13 +1249,13 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
 
 
     /*  pool triplet counts:  */
-    int tripletCountsPooled[64];
+    int tripleCountsPooled[64];
 
     for (ti=0; ti<pd->nPairs; ti++)
         for (i=0; i<4; i++) 
             for (j=0; j<4; j++) 
                 for (k=0;k<4;k++) 
-                    tripletCountsPooled[tIdx(i,j,k,4,4)] += tripletCounts[ti][tIdx(i,j,k,4,4)];
+                    tripleCountsPooled[tIdx(i,j,k,4,4)] += tripleCounts[ti][tIdx(i,j,k,4,4)];
     
  
     for (int i=0; i<4; i++) {
@@ -1333,7 +1287,7 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
                 spIdx=tIdx(i,j,k,4,4);
 
                 // no need to calculate probs for not present in data
-                if (tripletCounts[spIdx] == 0) continue;  
+                if (tripleCounts[spIdx] == 0) continue;  
 
                 // ensure triple site pattern prob is init to 0:
                 tripleProbs[spIdx] = 0.0;
@@ -1360,7 +1314,7 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
                     tripleProbs[spIdx]+=0.25*probsByRateCat[ri];
                 }
 
-                ll += tripletCountsPooled[spIdx] * log(tripleProbs[spIdx]);
+                ll += tripleCountsPooled[spIdx] * log(tripleProbs[spIdx]);
             }
         }
     }
@@ -1380,11 +1334,11 @@ int TiProbsPairwise_JukesCantor (int division, int chain)
 {
     /* calculate Jukes Cantor transition probabilities */
     
-    int         i, j, k, p, index, dpIdx;
+    int         i, j, k, p, index;
     MrBFlt      *dists; 
     MrBFlt      t, *catRate, baseRate, theRate, length;
     CLFlt       pNoChange, pChange;
-    CLFlt       *tiP, *doubP;   
+    CLFlt       *tiP;   
     ModelInfo   *m;
 
     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
@@ -1409,11 +1363,10 @@ int TiProbsPairwise_JukesCantor (int division, int chain)
     else
         catRate = &theRate;
 
-    for (p=0; p<m->numPairs; p++)
+    for (p=0; p<numPairs; p++)
         {
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
-        doubP = m->doubletProbs[m->pwIndex[chain][p]];
 
         length = dists[p];
 
@@ -1485,7 +1438,7 @@ int TiProbsPairwise_Gen (int division, int chain)
     /* calculate Jukes Cantor transition probabilities */
     register int    i, j, k, n, p, s, index;
     MrBFlt          t, *catRate, baseRate, *eigenValues, *cijk, *bs,
-                    EigValexp[64], sum, *ptr, theRate, correctionFactor,
+                    EigValexp[64], sum, *ptr, theRate,
                     length;
     CLFlt           *tiP;
     ModelInfo       *m;
@@ -1518,7 +1471,7 @@ int TiProbsPairwise_Gen (int division, int chain)
     eigenValues = m->cijks[m->cijkIndex[chain]];
     cijk        = eigenValues + (2 * n);
 
-    for (p=0; p<m->numPairs; p++)
+    for (p=0; p<numPairs; p++)
         {
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
@@ -1600,7 +1553,7 @@ int DoubletProbs_JukesCantor(int division, int chain)
     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
     m = &modelSettings[division];
 
-    for (p=0; p<m->numPairs; p++)
+    for (p=0; p<numPairs; p++)
         {
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
@@ -1621,6 +1574,7 @@ int DoubletProbs_JukesCantor(int division, int chain)
                     doubP[dpIdx++] += 0.25 * tiP[index++]/((MrBFlt)m->numRateCats);
             }
         }
+    return(NO_ERROR);
 }
 
 
@@ -1635,7 +1589,7 @@ int DoubletProbs_Gen(int division, int chain)
     m = &modelSettings[division];
     bs = GetParamSubVals(m->stateFreq, chain, state[chain]);
 
-    for (p=0; p<m->numPairs; p++)
+    for (p=0; p<numPairs; p++)
         {
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
@@ -1656,6 +1610,7 @@ int DoubletProbs_Gen(int division, int chain)
                     doubP[dpIdx++] += bs[i] * tiP[index++]/((MrBFlt)m->numRateCats);
             }
         }
+    return(NO_ERROR);
 }
 
 
@@ -1681,7 +1636,7 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
     m = &modelSettings[division];
 
     *lnL = 0.0;
-    for (p=0; p<m->numPairs; p++)
+    for (p=0; p<numPairs; p++)
         {
 
         /* find transition probabilities */
@@ -1724,11 +1679,9 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
 }
 
 
-int CountPairwise() {
+int CountPairwise(void) {
 
-    int             i,j,k,c,id1,id2,numPairs;
-    ModelInfo       *m;
-    ModelParams     *mp;
+    int             i,j,k,c,id1,id2;
     
     /*  For now, only inplemented for a single partition 
      *  of DNA type data */
@@ -1806,11 +1759,9 @@ int CountPairwise() {
  *
  */
 
-int CountTriplets() {
+int CountTriplets(void) {
 
     int             i,j,k,c,id1,id2,id3,tripIdx;
-    ModelInfo       *m;
-    ModelParams     *mp;
     int             *counts;
     
     /*  For now, only inplemented for a single partition 
@@ -1889,7 +1840,7 @@ int CountTriplets() {
 }
 
 
-int CalcTripletCnDists(int chain, int division)
+int CalcTripletCnDists(int division, int chain)
 {
     int         i,j,k,tripIdx;
     MrBFlt      *pwDists, *cnDists, pwd1, pwd2, pwd3; 
@@ -1900,20 +1851,19 @@ int CalcTripletCnDists(int chain, int division)
     cnDists=m->tripleCnDists[chain];
 
     tripIdx=0;
-
     for (i=0; i<(numTaxa-2); i++)
         {
         for (j=i+1; j<(numTaxa-1); j++)
             {
-            pwd1=pwDists[dIdx(i,j,numTaxa)];
+            pwd1=pwDists[pairIdx(i,j,numTaxa)];
             for (k=j+1; k<numTaxa; k++)
                 {
-                pwd2=pwDists[dIdx(i,k,numTaxa)];
-                pwd3=pwDists[dIdx(j,k,numTaxa)];
+                pwd2=pwDists[pairIdx(i,k,numTaxa)];
+                pwd3=pwDists[pairIdx(j,k,numTaxa)];
 
                 cnDists[tripIdx++]=(pwd1+pwd2-pwd3)/(2.0);
                 cnDists[tripIdx++]=(pwd1+pwd3-pwd2)/(2.0);
-                cnDists[tripIdx++]=(pwd2+pwd2-pwd1)/(2.0);
+                cnDists[tripIdx++]=(pwd2+pwd3-pwd1)/(2.0);
                 }
             }
         }
@@ -1930,14 +1880,14 @@ int CalcTripletCnDists(int chain, int division)
 |       with or without rate variation
 |
 ------------------------------------------------------------------*/
-int TiProbsTriplet (int division, int chain)
+int TiProbsTriplet_JukesCantor (int division, int chain)
 {
     /* calculate Jukes Cantor transition probabilities */
-    int         i, j, k, p, index;
-    MrBFlt      *tripDists; 
+    int         i, j, k, l, p, index, tripIdx;
+    MrBFlt      *tripleDists; 
     MrBFlt      t, *catRate, baseRate, theRate, length;
     CLFlt       pNoChange, pChange;
-    CLFlt       *tiP, *doubP;   
+    CLFlt       *tiP;   
     ModelInfo   *m;
 
     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
@@ -1948,7 +1898,7 @@ int TiProbsTriplet (int division, int chain)
 
     /* get base rate */
     baseRate = GetRate (division, chain);
-    
+
     /* compensate for invariable sites if appropriate */
     if (m->pInvar != NULL)
         baseRate /= (1.0 - (*GetParamVals(m->pInvar, chain, state[chain])));
@@ -1962,77 +1912,221 @@ int TiProbsTriplet (int division, int chain)
     else
         catRate = &theRate;
 
-    for (p=0; p<m->numPairs; p++)
+    tripIdx=0;
+    for (p=0; p<numTrips; p++)
         {
 
-        tiP = m->tiProbsPw[m->pwIndex[chain][p]];
-        doubP = m->doubletProbs[m->pwIndex[chain][p]];
+        for (l=0;l<3;l++)
+            {
+            
+            length = tripleDists[tripIdx];
+            tiP = m->tripleTiProbs[m->tripDistIndex[chain][tripIdx]];
+            tripIdx++;
 
-        length = dists[p];
+            index=0;
+            for (k=0; k<m->numRateCats; k++)
+                {
 
-        /* fill in values */
-        index=0;
+                t = length * baseRate * catRate[k];
+
+                /* numerical errors will ensue if we allow very large or very small branch lengths,
+                which might occur in relaxed clock models */
+                if (t < TIME_MIN)
+                    {
+                    /* Fill in identity matrix */
+                    for (i=0; i<4; i++)
+                        {
+                        for (j=0; j<4; j++)
+                            {
+                            if (i == j)
+                                tiP[index++] = 1.0;
+                            else
+                                tiP[index++] = 0.0;
+                            }
+                        }
+                    }
+                else if (t > TIME_MAX)
+                    {
+                    /* Fill in stationary matrix */
+                    for (i=0; i<4; i++)
+                        for (j=0; j<4; j++)
+                            tiP[index++] = 0.25;
+                    }
+                else
+                    {
+                    /* calculate probabilities */
+                    pChange   = (CLFlt) (0.25 - 0.25 * exp(-(4.0/3.0)*t));
+                    pNoChange = (CLFlt) (0.25 + 0.75 * exp(-(4.0/3.0)*t));
+
+                    for (i=0; i<4; i++)
+                        {
+                        for (j=0; j<4; j++)
+                            {
+                            if (i == j)
+                                tiP[index++] = pNoChange;
+                            else
+                                tiP[index++] = pChange;
+
+                            }
+                        }
+                    }
+                }
+            } /*  end loop over pairs */
+        }
+
+    return (NO_ERROR);
+}
+
+/*-----------------------------------------------------------------
+|
+|   TiProbsTriplet_JukesCantor: update transition probabilities for 4by4
+|       nucleotide model with nst == 1 (Jukes-Cantor)
+|       with or without rate variation
+|
+------------------------------------------------------------------*/
+int TripletProbs_JukesCantor (int division, int chain)
+{
+    /* calculate Jukes Cantor transition probabilities */
+    int         i, j, k, l, p, w, spIdx, tripLengthIdx, x,y,z, idx1, idx2, idx3;
+    MrBFlt      *tripleDists; 
+    MrBFlt      t, *catRate, baseRate, theRate, length;
+    CLFlt       pNoChange, pChange, numCats;
+    CLFlt       *tiP1, *tiP2, *tiP3, *tripProb, *tripProbTemp;   
+    ModelInfo   *m;
+    int         indexStep, indexStart;
+
+    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+    m = &modelSettings[division];
+    numCats=((CLFlt)m->numRateCats);
+
+    /*  tripProbTemp=(CLFlt*)SafeMalloc(4 * 4 * 4 * sizeof(CLFlt)); */
+
+    indexStep=4*4;
+
+    CLFlt dummy = 0.0; 
+    tripLengthIdx=0;
+    for (p=0; p<numTrips; p++)
+        {
+        indexStart=0;
+        tripProb=m->tripleProbs[m->tripIndex[chain][p]];
+
+        /*  initialize triplet probabilities to 0: */
+        for (k=0; k<m->tripleProbsLength; k++)
+                tripProb[k]=0.0;
+
+        tiP1 = m->tripleTiProbs[m->tripDistIndex[chain][tripLengthIdx++]];
+        tiP2 = m->tripleTiProbs[m->tripDistIndex[chain][tripLengthIdx++]];
+        tiP3 = m->tripleTiProbs[m->tripDistIndex[chain][tripLengthIdx++]];
+ 
         for (k=0; k<m->numRateCats; k++)
             {
 
-            t = length * baseRate * catRate[k];
-
-            /* numerical errors will ensue if we allow very large or very small branch lengths,
-            which might occur in relaxed clock models */
-            if (t < TIME_MIN)
+            spIdx=0;
+            idx1=indexStart;   
+            for (x=0; x<4; x++)
                 {
-                /* Fill in identity matrix */
-                for (i=0; i<4; i++)
+                idx2=indexStart; 
+                for (y=0; y<4; y++)
                     {
-                    for (j=0; j<4; j++)
+                    idx3=indexStart;
+                    for (z=0; z<4; z++)
                         {
-                        if (i == j)
-                            tiP[index++] = 1.0;
-                        else
-                            tiP[index++] = 0.0;
-                        }
-                    }
-                }
-            else if (t > TIME_MAX)
-                {
-                /* Fill in stationary matrix */
-                for (i=0; i<4; i++)
-                    for (j=0; j<4; j++)
-                        tiP[index++] = 0.25;
-                }
-            else
-                {
-                /* calculate probabilities */
-                pChange   = (CLFlt) (0.25 - 0.25 * exp(-(4.0/3.0)*t));
-                pNoChange = (CLFlt) (0.25 + 0.75 * exp(-(4.0/3.0)*t));
+                        for (w=0; w<4; w++)
+                            {
+                                /*  internal triplet nucleotide is w */
+                                /*  need transition probabilities w->x,w->y,w->z  */
+                                tripProb[spIdx] += 0.25 * tiP1[idx1+w] * tiP2[idx2+w] * tiP3[idx3+w] / numCats;
+                                /*
+                                if (chain ==0 && x == 0 && y == 0 && z == 2 && p == 0) {
 
-                for (i=0; i<4; i++)
+                                        MrBayesPrint("Site Pattern AAC|w=%d, triplet 1: ---- \n ", w);
+                                        MrBayesPrint("  Triple Probs | rate cat = %d:\n ", k);
+                                        MrBayesPrint("  tiP1[idx1+w]: %f,  tiP2[idx2+w]: %f tiP3[idr3+w]: %f  \n ", tiP1[idx1+w], tiP2[idx2+w], tiP3[idx3+w] );
+
+                                        dummy += 0.25 * tiP1[idx1+w] * tiP2[idx2+w] * tiP3[idx3+w] / numCats ;
+                                        if (w == 3) MrBayesPrint("  triplet prob for rate cat %d: %f \n\n", k, dummy);
+                                }  */
+                            }
+                        spIdx++;
+                        idx3+=4;
+                        } /*  end of z loop */
+                    idx2+=4;
+                    } /*  end of y loop  */
+                idx1+=4;
+                } /*  end of x loop */
+
+            indexStart+=indexStep;
+            } /* end rate category loop  */
+
+        /*   tripProbTemp[tripIdx]=;   */
+        } /*  end loop over triplets */
+
+    /*  free(tripProbTemp);  */
+    return (NO_ERROR);
+}
+
+int Likelihood_Triples (int division, int chain, MrBFlt *lnL)
+{
+    /* calculate Jukes Cantor likelihood, using pw counts and tps. */
+    
+    int         i, j, k, idx, p, nijk;
+    MrBFlt      like;
+    CLFlt       *tripP, pijk;   
+    ModelInfo   *m;
+
+    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+    m = &modelSettings[division];
+
+
+    *lnL = 0.0;
+
+    for (p=0; p<numTrips; p++)
+        {
+
+        /* find transition probabilities */
+        tripP = m->tripleProbs[m->tripIndex[chain][p]];
+
+        idx=0;
+        for (i=0; i<4; i++) 
+            {
+            for (j=0; j<4; j++) 
+                {
+                for (k=0; k<4; k++)
                     {
-                    for (j=0; j<4; j++)
-                        {
-                        if (i == j)
-                            tiP[index++] = pNoChange;
-                        else
-                            tiP[index++] = pChange;
+                    like = 0.0;
+                    nijk=tripleCounts[p][idx];
+                    pijk=tripP[idx++];
 
+                    if (nijk == 0)
+                        like+=0; 
+                    else 
+                        like+=nijk*log(pijk);         
+ 
+            /* check against LIKE_EPSILON (values close to zero are problematic) */
+                    if (pijk < LIKEPW_EPSILON)
+                        {
+                        (*lnL) = MRBFLT_NEG_MAX;
+                        abortMove = YES;
+                        return ERROR;
                         }
+
+                    *lnL+=like;
                     }
                 }
             }
-        } /*  end loop over pairs */
+        }
 
-        /*  Pw transition probabilities are done, now let's fill in the doublet probs: */
     return (NO_ERROR);
 }
 
 
 
-int FreePairwise() 
+int FreePairwise(void) 
 {
     return (NO_ERROR);
 }
 
-int FreeTriples() 
+int FreeTriples(void) 
 {
     int i;
 
@@ -2054,4 +2148,37 @@ int FreeTriples()
     return (NO_ERROR);
 }
 
+MrBFlt LogLikePairwise(int chain) 
+{
+    ModelInfo  *m;
+    Tree       *tree;
+    MrBFlt     *lnL;
+    int d=0; /*  for now, only implemented for a single DNA partition */
 
+    lnL =  &(m->lnLike[2 * chain + state[chain]]);
+    m = &modelSettings[d];
+    tree = GetTree(m->brlens, chain, state[chain]);
+
+    CalcPairwiseDists_ReverseDownpass(tree,d,chain);
+    TiProbsPairwise_Gen(d,chain);
+    DoubletProbs_Gen(d,chain);
+    TIME(Likelihood_Pairwise(d,chain,lnL),CPULikelihood);
+
+}
+
+MrBFlt LogLikeTriplet(int chain)
+{
+    ModelInfo  *m;
+    Tree       *tree;
+    MrBFlt     *lnL;
+    int d=0; /*  for now, only implemented for a single DNA partition */
+
+    lnL =  &(m->lnLike[2 * chain + state[chain]]);
+    m = &modelSettings[d];
+    tree = GetTree(m->brlens, chain, state[chain]);
+
+    CalcTripletCnDists(d, chain); 
+    TiProbsTriplet_JukesCantor(d, chain); 
+    TripletProbs_JukesCantor(d,chain);
+    TIME(Likelihood_Triples(d,chain,lnL),CPULilklihood); 
+}

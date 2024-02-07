@@ -298,7 +298,7 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define ALPHA                   14
 #define NUMBER                  15
 #define RETURNSYMBOL            16
-#define ASTERISK                17
+#define ASTERISK                17 
 #define BACKSLASH               18
 #define FORWARDSLASH            19
 #define EXCLAMATIONMARK         20
@@ -1467,7 +1467,6 @@ typedef struct modelinfo
 
     /*  Pairwise model information */
     int         usePairwise;                  /*  Flag for whether pairwise likelihood is used in mcmc */
-    int         numPairs;
     MrBFlt      **pwDists;
     int         **pwIndex;               
     int         tiProbsPwLength;              /*   */
@@ -1478,21 +1477,19 @@ typedef struct modelinfo
     int         doubletProbsLength;
     int         numDoubletProbs;
 
-
     /*  Triplet model information */
-    int         useTriples;
     MrBFlt      **tripleCnDists;    /*  [chainId][tripleIndex * 3]   */
     CLFlt       **tripleTiProbs;    /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
     CLFlt       **tripleProbs;      /*  site pattern probs: [chainId*triptId][64] */ 
     int         **tripIndex;     /*  holds indices for triplets: [chainId][tripId]  */
+    int         **tripDistIndex;     /*  holds indices for triplets: [chainId][tripId]  */
     int         numTripleProbs;
     int         numTiProbsTrip;
     int         tiProbsTripLength;
     int         tripleProbsLength;
     int         condLikeLengthPw;             /* length of cond like array (incl. ti cats)    */
 
-
-    MrBFlt      lnLikePw[MAX_CHAINS];         /* log like for chain                           */
+    MrBFlt      lnLikeAlpha[MAX_CHAINS];      /* log like for chain                           */
 
     } ModelInfo;
 

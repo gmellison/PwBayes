@@ -55,6 +55,10 @@ extern int      numLocalChains;
 extern int      rateProbRowSize;            /* size of rate probs for one chain one state   */
 extern MrBFlt   **rateProbs;                /* pointers to rate probs used by adgamma model */
 
+/* pairwise globals (declared in model.c) */
+extern int usePairwise;
+extern int useTriples;
+
 /* local prototypes */
 MrBFlt    GetRate (int division, int chain);
 int       RemoveNodeScalers(TreeNode *p, int division, int chain);
@@ -7859,7 +7863,11 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
 #   if defined (TIMING_ANALIZ)
     clock_t         CPUTimeStart;
 #   endif
-   
+    
+    m = &modelSettings[d];
+    tree = GetTree(m->brlens, chain, state[chain]);
+    
+
     m = &modelSettings[d];
     tree = GetTree(m->brlens, chain, state[chain]);
     
@@ -7881,21 +7889,7 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
         }
 #   endif
 
-     if (modelParams[d].usePairwise == YES) 
-        {
-
-        /*   
-         *   m = &modelSettings[d];
-         *   tree = GetTree(m->brlens, chain, state[chain]);
-         */
-
-        CalcPairwiseDists_ReverseDownpass(tree,m->pwDists[chain]);
-        TiProbsPairwise_Gen(d,chain);
-        DoubletProbs_Gen(d,chain);
-        TIME(Likelihood_Pairwise(d,chain,lnL),CPULilklihood);
-        }
-               
-     else if (m->parsModelId == NO && m->dataType != CONTINUOUS)
+     if (m->parsModelId == NO && m->dataType != CONTINUOUS)
         {
         /* get site scalers ready */
         FlipSiteScalerSpace(m, chain);

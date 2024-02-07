@@ -169,6 +169,13 @@ int             *stateSize;                  /* # states for each compressed cha
 // char         *plotTokenP;                 /* plotToken[CMD_STRING_LENGTH];*/
 
 
+/*  globals declared here (pairwise.c) */
+int    usePairwise;
+int    useTriples;
+int    useFullForAlpha;
+
+
+
 /*-----------------------------------------------------------------------
 |
 |   AddDummyChars: Add dummy characters to relevant partitions
@@ -3318,25 +3325,33 @@ int DoLsetParm (char *parmName, char *tkn)
                 {
                 if (IsArgValid(tkn, tempStr) == NO_ERROR)
                     {
+                    /*  TODO: either: 1. implement pairwise for different data partitions or 
+                     *  2: don't bother to loop through parts and just set global flags. if multiple 
+                     *  partitions, return warning or error.    */
                     nApplied = NumActiveParts ();
                     for (i=0; i<numCurrentDivisions; i++)
                         {
                         if (activeParts[i] == YES || nApplied == 0)
                             {
-                            if (modelParams[i].dataType == DNA)
+                            if (modelSettings[i].dataType == DNA)
                                 {
                                 if (!strcmp(tempStr, "Yes"))
                                     {
-                                    modelParams[i].usePairwise = YES;
+                                    /* modelSettings[i].usePairwise = YES; */
+                                    usePairwise=YES;
                                     }
                                 else
-                                    modelParams[i].usePairwise = NO;
-
+                                    {
+                                    usePairwise=NO;
+                                    }
+                                    /*  modelSettings[i].usePairwise = NO; */
+                                MrBayesPrint ("%s   Setting Pairwise flag to %d\n", spacer, usePairwise);
+                                /* 
                                 if (nApplied == 0 && numCurrentDivisions == 1)
-                                    MrBayesPrint ("%s   Setting Pairwise flag to %d\n", spacer, modelParams[i].usePairwise);
                                 else
                                     MrBayesPrint ("%s   Setting Pairwise flag to %d for partition %d\n", 
-                                                    spacer, modelParams[i].usePairwise, i+1);
+                                                    spacer, modelSettings[i].usePairwise, i+1);
+                                 */
                                 }
                             else 
                                 {
@@ -3363,6 +3378,76 @@ int DoLsetParm (char *parmName, char *tkn)
                 return (ERROR);
                 }
             }
+
+
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "PwAlphaLike"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if (activeParts[i] == YES || nApplied == 0)
+                            {
+                            if (modelSettings[i].dataType == DNA)
+                                {
+                                if (!strcmp(tempStr, "None"))
+                                    {
+                                    /*
+                                    modelSettings[i].useTriples = NO;
+                                    modelSettings[i].useFull = NO;
+                                    */
+                                    useTriples = NO;   
+                                    useFullForAlpha = NO;
+                                    }
+                                else if (!strcmp(tempStr, "Full"))
+                                    {
+                                    useTriples = NO;
+                                    useFullForAlpha = YES;
+                                    } 
+                                else if (!strcmp(tempStr, "Triplet"))
+                                    {
+                                    useTriples = YES;
+                                    useFullForAlpha = NO;
+                                    } 
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d\n", spacer, useTriples, useFullForAlpha);
+                                else
+                                    MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d for partition %d\n", 
+                                                    spacer, useTriples,useFullForAlpha, i+1);
+                                }
+                            else 
+                                {
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Pw alpha lkhood flags unchanged ", spacer);
+                                else
+                                    MrBayesPrint ("%s   Pw alpha lkhood unchanged for partition %d ", 
+                                                    spacer, i+1);
+                                MrBayesPrint ("because dataType is not DNA\n");
+                                }
+
+                            } 
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for alpha likelihood \n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else 
+                {
+                return (ERROR);
+                }
+            }
+
 
 
         /* set Ngammacat (numGammaCats) ************************************************************/
