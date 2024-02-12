@@ -17074,13 +17074,14 @@ int RunChain (RandLong *seed)
             if (!strcmp(theMove->parm->name,"Alpha") && useFullForAlpha == YES)
                 {
                 hybridAlphaStep = YES;
+                if (PrepareHybridStep(chn) == ERROR)
+                        MrBayesPrint("%s Error preparing for hybrid step", spacer);
+
                 lnLikeAlCurr=LogLike(chn);
                 numAlphaHybridSteps++;
-                MrBayesPrint("%s Making hybrid alpha step. \n", spacer);
-                MrBayesPrint("%s  Current (Full) LogLike: %f \n", spacer, lnLikeAlCurr);
                 }
 
-            /* make move */
+            /* make move  */
             if ((theMove->moveFxn)(theMove->parm, chn, seed, &lnPriorRatio, &lnProposalRatio, theMove->tuningParam[chainId[chn]]) == ERROR)
                 {
                 printf ("%s   Error in move %s\n", spacer, theMove->name);
@@ -17115,9 +17116,7 @@ int RunChain (RandLong *seed)
                     {
                     if (hybridAlphaStep == YES) {
                         lnLikeAlMove = LogLike(chn);
-                        MrBayesPrint("%s  Proposal (Full) LogLike: %f \n", spacer, lnLikeAlMove); }
                     lnLike = LogLikePairwise(chn);                
-                    MrBayesPrint("%s  Proposal (Pairwise) LogLike: %f \n", spacer, lnLike);
 
                     }
                 }

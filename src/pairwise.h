@@ -91,5 +91,7 @@ MrBFlt LogLikePairwise(int chain);
 MrBFlt LogLikeTriplet(int chain);
 MrBFlt LogLikeTriplet_Alpha(int chain);
 
+int PrepareHybridStep(int chain);
+
 #endif /* end of include guard PAIRWISE_H */
 

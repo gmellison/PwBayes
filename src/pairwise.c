@@ -1689,6 +1689,31 @@ int CountPairwise(void) {
     return (NO_ERROR);
 }
 
+int PrepareHybridStep(int chain)
+{
+    ModelInfo   *m;
+    Tree        *tree;
+    TreeNode    *p;
+    int         i,d;
+
+    d = 0;
+    m = &modelSettings[d];
+    tree = GetTree(m->brlens, chain, state[chain]);
+
+    m->upDateCijk=YES;
+
+
+    for (i=0; i<tree->nIntNodes; i++) 
+        {
+        p = tree->intDownPass[i];
+        p->left->upDateTi=YES;
+        p->right->upDateTi=YES;
+        p->upDateCl=YES; 
+        }
+
+    return (NO_ERROR);
+}
+
 
 /*-----------------------------------------------------------------
 |
