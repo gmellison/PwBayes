@@ -89,6 +89,7 @@ int Likelihood_Triples(int division, int chain, MrBFlt *lnL);
 
 MrBFlt LogLikePairwise(int chain);
 MrBFlt LogLikeTriplet(int chain);
+MrBFlt LogLikeTriplet_Alpha(int chain);
 
 #endif /* end of include guard PAIRWISE_H */
 

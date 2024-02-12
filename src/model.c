@@ -21593,6 +21593,7 @@ int SetUpAnalysis (RandLong *seed)
     if (CompressData() == ERROR)
         return (ERROR);
 
+    MrBayesPrint("Foo \n");
     if (usePairwise)
         if (CountPairwise() == ERROR)
             return (ERROR);

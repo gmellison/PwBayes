@@ -57,7 +57,6 @@ int defDoublets = NO;
 MrBFlt alpha=0.1;
 MrBFlt dist=0.1;
 
-
 int *pairwiseCounts;
 int **tripleCounts;
 int numTrips;
@@ -1616,69 +1615,6 @@ int DoubletProbs_Gen(int division, int chain)
 
 
 
-/*-----------------------------------------------------------------
-|
-|   TiProbs_JukesCantor: update transition probabilities for 4by4
-|       nucleotide model with nst == 1 (Jukes-Cantor)
-|       with or without rate variation
-|
-------------------------------------------------------------------*/
-int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
-{
-    /* calculate Jukes Cantor likelihood, using pw counts and tps. */
-    
-    int         i, j, idx, p, nijk;
-    MrBFlt      like;
-    CLFlt       *doubP, pijk;   
-    ModelInfo   *m;
-
-    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
-    m = &modelSettings[division];
-
-    *lnL = 0.0;
-    for (p=0; p<numPairs; p++)
-        {
-
-        /* find transition probabilities */
-        doubP = m->doubletProbs[m->pwIndex[chain][p]];
-
-        idx=0;
-        for (i=0; i<4; i++) 
-            {
-            for (j=0; j<4; j++) 
-                {
-                like = 0.0;
-                nijk=pairwiseCounts[tIdx(p,i,j,4,4)];
-                pijk=doubP[idx++];
-
-                if (pijk > 1) {
-                MrBayesPrint("doubl prob: %f \n", pijk);
-                MrBayesPrint("count : %d \n", nijk);
-                }
-
-
-                if (nijk == 0)
-                    like+=0;
-                else 
-                    like+=nijk*log(pijk);         
- 
-            /* check against LIKE_EPSILON (values close to zero are problematic) */
-                if (pijk < LIKEPW_EPSILON)
-                    {
-                    (*lnL) = MRBFLT_NEG_MAX;
-                    abortMove = YES;
-                    return ERROR;
-                    }
-
-                *lnL+=like;
-                }
-            }
-        }
-
-    return (NO_ERROR);
-}
-
-
 int CountPairwise(void) {
 
     int             i,j,k,c,id1,id2;
@@ -1694,6 +1630,7 @@ int CountPairwise(void) {
         }
     */
 
+    MrBayesPrint("Counting Pairwise\n");
     if (defMatrix == NO) 
         {
         MrBayesPrint("%s Matrix needs to be defined before counting doublets  \n", spacer);
@@ -1706,15 +1643,15 @@ int CountPairwise(void) {
         return(ERROR);
         }
 
-    if (allocPairwise == YES) 
+    if (memAllocs[ALLOC_PAIRWISE] == YES) 
         {
         free(pairwiseCounts);
         pairwiseCounts=NULL;
-        allocPairwise = NO;
+        memAllocs[ALLOC_PAIRWISE] = NO;
         }
 
     numPairs=(int)numTaxa*(numTaxa-1)/2;
-    MrBayesPrint("NumPairs: %d \n", numPairs);
+    MrBayesPrint("%s Using pairwise likelihood with %d pairs. \n", spacer, numPairs);
 
     /* first allocate pairwise doublet counts:  */
     pairwiseCounts=(int*)SafeMalloc(numPairs * 16 * sizeof(int));
@@ -1724,6 +1661,7 @@ int CountPairwise(void) {
         free(pairwiseCounts);
         return(ERROR);
         }
+    memAllocs[ALLOC_PAIRWISE]=YES;
 
     /* now count the doublets across taxa pairs */
     for (i=0; i<(numTaxa-1); i++)
@@ -1752,12 +1690,145 @@ int CountPairwise(void) {
 }
 
 
-/* 
- *
- * Triplet based quasi-likelihood stuff
- *
- *
- */
+/*-----------------------------------------------------------------
+|
+|   Likelihood_Pairwise: update transition probabilities for 4by4
+|       nucleotide model with nst == 1 (Jukes-Cantor)
+|       with or without rate variation
+|
+------------------------------------------------------------------*/
+int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
+{
+    /* calculate Jukes Cantor likelihood, using pw counts and tps. */
+    
+    int         i, j, idx, p, nijk;
+    MrBFlt      like;
+    CLFlt       *doubP, pijk;   
+    ModelInfo   *m;
+
+    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+    m = &modelSettings[division];
+    (*lnL)=0.0;
+
+    for (p=0; p<numPairs; p++)
+        {
+
+        /* find transition probabilities */
+        doubP = m->doubletProbs[m->pwIndex[chain][p]];
+
+        idx=0;
+        for (i=0; i<4; i++) 
+            {
+            for (j=0; j<4; j++) 
+                {
+                like = 0.0;
+                nijk=pairwiseCounts[tIdx(p,i,j,4,4)];
+                pijk=doubP[idx++];
+
+                if (0) {
+                MrBayesPrint("doubl prob: %f \n", pijk);
+                MrBayesPrint("count : %d \n", nijk);
+                }
+
+                if (nijk == 0)
+                    like+=0;
+                else 
+                    like+=nijk*log(pijk);         
+ 
+            /* check against LIKE_EPSILON (values close to zero are problematic) */
+                if (pijk < LIKEPW_EPSILON)
+                    {
+                    (*lnL) = MRBFLT_NEG_MAX;
+                    abortMove = YES;
+                    return ERROR;
+                    }
+
+                (*lnL)+=like;
+                }
+            }
+        }
+
+    return (NO_ERROR);
+}
+
+
+MrBFlt LogLikePairwise(int chain) 
+{
+    ModelInfo  *m;
+    Tree       *tree;
+    MrBFlt     chainLnLike;
+
+    int d=0; /*  for now, only implemented for a single DNA partition */
+    
+    chainLnLike = 0.0;
+    
+    m = &modelSettings[d];
+    tree = GetTree(m->brlens, chain, state[chain]);
+
+    if (m->upDateCijk == YES)
+        {
+        if (UpDateCijk(d, chain)== ERROR)
+            {
+            (m->lnLike[2*chain+state[chain]]) = MRBFLT_NEG_MAX; /* effectively abort the move */
+            return (MRBFLT_NEG_MAX);
+            }
+        m->upDateAll = YES;
+        }
+
+
+    CalcPairwiseDists_ReverseDownpass(tree,d,chain);
+    TiProbsPairwise_Gen(d,chain);
+    DoubletProbs_Gen(d,chain);
+
+    Likelihood_Pairwise(d,chain,&(m->lnLike[2*chain+state[chain]]));
+    chainLnLike += m->lnLike[2*chain+state[chain]];
+    return(chainLnLike);
+}
+
+
+int FreePairwise(void) 
+{
+    free(pairwiseCounts);
+    return (NO_ERROR);
+}
+
+
+
+
+
+
+
+
+
+ 
+/*******************************************
+ *                                         *
+ *                                         *
+ * Triplet based quasi-likelihood stuff    *
+ *                                         *
+ *                                         *
+ *******************************************/
+                                           
+int FreeTriples(void) 
+{
+    int i;
+
+    for (i=0; i<numTrips; i++)
+        if (tripleCounts[i] != NULL)
+            free(tripleCounts[i]);
+        else 
+            return (ERROR);
+
+    if (tripleCounts != NULL)
+        free(tripleCounts);
+    else 
+        return (ERROR);
+    
+    return (NO_ERROR);
+}
+
+
+
 
 int CountTriplets(void) {
 
@@ -1787,11 +1858,11 @@ int CountTriplets(void) {
         return(ERROR);
         }
 
-    if (allocPairwise == YES) 
+    if (memAllocs[ALLOC_TRIPLES] == YES) 
         {
         FreeTriples();
-        pairwiseCounts=NULL;
-        allocPairwise = NO;
+        tripleCounts=NULL;
+        memAllocs[ALLOC_TRIPLES] = NO;
         }
 
 
@@ -2077,8 +2148,7 @@ int Likelihood_Triples (int division, int chain, MrBFlt *lnL)
     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
     m = &modelSettings[division];
 
-
-    *lnL = 0.0;
+    (*lnL) = 0.0;
 
     for (p=0; p<numTrips; p++)
         {
@@ -2120,52 +2190,6 @@ int Likelihood_Triples (int division, int chain, MrBFlt *lnL)
 }
 
 
-
-int FreePairwise(void) 
-{
-    return (NO_ERROR);
-}
-
-int FreeTriples(void) 
-{
-    int i;
-
-    for (i=0; i<numTrips; i++)
-        if (tripleCounts[i] != NULL)
-            free(tripleCounts[i]);
-        else 
-            return (ERROR);
-
-    if (tripleCounts != NULL)
-        free(tripleCounts);
-    else 
-        return (ERROR);
-    
-
-    defTriples=NO;
-    allocTriples=NO;
-
-    return (NO_ERROR);
-}
-
-MrBFlt LogLikePairwise(int chain) 
-{
-    ModelInfo  *m;
-    Tree       *tree;
-    MrBFlt     *lnL;
-    int d=0; /*  for now, only implemented for a single DNA partition */
-
-    lnL =  &(m->lnLike[2 * chain + state[chain]]);
-    m = &modelSettings[d];
-    tree = GetTree(m->brlens, chain, state[chain]);
-
-    CalcPairwiseDists_ReverseDownpass(tree,d,chain);
-    TiProbsPairwise_Gen(d,chain);
-    DoubletProbs_Gen(d,chain);
-    TIME(Likelihood_Pairwise(d,chain,lnL),CPULikelihood);
-
-}
-
 MrBFlt LogLikeTriplet(int chain)
 {
     ModelInfo  *m;
@@ -2182,3 +2206,28 @@ MrBFlt LogLikeTriplet(int chain)
     TripletProbs_JukesCantor(d,chain);
     TIME(Likelihood_Triples(d,chain,lnL),CPULilklihood); 
 }
+
+
+MrBFlt LogLikeTriplet_Alpha(int chain)
+{
+    ModelInfo  *m;
+    Tree       *tree;
+    MrBFlt     lnL;
+    int d=0; /*  for now, only implemented for a single DNA partition */
+
+    m = &modelSettings[d];
+    tree = GetTree(m->brlens, chain, state[chain]);
+
+    CalcTripletCnDists(d, chain); 
+    TiProbsTriplet_JukesCantor(d, chain); 
+    TripletProbs_JukesCantor(d,chain);
+    TIME(Likelihood_Triples(d,chain,&lnL),CPULilklihood); 
+    return(lnL);
+}
+
+
+
+
+
+
+

@@ -52,6 +52,7 @@
 #include "proposal.h"
 #include "sumpt.h"
 #include "utils.h"
+#include "pairwise.h"
 #if defined(__MWERKS__)
 #include "SIOUX.h"
 #endif
@@ -281,14 +282,11 @@ extern CLFlt     *preLikeA;                  /* precalculated cond likes for anc
 /*  defined in pairwise.c  */
 extern int    numPairs;
 extern int    numTrips;
-extern int    *pairwiseCounts;
-extern int    **tripleCounts;
 
 /*  defined in model.c */
 extern int    usePairwise;
 extern int    useTriples;
 extern int    useFullForAlpha;
-
 
 /* local (to this file) variables */
 int             numLocalChains;              /* number of Markov chains                      */
@@ -4532,91 +4530,96 @@ void FreeChainMemory (void)
             m->tiProbs = NULL;
             }
 
+
         /* free pairwise dists and transition probs  */        
-        if (m->pwDists)
+        if (usePairwise) 
             {
-            for (j=0; j<numLocalChains; j++)
+            if (m->pwDists)
                 {
-                if (m->pwDists[j])
-                    free(m->pwDists[j]);
+                for (j=0; j<numLocalChains; j++)
+                    {
+                    if (m->pwDists[j])
+                        free(m->pwDists[j]);
+                    }
+                free(m->pwDists);
                 }
-            free(m->pwDists);
-            }
 
-        if (m->tiProbsPw)
-            {
-            for (j=0; j<m->numTiProbsPw; j++)
-                if (m->tiProbsPw[j]) /*  chain pw probs */
-                    free(m->tiProbsPw[j]);
-            free(m->tiProbsPw);
-            }
-
-        if (m->doubletProbs)
-            {
-            for (j=0; j<m->numDoubletProbs; j++)
-                if (m->doubletProbs[j]) /*  chain pw probs */
-                    free(m->doubletProbs[j]);
-            free(m->doubletProbs);
-            }
-
-        if (m->pwIndex)
-            {
-            for (j=0; j<numLocalChains; j++)
+            if (m->tiProbsPw)
                 {
-                if (m->pwIndex[j]) /*  chain pw probs */
-                    free(m->pwIndex[j]);
+                for (j=0; j<m->numTiProbsPw; j++)
+                    if (m->tiProbsPw[j]) /*  chain pw probs */
+                        free(m->tiProbsPw[j]);
+                free(m->tiProbsPw);
                 }
-            free(m->pwIndex);
-            }
 
-        /*  free triplet dists and probabilities  */
-        if (m->tripleCnDists)
-            {
-            for (j=0; j<numLocalChains; j++)
+            if (m->doubletProbs)
                 {
-                if (m->tripleCnDists[j])
-                    free(m->tripleCnDists[j]);
+                for (j=0; j<m->numDoubletProbs; j++)
+                    if (m->doubletProbs[j]) /*  chain pw probs */
+                        free(m->doubletProbs[j]);
+                free(m->doubletProbs);
                 }
-            free(m->tripleCnDists);
-            }
 
-        if (m->tripleTiProbs)
-            {
-            for (i=0; j<numLocalChains; i++)
-                if (m->tripleTiProbs[i]) 
-                    free(m->tripleTiProbs[i]);
-            free(m->tripleTiProbs);
-            }
-
-        if (m->tripleProbs)
-            {
-            for (i=0; i<numLocalChains; i++)
-                if (m->tripleProbs[i]) 
-                    free(m->tripleProbs[i]);
-            free(m->tripleProbs);
-            }
-
-        if (m->tripIndex)
-            {
-            for (j=0; j<numLocalChains; j++)
+            if (m->pwIndex)
                 {
-                if (m->tripIndex[j]) /*  chain pw probs */
-                    free(m->tripIndex[j]);
+                for (j=0; j<numLocalChains; j++)
+                    {
+                    if (m->pwIndex[j]) /*  chain pw probs */
+                        free(m->pwIndex[j]);
+                    }
+                free(m->pwIndex);
                 }
-            free(m->tripIndex);
-            }
 
-        if (m->tripDistIndex)
-            {
-            for (j=0; j<numLocalChains; j++)
+            /*  free triplet dists and probabilities  */
+            if (useTriples) 
                 {
-                if (m->tripDistIndex[j]) /*  chain pw probs */
-                    free(m->tripDistIndex[j]);
-                }
-            free(m->tripDistIndex);
-            }
-        MrBayesPrint("Freed 4\n");
+                if (m->tripleCnDists)
+                    {
+                    for (j=0; j<numLocalChains; j++)
+                        {
+                        if (m->tripleCnDists[j])
+                            free(m->tripleCnDists[j]);
+                        }
+                    free(m->tripleCnDists);
+                    }
 
+                if (m->tripleTiProbs)
+                    {
+                    for (i=0; j<numLocalChains; i++)
+                        if (m->tripleTiProbs[i]) 
+                            free(m->tripleTiProbs[i]);
+                    free(m->tripleTiProbs);
+                    }
+
+                if (m->tripleProbs)
+                    {
+                    for (i=0; i<numLocalChains; i++)
+                        if (m->tripleProbs[i]) 
+                            free(m->tripleProbs[i]);
+                    free(m->tripleProbs);
+                    }
+
+                if (m->tripIndex)
+                    {
+                    for (j=0; j<numLocalChains; j++)
+                        {
+                        if (m->tripIndex[j]) /*  chain pw probs */
+                            free(m->tripIndex[j]);
+                        }
+                    free(m->tripIndex);
+                    }
+
+                if (m->tripDistIndex)
+                    {
+                    for (j=0; j<numLocalChains; j++)
+                        {
+                        if (m->tripDistIndex[j]) /*  chain pw probs */
+                            free(m->tripDistIndex[j]);
+                        }
+                    free(m->tripDistIndex);
+                    }
+                }
+            }
 
 
         if (m->cijks)
@@ -4886,6 +4889,16 @@ void FreeChainMemory (void)
         {
         FreeBestChainVariables();
         memAllocs[ALLOC_BEST] = NO;
+        }
+    if (memAllocs[ALLOC_PAIRWISE] == YES) 
+        {
+        FreePairwise();
+        memAllocs[ALLOC_PAIRWISE] = NO;
+        }
+    if (memAllocs[ALLOC_TRIPLES] == YES) 
+        {
+        FreeTriples();
+        memAllocs[ALLOC_TRIPLES] = NO;
         }
 }
 
@@ -6273,99 +6286,105 @@ int InitChainCondLikes (void)
 
             } /*  end of (if usebeagle==false)  */
 
-        /* allocate and set indices from chain/pair to pw probs */
-        m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-        if (!m->pwIndex)
-            return (ERROR);
-        for (i=0; i<numLocalChains; i++)
+        if (usePairwise) 
             {
-            m->pwIndex[i] = (int *) SafeMalloc (numPairs * sizeof(int));
-            if (!m->pwIndex[i])
+            /* allocate and set indices from chain/pair to pw probs */
+            m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+            if (!m->pwIndex)
                 return (ERROR);
-            }
-
-        /* set up pw indices */
-        pwIdx = 0;
-        for (i=0; i<numLocalChains; i++)
-            {
-            for (j=0; j<numPairs; j++)
+            for (i=0; i<numLocalChains; i++)
                 {
-                m->pwIndex[i][j] = pwIdx;
-                pwIdx += indexStep;
+                m->pwIndex[i] = (int *) SafeMalloc (numPairs * sizeof(int));
+                if (!m->pwIndex[i])
+                    return (ERROR);
+                }
+
+            /* set up pw indices */
+            pwIdx = 0;
+            for (i=0; i<numLocalChains; i++)
+                {
+                for (j=0; j<numPairs; j++)
+                    {
+                    m->pwIndex[i][j] = pwIdx;
+                    pwIdx += indexStep;
+                    }
                 }
             }
             
-        /*  allocate triple indices  */
-        m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-        if (!m->tripIndex)
-            return (ERROR);
-        for (i=0; i<numLocalChains; i++)
+        if (useTriples)         
             {
-            m->tripIndex[i] = (int *) SafeMalloc (numTrips * sizeof(int));
-            if (!m->tripIndex[i])
+            /*  allocate triple indices  */
+            m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+            if (!m->tripIndex)
                 return (ERROR);
-            }
-
-        /* set up triple indices */
-        tripIdx = 0;
-        for (i=0; i<numLocalChains; i++)
-            {
-            for (j=0; j<numTrips; j++)
+            for (i=0; i<numLocalChains; i++)
                 {
-                m->tripIndex[i][j] = tripIdx;
-                tripIdx += indexStep;
+                m->tripIndex[i] = (int *) SafeMalloc (numTrips * sizeof(int));
+                if (!m->tripIndex[i])
+                    return (ERROR);
+                }
+
+            /* set up triple indices */
+            tripIdx = 0;
+            for (i=0; i<numLocalChains; i++)
+                {
+                for (j=0; j<numTrips; j++)
+                    {
+                    m->tripIndex[i][j] = tripIdx;
+                    tripIdx += indexStep;
+                    }
+                }
+            
+
+
+            /*  allocate triple indices  */
+            m->tripDistIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+            if (!m->tripDistIndex)
+                return (ERROR);
+            for (i=0; i<numLocalChains; i++)
+                {
+                m->tripDistIndex[i] = (int *) SafeMalloc ((numTrips * 3) * sizeof(int));
+                if (!m->tripDistIndex[i])
+                    return (ERROR);
+                }
+
+            /* set up triple indices */
+            tripIdx = 0;
+            for (i=0; i<numLocalChains; i++)
+                {
+                for (j=0; j<(numTrips*3); j++)
+                    {
+                    m->tripDistIndex[i][j] = tripIdx;
+                    tripIdx += indexStep;
+                    }
                 }
             }
-
-
-        /*  allocate triple indices  */
-        m->tripDistIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-        if (!m->tripDistIndex)
-            return (ERROR);
-        for (i=0; i<numLocalChains; i++)
-            {
-            m->tripDistIndex[i] = (int *) SafeMalloc ((numTrips * 3) * sizeof(int));
-            if (!m->tripDistIndex[i])
+            /* allocate and set indices from pw edges to ti prob arrays */
+            /*  -- just kidding; don't need these since they aren't associated with  
+             *  the node structure of the tree 
+            m->tiProbsPwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int*));
+            if (!m->tiProbsPwIndex)
                 return (ERROR);
-            }
-
-        /* set up triple indices */
-        tripIdx = 0;
-        for (i=0; i<numLocalChains; i++)
-            {
-            for (j=0; j<(numTrips*3); j++)
+            for (i=0; i<numLocalChains; i++)
                 {
-                m->tripDistIndex[i][j] = tripIdx;
-                tripIdx += indexStep;
+                m->tiProbsPwIndex[i] = (int*) SafeMalloc (nPairs * sizeof(int));
+                if (!m->tiProbsPwIndex[i])
+                    return (ERROR);
                 }
-            }
+             */
+            /*  tiPwIndex = 0; */
 
-        /* allocate and set indices from pw edges to ti prob arrays */
-        /*  -- just kidding; don't need these since they aren't associated with  
-         *  the node structure of the tree 
-        m->tiProbsPwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int*));
-        if (!m->tiProbsPwIndex)
-            return (ERROR);
-        for (i=0; i<numLocalChains; i++)
-            {
-            m->tiProbsPwIndex[i] = (int*) SafeMalloc (nPairs * sizeof(int));
-            if (!m->tiProbsPwIndex[i])
+            /* allocate and set up scratch PW transition prob indices */
+            /*
+            m->tiProbsPwScratchIndex = (int *) SafeMalloc (nPairs * sizeof(int));
+            if (!m->tiProbsPwScratchIndex)
                 return (ERROR);
-            }
-         */
-        /*  tiPwIndex = 0; */
-
-        /* allocate and set up scratch PW transition prob indices */
-        /*
-        m->tiProbsPwScratchIndex = (int *) SafeMalloc (nPairs * sizeof(int));
-        if (!m->tiProbsPwScratchIndex)
-            return (ERROR);
-        for (i=0; i<nPairs; i++)
-            {
-            m->tiProbsPwScratchIndex[i] = tiPwIndex;
-            tiPwIndex += indexStep;
-            }
-        */
+            for (i=0; i<nPairs; i++)
+                {
+                m->tiProbsPwScratchIndex[i] = tiPwIndex;
+                tiPwIndex += indexStep;
+                }
+            */
 
 
         /* allocate eigen system space (needed also for Beagle version */
@@ -16267,6 +16286,9 @@ int RunChain (RandLong *seed)
     MrBFlt      stepLengthSS=0, meanSS, varSS, *tempX;
     char        ckpFileName[220], bkupFileName[234];
 
+    MrBFlt      lnLikeAlMove, lnLikeAlCurr;
+    int         hybridAlphaStep=NO;
+    int         numAlphaHybridSteps=0;
 #   if defined (BEAGLE_ENABLED)
 #       ifdef DEBUG_BEAGLE
     int         beagleScalingSchemeOld;
@@ -16566,7 +16588,10 @@ int RunChain (RandLong *seed)
             }
         TouchAllTrees (chn);
         TouchAllCijks (chn);
-        curLnL[chn] = LogLike(chn);
+        if (usePairwise)
+            curLnL[chn] = LogLikePairwise(chn);
+        else 
+            curLnL[chn] = LogLike(chn);
         curLnPr[chn] = LogPrior(chn);
         for (i=0; i<numCurrentDivisions; i++)
             {
@@ -17043,6 +17068,18 @@ int RunChain (RandLong *seed)
                 return ERROR;
                 }
 #   endif
+            /*  check if using pairwise with hybrid proposal for alpha. 
+             *  also grab the alpha lkhood before making the move 
+             */
+            if (!strcmp(theMove->parm->name,"Alpha") && useFullForAlpha == YES)
+                {
+                hybridAlphaStep = YES;
+                lnLikeAlCurr=LogLike(chn);
+                numAlphaHybridSteps++;
+                MrBayesPrint("%s Making hybrid alpha step. \n", spacer);
+                MrBayesPrint("%s  Current (Full) LogLike: %f \n", spacer, lnLikeAlCurr);
+                }
+
             /* make move */
             if ((theMove->moveFxn)(theMove->parm, chn, seed, &lnPriorRatio, &lnProposalRatio, theMove->tuningParam[chainId[chn]]) == ERROR)
                 {
@@ -17065,16 +17102,39 @@ int RunChain (RandLong *seed)
                 abortMove = YES;
                 }
 
-            /* abortMove is set to YES if the calculation fails because the likelihood is too small */
-            if (abortMove == NO)
-                lnLike = LogLike(chn);
 
+            /*                                       *
+             *                                       *
+             *  start hybrid composite mcmc step     *
+             *                                       *
+             *                                       */
+
+            if (usePairwise == YES)
+                {
+                 if (abortMove == NO)
+                    {
+                    if (hybridAlphaStep == YES) {
+                        lnLikeAlMove = LogLike(chn);
+                        MrBayesPrint("%s  Proposal (Full) LogLike: %f \n", spacer, lnLikeAlMove); }
+                    lnLike = LogLikePairwise(chn);                
+                    MrBayesPrint("%s  Proposal (Pairwise) LogLike: %f \n", spacer, lnLike);
+
+                    }
+                }
+            else 
+                lnLike = LogLike(chn);                
+ 
             /* calculate acceptance probability */
             if (abortMove == NO)
                 {
-                lnLikelihoodRatio = lnLike - curLnL[chn];
+
+                if (hybridAlphaStep)/*  TODO: rename the rhs vars lnLikeAlProp/Curr or something */
+                    lnLikelihoodRatio = lnLikeAlMove - lnLikeAlCurr;
+                else 
+                    lnLikelihoodRatio = lnLike - curLnL[chn];
+
+                hybridAlphaStep=NO;
                 lnPrior = curLnPr[chn] + lnPriorRatio;
-                
 
 #   ifndef NDEBUG
                 /* We check various aspects of calculations in debug version of code */
@@ -17124,7 +17184,6 @@ int RunChain (RandLong *seed)
                     return (ERROR);
                     }
 #   endif
-
                 /* heat */
                 lnLikelihoodRatio *= Temperature (chainId[chn]);
                 lnPriorRatio      *= Temperature (chainId[chn]);
@@ -17141,41 +17200,34 @@ int RunChain (RandLong *seed)
                     r = exp(lnLikelihoodRatio + lnPriorRatio + lnProposalRatio);
                 }
 
-            /* decide to accept or reject the move */
-            acceptMove = NO;
-            i = chainId[chn];
-            theMove->nTried[i]++;
-            theMove->nTotTried[i]++;
-            if (abortMove == NO && RandomNumber(seed) < r)
-                {
-                acceptMove = YES;
-                theMove->nAccepted[i]++;
-                theMove->nTotAccepted[i]++;
-                }
-
-            /* update the chain */
-            if (acceptMove == NO)
-                {
-                /* the new state did not work out so shift chain back */
-                if (abortMove == NO)
-                    ResetFlips(chn);
-                state[chn] ^= 1;
-#   if defined (BEAGLE_ENABLED)
-                if (recalcScalers == YES)
+                /* decide to accept or reject the move */
+                acceptMove = NO;
+                i = chainId[chn];
+                theMove->nTried[i]++;
+                theMove->nTotTried[i]++;
+                if (abortMove == NO && RandomNumber(seed) < r)
                     {
-                    recalculateScalers(chn);
-                    recalcScalers = NO;
+                    acceptMove = YES;
+                    theMove->nAccepted[i]++;
+                    theMove->nTotAccepted[i]++;
                     }
-#   endif
-                }
-            else
-                {
-                /* if the move is accepted then let the chain stay in the new state */
-                /* store the likelihood and prior of the chain */
-                curLnL[chn] = lnLike;
-                curLnPr[chn] = lnPrior;
-                }
 
+                /* update the chain */
+                if (acceptMove == NO)
+                    {
+                    /* the new state did not work out so shift chain back */
+                    if (abortMove == NO)
+                        ResetFlips(chn);
+                    state[chn] ^= 1;
+                    }
+                else
+                    {
+                    /* if the move is accepted then let the chain stay in the new state */
+                    /* store the likelihood and prior of the chain */
+                    curLnL[chn] = lnLike;
+                    curLnPr[chn] = lnPrior;
+                    }
+                 
             /* check if time to autotune */
             if (theMove->nTried[i] >= chainParams.tuneFreq)
                 {

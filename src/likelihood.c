@@ -73,8 +73,6 @@ int       SetNucQMatrix (MrBFlt **a, int n, int whichChain, int division, MrBFlt
 int       SetStdQMatrix (MrBFlt **a, int nStates, MrBFlt *bs, int cType);
 int       SetDiMethylQMatrix (MrBFlt **a, int nStates, int whichChain, int division, MrBFlt rateMult, MrBFlt *rA, MrBFlt *rS);
 int       SetProteinQMatrix (MrBFlt **a, int n, int whichChain, int division, MrBFlt rateMult);
-int       UpDateCijk (int whichPart, int whichChain);
-
 
 /*----------------------------------------------------------------
 |
