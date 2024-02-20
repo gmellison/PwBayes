@@ -16989,6 +16989,7 @@ int RunChain (RandLong *seed)
             }
         }
 
+
     for (n=numPreviousGen+1; n<=chainParams.numGen; n++) /* begin run chain */
         {
         currentCPUTime = clock();
@@ -17001,6 +17002,7 @@ int RunChain (RandLong *seed)
         /*! requestAbortRun is set by the signal handler when it receives a CTRL-C (serial version only) */
         if (requestAbortRun == YES && ConfirmAbortRun() == 1)
             return ABORT;
+
 
         // RandLong oldSeed = *seed;  /* record the old seed for debugging */
         for (chn=0; chn<numLocalChains; chn++)
@@ -17075,7 +17077,7 @@ int RunChain (RandLong *seed)
                 {
                 hybridAlphaStep = YES;
                 if (PrepareHybridStep(chn) == ERROR)
-                        MrBayesPrint("%s Error preparing for hybrid step", spacer);
+                    MrBayesPrint("%s Error preparing for hybrid step", spacer);
 
                 lnLikeAlCurr=LogLike(chn);
                 numAlphaHybridSteps++;
@@ -17114,10 +17116,9 @@ int RunChain (RandLong *seed)
                 {
                  if (abortMove == NO)
                     {
-                    if (hybridAlphaStep == YES) {
+                    if (hybridAlphaStep == YES) 
                         lnLikeAlMove = LogLike(chn);
                     lnLike = LogLikePairwise(chn);                
-
                     }
                 }
             else 
@@ -17199,34 +17200,34 @@ int RunChain (RandLong *seed)
                     r = exp(lnLikelihoodRatio + lnPriorRatio + lnProposalRatio);
                 }
 
-                /* decide to accept or reject the move */
-                acceptMove = NO;
-                i = chainId[chn];
-                theMove->nTried[i]++;
-                theMove->nTotTried[i]++;
-                if (abortMove == NO && RandomNumber(seed) < r)
-                    {
-                    acceptMove = YES;
-                    theMove->nAccepted[i]++;
-                    theMove->nTotAccepted[i]++;
-                    }
+            /* decide to accept or reject the move */
+            acceptMove = NO;
+            i = chainId[chn];
+            theMove->nTried[i]++;
+            theMove->nTotTried[i]++;
+            if (abortMove == NO && RandomNumber(seed) < r)
+                {
+                acceptMove = YES;
+                theMove->nAccepted[i]++;
+                theMove->nTotAccepted[i]++;
+                }
 
-                /* update the chain */
-                if (acceptMove == NO)
-                    {
-                    /* the new state did not work out so shift chain back */
-                    if (abortMove == NO)
-                        ResetFlips(chn);
-                    state[chn] ^= 1;
-                    }
-                else
-                    {
-                    /* if the move is accepted then let the chain stay in the new state */
-                    /* store the likelihood and prior of the chain */
-                    curLnL[chn] = lnLike;
-                    curLnPr[chn] = lnPrior;
-                    }
-                 
+            /* update the chain */
+            if (acceptMove == NO)
+                {
+                /* the new state did not work out so shift chain back */
+                if (abortMove == NO)
+                    ResetFlips(chn);
+                state[chn] ^= 1;
+                }
+            else
+                {
+                /* if the move is accepted then let the chain stay in the new state */
+                /* store the likelihood and prior of the chain */
+                curLnL[chn] = lnLike;
+                curLnPr[chn] = lnPrior;
+                }
+             
             /* check if time to autotune */
             if (theMove->nTried[i] >= chainParams.tuneFreq)
                 {
@@ -17250,6 +17251,8 @@ int RunChain (RandLong *seed)
                 maxLnL0[chainId[chn]] = curLnL[chn];
 
             }
+
+
 
         /* attempt swap(s) Non-blocking for MPI if no swap with external process. */
         if (chainParams.numChains > 1 && n % chainParams.swapFreq == 0)
@@ -17581,7 +17584,8 @@ int RunChain (RandLong *seed)
                             MrBayesPrintf (fpSS, "\t%.6f",splitfreqSS[i*chainParams.numStepsSS+chainParams.numStepsSS-stepIndexSS-1]);
                             }
                         }
-                    else{
+                    else
+                        {
                         for (i=0; i<numTopologies; i++)
                             {
                             MrBayesPrintf (fpSS, "\t-2.0");
@@ -17669,6 +17673,8 @@ int RunChain (RandLong *seed)
             }
 
         } /* end run chain */
+
+
     endingT = time(0);
 #   if defined (DEBUG_TIME)
     clock_gettime(CLOCK_MONOTONIC, &tw2);
@@ -17996,7 +18002,8 @@ int SafeSprintf (char **target, int *targetLen, char *fmt, ...)
     va_list    argp;
     int        retval;
 
-    while (1) {
+    while (1) 
+        {
         /* try to print in the available space */
         va_start(argp, fmt);
 #   ifdef VISUAL
