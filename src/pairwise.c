@@ -2083,11 +2083,9 @@ int TiProbsTriplet_JukesCantor (int division, int chain)
 int TripletProbs_JukesCantor (int division, int chain)
 {
     /* calculate Jukes Cantor transition probabilities */
-    int         i, j, k, l, p, w, spIdx, tripLengthIdx, x,y,z, idx1, idx2, idx3;
-    MrBFlt      *tripleDists; 
-    MrBFlt      t, *catRate, baseRate, theRate, length;
-    CLFlt       pNoChange, pChange, numCats;
-    CLFlt       *tiP1, *tiP2, *tiP3, *tripProb, *tripProbTemp;   
+    int         k, p, w, spIdx, tripLengthIdx, x,y,z, idx1, idx2, idx3;
+    CLFlt       numCats;
+    CLFlt       *tiP1, *tiP2, *tiP3, *tripProb;   
     ModelInfo   *m;
     int         indexStep, indexStart;
 
@@ -2099,7 +2097,6 @@ int TripletProbs_JukesCantor (int division, int chain)
 
     indexStep=4*4;
 
-    CLFlt dummy = 0.0; 
     tripLengthIdx=0;
     for (p=0; p<numTrips; p++)
         {
@@ -2215,33 +2212,11 @@ int Likelihood_Triples (int division, int chain, MrBFlt *lnL)
 }
 
 
-MrBFlt LogLikeTriplet(int chain)
-{
-    ModelInfo  *m;
-    Tree       *tree;
-    MrBFlt     *lnL;
-    int d=0; /*  for now, only implemented for a single DNA partition */
-
-    lnL =  &(m->lnLike[2 * chain + state[chain]]);
-    m = &modelSettings[d];
-    tree = GetTree(m->brlens, chain, state[chain]);
-
-    CalcTripletCnDists(d, chain); 
-    TiProbsTriplet_JukesCantor(d, chain); 
-    TripletProbs_JukesCantor(d,chain);
-    TIME(Likelihood_Triples(d,chain,lnL),CPULilklihood); 
-}
-
 
 MrBFlt LogLikeTriplet_Alpha(int chain)
 {
-    ModelInfo  *m;
-    Tree       *tree;
     MrBFlt     lnL;
     int d=0; /*  for now, only implemented for a single DNA partition */
-
-    m = &modelSettings[d];
-    tree = GetTree(m->brlens, chain, state[chain]);
 
     CalcTripletCnDists(d, chain); 
     TiProbsTriplet_JukesCantor(d, chain); 

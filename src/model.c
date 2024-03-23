@@ -3239,27 +3239,9 @@ int DoLsetParm (char *parmName, char *tkn)
                             else
                                 MrBayesPrint ("%s   Setting Nucmodel to %s for partition %d\n", spacer, modelParams[i].nucModel, i+1);
                             } 
-                        else if ((activeParts[i] == YES || nApplied == 0) && (modelParams[i].dataType == METHYL))
-                            {
-                            strcpy(modelParams[i].nucModel, tempStr);
-                            modelParams[i].nStates = NumStates (i);
-                            
-                            /* set state frequencies back to default */
-                            strcpy(modelParams[i].stateFreqPr, "Dirichlet");
-                            strcpy(modelParams[i].stateFreqsFixType, "Equal");
-                            for (j=0; j<200; j++)
-                                {
-                                modelParams[i].stateFreqsFix[j] = 0.0;   
-                                modelParams[i].stateFreqsDir[j] = 1.0;
-                                }    
-                            tempInt = YES;
-                            if (nApplied == 0 && numCurrentDivisions == 1)
-                                MrBayesPrint ("%s   Setting Nucmodel to %s\n", spacer, modelParams[i].nucModel);
-                            else
-                                MrBayesPrint ("%s   Setting Nucmodel to %s for partition %d\n", spacer, modelParams[i].nucModel, i+1);
-                            }
 
-                        }                     if (tempInt == YES)
+                        }                     
+                    if (tempInt == YES)
                         MrBayesPrint ("%s   Set state frequency prior to default\n", spacer);
                     }
                 else
@@ -16336,14 +16318,6 @@ int NumStates (int part)
         {
         return (20);
         }
-    else if (modelParams[part].dataType == METHYL)
-        {
-
-        if (!strcmp(modelParams[part].nucModel, "Methyl"))
-            return (2);
-        else if (!strcmp(modelParams[part].nucModel, "Dimethyl"))
-            return (3);
-        }   
     else if (modelParams[part].dataType == RESTRICTION)
         {
         return (2);
@@ -18693,10 +18667,6 @@ int SetModelDefaults (void)
             modelParams[j].coding = NOABSENCESITES;
             strcpy(modelParams[j].codingString, "Noabsencesites");   
             }
-        else if (modelParams[j].dataType == METHYL)
-            {
-            strcpy(modelParams[j].nucModel, "Methyl");
-            }
         else
             {
             modelParams[j].coding = ALL;
@@ -19368,8 +19338,6 @@ int SetModelParams (void)
             p->paramType = P_REVMAT;
             if (m->dataType == PROTEIN)
                 p->nValues = 190;
-            else if (m->dataType == METHYL)
-                p->nValues = 2;
             else
                 p->nValues = 6;
             p->nSubValues = 0;
@@ -19410,36 +19378,6 @@ int SetModelParams (void)
                         else
                             {
                             sprintf (temp, "\tr(%c<->%c)", StateCode_AA(n1), StateCode_AA(n2));
-                            SafeStrcat (&p->paramHeader, temp);
-                            SafeStrcat (&p->paramHeader, partString);
-                            }
-                        }
-                    }
-                }
-            else if (m->dataType == METHYL)
-                {
-                MrBayesPrint("%s  methyl revmat", spacer);
-                if (!strcmp(mp->revMatPr,"Dirichlet")) 
-                    p->paramId = REVMAT_DIR;
-                else 
-                    p->paramId = REVMAT_FIX;
-
-                if (p->paramId != REVMAT_FIX)
-                    p->printParam = YES;
-
-                for (n1=0; n1<2; n1++)
-                    {
-                    for (n2=n1+1; n2<2; n2++)
-                        {
-                        if (n1==0 && n2==1)
-                            {
-                            sprintf (temp, "r(%c<->%c)", StateCode_METHYL(n1), StateCode_METHYL(n2));
-                            SafeStrcat (&p->paramHeader, temp);
-                            SafeStrcat (&p->paramHeader, partString);
-                            }
-                        else
-                            {
-                            sprintf (temp, "\tr(%c<->%c)", StateCode_METHYL(n1), StateCode_METHYL(n2));
                             SafeStrcat (&p->paramHeader, temp);
                             SafeStrcat (&p->paramHeader, partString);
                             }
@@ -19866,15 +19804,6 @@ int SetModelParams (void)
                                     SafeStrcat (&p->paramHeader, partString);
                                     }
                                 }
-                            }
-                        }
-                    else if (m->dataType == METHYL)
-                        {
-                        if (FillRelPartsString (p, &partString) == YES)
-                            {
-                            }
-                        else
-                            {
                             }
                         }
                     else if (m->dataType == PROTEIN)
@@ -23812,11 +23741,6 @@ int ShowModel (void)
             {
             MrBayesPrint ("%s         Datatype  = Continuous\n", spacer);
             }
-        else if (modelParams[i].dataType == METHYL)
-            {
-            MrBayesPrint ("%s         Datatype  = Methyl \n", spacer);
-            ns = 3;
-            }
            
         if (modelSettings[i].dataType == CONTINUOUS)
             {
@@ -23966,42 +23890,6 @@ int ShowModel (void)
                         MrBayesPrint ("%s         Code      = %s\n", spacer, modelParams[i].geneticCode);
                         }
                     }
-                else if (modelSettings[i].dataType == METHYL) 
-                    {
-                    MrBayesPrint ("%s         Nucmodel  = %s\n", spacer, modelParams[i].nucModel);
-                    if (!strcmp(modelParams[i].nucModel, "Dimethyl"))
-                        {
-                        if (!strcmp(modelParams[i].revMatPr,"Dirichlet"))
-                            {
-                            MrBayesPrint ("%s                     Substitution rates, expressed as proportions\n", spacer);
-                            MrBayesPrint ("%s                     of the rate sum, have a Dirichlet prior\n", spacer);
-                            MrBayesPrint ("%s                     (%1.2lf,%1.2lf)\n", spacer,
-                                modelParams[i].revMatDir[0], modelParams[i].revMatDir[1]);
-                            }
-                        else
-                            {
-                            MrBayesPrint ("%s                     Substitution rates are fixed to be \n", spacer);
-                            MrBayesPrint ("%s                     (%1.2lf,%1.2lf).\n", spacer,
-                                modelParams[i].revMatFix[0], modelParams[i].revMatFix[1]);
-                            }
-                        }
-                    else if (!strcmp(modelParams[i].nucModel, "Methyl")) 
-                        {
-                        if (!strcmp(modelParams[i].revMatPr,"Dirichlet"))
-                            {
-                            MrBayesPrint ("%s                     Substitution rates, expressed as proportions\n", spacer);
-                            MrBayesPrint ("%s                     of the rate sum, have a Dirichlet prior\n", spacer);
-                            MrBayesPrint ("%s                     %1.2lf\n", spacer,
-                                modelParams[i].revMatDir[0]);
-                            }
-                        else
-                            {
-                            MrBayesPrint ("%s                     Substitution rates are fixed to be \n", spacer);
-                            MrBayesPrint ("%s                     %1.2lf.\n", spacer,
-                                modelParams[i].revMatFix[0]);
-                            }
-                        }
-                    }  
                 /* amino acid characters in this partition */
                 else if (modelSettings[i].dataType == PROTEIN)
                     {
@@ -24298,8 +24186,7 @@ int ShowModel (void)
                 if (modelSettings[i].dataType != CONTINUOUS)
                     {
                     if (((modelSettings[i].dataType == DNA || modelSettings[i].dataType == RNA) && strcmp(modelParams[i].nucModel,"Codon")!=0) ||
-                          modelSettings[i].dataType == PROTEIN || modelSettings[i].dataType == RESTRICTION || modelSettings[i].dataType == STANDARD ||
-                          modelSettings[i].dataType == METHYL)
+                          modelSettings[i].dataType == PROTEIN || modelSettings[i].dataType == RESTRICTION || modelSettings[i].dataType == STANDARD )
                         {
                         if (!strcmp(modelParams[i].covarionModel, "No"))
                             MrBayesPrint ("%s         Rates     = %s\n", spacer, modelParams[i].ratesModel);
@@ -24917,17 +24804,6 @@ int ShowParameters (int showStartVals, int showMoves, int showAllAvailable)
                     MrBayesPrint ("%s            Prior      = Dirichlet\n", spacer);
                 else
                     MrBayesPrint ("%s            Prior      = Fixed(user-specified)\n", spacer);
-                }
-            else if (ms->numModelStates == 3)
-                {
-                if (!strcmp(mp->methylRevMatPr,"Dirichlet"))
-                    {
-                    MrBayesPrint ("%s            Prior      = Dirichlet(%1.2lf,%1.2lf)\n", spacer, 
-                    mp->revMatDir[0], mp->methylRevMatDir[1]);
-                    }
-                else
-                    MrBayesPrint ("%s            Prior      = Fixed(%1.2lf,%1.2lf)\n", spacer, 
-                    mp->revMatFix[0], mp->revMatFix[1]);
                 }
             }
         else if (j == P_OMEGA)

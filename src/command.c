@@ -50,7 +50,7 @@
 
 
 #define NUMCOMMANDS                     62 + 3    /* The total number of commands in the program  */
-#define NUMPARAMS                       289   /* The total number of parameters  */
+#define NUMPARAMS                       288   /* The total number of parameters  */
 #define PARAM(i, s, f, l)               p->string = s;    \
                                         p->fp = f;        \
                                         p->valueList = l; \
@@ -149,7 +149,6 @@ int      IsAmbig (int charCode, int dType);
 int      IsMissing (int charCode, int dType);
 int      MBResID (char nuc);
 int      NucID (char nuc);
-int      MethylID (char n);
 void     PrintSettings (char *command);
 void     PrintYesNo (int yn, char s[4]);
 int      ProtID (char aa);
@@ -732,14 +731,6 @@ int CharacterCode (char ch, int *charCode, int chType)
         if ((*charCode = NucID (ch)) == -1)
             {
             MrBayesPrint ("%s   Unrecognized DNA/RNA character '%c'\n", spacer, ch);
-            return (ERROR);
-            }
-        }
-    else if (chType == METHYL)
-        {
-        if ((*charCode = MethylID (ch)) == -1)
-            {
-            MrBayesPrint ("%s   Unrecognized Methyl character '%c'\n", spacer, ch);
             return (ERROR);
             }
         }
@@ -4136,8 +4127,6 @@ int DoFormatParm (char *parmName, char *tkn)
                             dataType = RESTRICTION;
                         else if (!strcmp(tempStr, "Standard"))
                             dataType = STANDARD;
-                        else if (!strcmp(tempStr, "Methyl"))
-                            dataType = METHYL;
                         else if (!strcmp(tempStr, "Continuous"))
                             {
                             MrBayesPrint ("%s   MrBayes currently does not support the use of the 'Continuous' datatype\n", spacer);
@@ -7173,8 +7162,6 @@ int DoShowMatrix (void)
                     MrBayesPrint ("%c", WhichStand(matrix[pos(i,j,numChar)]));
                 else if (ct == RESTRICTION)
                     MrBayesPrint ("%c", WhichRes(matrix[pos(i,j,numChar)]));
-                else if (ct == METHYL)
-                    MrBayesPrint ("%c", WhichMethyl(matrix[pos(i,j,numChar)]));
                 else if (ct == CONTINUOUS)
                     {
                     if (WhichCont(matrix[pos(i,j,numChar)]) < 0.0)
@@ -13640,7 +13627,7 @@ else if (!strcmp(helpTkn, "Set"))
    NO if character is unambiguous, missing or gapped */ 
 int IsAmbig (int charCode, int dType)
 {
-    if (dType == DNA || dType == RNA || dType == STANDARD || dType == RESTRICTION || dType == PROTEIN || dType == METHYL)
+    if (dType == DNA || dType == RNA || dType == STANDARD || dType == RESTRICTION || dType == PROTEIN)
         {
         if (charCode != MISSING && charCode != GAP)
             if (NBits(charCode) > 1)
@@ -13728,11 +13715,6 @@ int IsMissing (int charCode, int dType)
     if (dType == DNA || dType == RNA)
         {
         if (charCode == 15 || charCode == 16)
-            return (YES);
-        }
-    else if (dType == METHYL)
-        {
-        if (charCode == MISSING || charCode == GAP)
             return (YES);
         }
     else if (dType == STANDARD || dType == PROTEIN)
@@ -14831,12 +14813,11 @@ void SetUpParms (void)
     PARAM (280, "Statefreqmodel", DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
     PARAM (281, "Rootfreqpr",     DoPrsetParm,       "Dirichlet|Fixed|\0"); //SK
     PARAM (282, "Statefrmod",     DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
-    PARAM (283, "Methylrevmatpr",   DoPrsetParm,     "Dirichlet|Fixed|\0"); //SK
-    PARAM (284, "Dist",           DoPwSetParm,       "\0"); 
-    PARAM (285, "Alpha",          DoPwSetParm,       "\0"); 
-    PARAM (286, "Relrates",       DoPwSetParm,       "\0"); 
-    PARAM (287, "Pairwise",       DoLsetParm,        "Yes|No|\0"); 
-    PARAM (288, "PwAlphaLike",        DoLsetParm,        "None|Full|Triplet|\0"); 
+    PARAM (283, "Dist",           DoPwSetParm,       "\0"); 
+    PARAM (284, "Alpha",          DoPwSetParm,       "\0"); 
+    PARAM (285, "Relrates",       DoPwSetParm,       "\0"); 
+    PARAM (286, "Pairwise",       DoLsetParm,        "Yes|No|\0"); 
+    PARAM (287, "PwAlphaLike",        DoLsetParm,        "None|Full|Triplet|\0"); 
 
 
     /* NOTE: If a change is made to the parameter table, make certain you change
@@ -15083,19 +15064,6 @@ int StateCode_NUC4 (int n)
         return 'G';
     else if (n == 3)
         return 'T';
-    else return '?';
-}
-
-
-// Greg
-int StateCode_METHYL (int n)
-{
-    if (n == 0)
-        return 'N';
-    else if (n == 1)
-        return 'M';
-    else if (n == 2)
-        return 'D';
     else return '?';
 }
 
@@ -15434,21 +15402,7 @@ char WhichNuc (int x)
 
 // Greg Checkpoint (for vim file navigating)
 
-char WhichMethyl (int x)
-{
-    if (x == 1)
-            return('U');
-    else if (x == 2)
-            return('M');
-    else if (x == 4)
-            return('D');
-    else if (x == MISSING)
-        return ('?');
-    else if (x == GAP)
-        return ('-');
-    else 
-        return (' ');
-}
+
 
 
 char WhichRes (int x)
