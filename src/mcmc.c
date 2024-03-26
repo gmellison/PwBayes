@@ -17252,8 +17252,6 @@ int RunChain (RandLong *seed)
 
             }
 
-
-
         /* attempt swap(s) Non-blocking for MPI if no swap with external process. */
         if (chainParams.numChains > 1 && n % chainParams.swapFreq == 0)
             {
@@ -18385,7 +18383,22 @@ int SetLikeFunctions (void)
                         else
                             m->TiProbs = &TiProbs_Gen;
                         m->StateCode = &StateCode_NUC4;
-                        }
+
+                        if (m->usePairwise == YES)
+                            {
+                            m->PwLikelihood = &Likelihood_Pairwise;
+                            if (m->nst ==  1)
+                                {
+                                m->PwTiProbs = &TiProbsPairwise_JukesCantor;
+                                m->DoubletProbs = &DoubletProbs_JukesCantor;
+                                } 
+                            else if (m->nst == 6)
+                                {
+                                m->PwTiProbs = &TiProbsPairwise_Gen;
+                                m->DoubletProbs = &DoubletProbs_Gen;
+                                }
+                            }
+                        }     
                     }
                 else if (m->nucModelId == NUCMODEL_DOUBLET)
                     {

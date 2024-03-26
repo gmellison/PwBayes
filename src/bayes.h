@@ -971,6 +971,11 @@ typedef int (*PrintSiteRateFxn) (TreeNode *, int, int);
 typedef int (*PosSelProbsFxn) (TreeNode *, int, int);
 typedef int (*SiteOmegasFxn) (TreeNode *, int, int);
 
+typedef int (*PwLikeFxn)(int, int, MrBFlt *);
+typedef int (*PwTiProbFxn)(int, int);
+typedef int (*DoubletProbFxn)(int, int);
+
+
 typedef struct cmdtyp           
     {
     int         cmdNumber;
@@ -1413,6 +1418,10 @@ typedef struct modelinfo
     PrintSiteRateFxn    PrintSiteRates;     /* function for sampling site rates             */
     PosSelProbsFxn      PosSelProbs;        /* function for sampling pos. selection probs   */
     SiteOmegasFxn       SiteOmegas;         /* function for sampling site omega values      */
+
+    PwLikeFxn           PwLikelihood;
+    PwTiProbFxn         PwTiProbs;
+    DoubletProbFxn      DoubletProbs;
 
     /* Report variables */
     int         printAncStates;             /* should ancestral states be printed (YES/NO)  */
