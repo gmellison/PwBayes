@@ -3320,11 +3320,11 @@ int DoLsetParm (char *parmName, char *tkn)
                                 if (!strcmp(tempStr, "Yes"))
                                     {
                                     /* modelSettings[i].usePairwise = YES; */
-                                    usePairwise=YES;
+                                    modelSettings->usePairwise=YES;
                                     }
                                 else
                                     {
-                                    usePairwise=NO;
+                                    modelSettings->usePairwise=NO;
                                     }
                                     /*  modelSettings[i].usePairwise = NO; */
                                 MrBayesPrint ("%s   Setting Pairwise flag to %d\n", spacer, usePairwise);
@@ -3385,24 +3385,78 @@ int DoLsetParm (char *parmName, char *tkn)
                                     modelSettings[i].useTriples = NO;
                                     modelSettings[i].useFull = NO;
                                     */
-                                    useTriples = NO;   
-                                    useFullForAlpha = NO;
+                                    modelSettings->useTriples = NO;   
+                                    modelSettings->useFullForAlpha = NO;
                                     }
                                 else if (!strcmp(tempStr, "Full"))
                                     {
-                                    useTriples = NO;
-                                    useFullForAlpha = YES;
+                                    modelSettings->useTriples = NO;
+                                    modelSettings->useFullForAlpha = YES;
                                     } 
                                 else if (!strcmp(tempStr, "Triplet"))
                                     {
-                                    useTriples = YES;
-                                    useFullForAlpha = NO;
+                                    modelSettings->useTriples = YES;
+                                    modelSettings->useFullForAlpha = NO;
                                     } 
                                 if (nApplied == 0 && numCurrentDivisions == 1)
-                                    MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d\n", spacer, useTriples, useFullForAlpha);
+                                    MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d\n", spacer, modelSettings->useTriples, modelSettings->useFullForAlpha);
                                 else
                                     MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d for partition %d\n", 
-                                                    spacer, useTriples,useFullForAlpha, i+1);
+                                                    spacer, modelSettings->useTriples,modelSettings->useFullForAlpha, i+1);
+                                }
+                            else 
+                                {
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Pw alpha lkhood flags unchanged ", spacer);
+                                else
+                                    MrBayesPrint ("%s   Pw alpha lkhood unchanged for partition %d ", 
+                                                    spacer, i+1);
+                                MrBayesPrint ("because dataType is not DNA\n");
+                                }
+
+                            } 
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for alpha likelihood \n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else 
+                {
+                return (ERROR);
+                }
+            }
+
+
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "PwHotChainOnly"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if (activeParts[i] == YES || nApplied == 0)
+                            {
+                            if (modelSettings[i].dataType == DNA)
+                                {
+                                if (!strcmp(tempStr, "Yes"))
+                                    {
+                                    modelSettings->pwColdChains=1;
+                                    }
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting Pw cold chain flag to to: pwColdChains=%d\n", spacer, modelSettings->pwColdChains);
+                                else
+                                    MrBayesPrint ("%s   Setting to:  pwColdChains=%d for partition %d\n", 
+                                                    spacer, modelSettings->pwColdChains, i+1);
                                 }
                             else 
                                 {

@@ -1329,7 +1329,7 @@ MrBFlt CalcTripletLogLike_JC_Reduced(PairwiseDists *pd, MrBFlt alpha) {
 |       with or without rate variation
 |
 ------------------------------------------------------------------*/
-int TiProbsPairwise_JukesCantor (TreeNode *tn, int division, int chain)
+int TiProbsPairwise_JukesCantor (int division, int chain)
 {
     /* calculate Jukes Cantor transition probabilities */
     
@@ -1977,7 +1977,7 @@ int CalcTripletCnDists(int division, int chain)
 |       with or without rate variation
 |
 ------------------------------------------------------------------*/
-int TiProbsTriplet_JukesCantor (TreeNode *tn, int division, int chain)
+int TiProbsTriplet_JukesCantor (int division, int chain)
 {
     /* calculate Jukes Cantor transition probabilities */
     int         i, j, k, l, p, index, tripIdx;

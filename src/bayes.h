@@ -1472,13 +1472,17 @@ typedef struct modelinfo
 #endif /* BEAGLE_V3_ENABLED */
 #endif /* BEAGLE_ENABLED */
 
-    /*  Pairwise model information */
+    /* Flags for how pw likelihood will be used   */
     int         usePairwise;                  /*  Flag for whether pairwise likelihood is used in mcmc */
+    int         useTriples;
+    int         useFullForAlpha;
+    int         pwColdChains;
+
+    /*  Pairwise model information */
     MrBFlt      **pwDists;
     int         **pwIndex;               
     int         tiProbsPwLength;              /*   */
     CLFlt       **tiProbsPw;
-    /*  int     *tiProbsPwScratchIndex;  */     /* index to scratch space for branch ti probs   */
     int         numTiProbsPw;                 /* number of ti prob arrays                     */
     CLFlt       **doubletProbs;              
     int         doubletProbsLength;
