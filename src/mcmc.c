@@ -279,14 +279,6 @@ extern CLFlt     *preLikeL;                  /* precalculated cond likes for lef
 extern CLFlt     *preLikeR;                  /* precalculated cond likes for right descendant*/
 extern CLFlt     *preLikeA;                  /* precalculated cond likes for ancestor        */
 
-/*  defined in pairwise.c  */
-extern int    numPairs;
-extern int    numTrips;
-
-/*  defined in model.c */
-extern int    usePairwise;
-extern int    useTriples;
-extern int    useFullForAlpha;
 
 /* local (to this file) variables */
 int             numLocalChains;              /* number of Markov chains                      */
@@ -1204,6 +1196,16 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
     lnPriorA = curLnPr[swapA];
     lnPriorB = curLnPr[swapB];
 
+    if (modelSettings->pwHotChains == YES) /*  We're using pairwise lkhd for hot and full for cold chains */
+        {
+        /* if one is hot & one cold , compute the other full likelihood for fair comparison*/
+        if (swapA % chainParams.numChains != 0 && swapB % chainParams.numChains == 0)
+            lnLikeA = LogLike(swapA);
+        if (swapA % chainParams.numChains == 0 && swapB % chainParams.numChains != 0)
+            lnLikeB = LogLike(swapB);
+        }
+
+
     if (chainParams.isSS == YES)
         {
         lnLikeA *= powerSS;
@@ -1254,6 +1256,15 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
     swapInfo[runId][chJ][chI]++;
     if (isSwapSuccessful == YES)
         swapInfo[runId][chI][chJ]++;
+
+    if (isSwapSuccessful && modelSettings->pwHotChains == YES) 
+        {
+        if (swapA % chainParams.numChains != 0 && swapB % chainParams.numChains == 0)
+            curLnL[swapA] = lnLikeB;
+        if (swapA % chainParams.numChains == 0 && swapB % chainParams.numChains != 0)
+            curLnL[swapB] = lnLikeA;
+        }
+
 #   endif
     
     return (NO_ERROR);
@@ -2352,7 +2363,7 @@ int DoMcmc (void)
     GetStamp ();
     
     MrBayesPrint ("%s   Seed = %d\n", spacer, seed);
-    MrBayesPrint ("%s   Swapseed = %d\n", spacer, swapSeed);
+    MrBayesPrint ("%s   wapseed = %d\n", spacer, swapSeed);
 
     /* Show the model to make sure the user sees it before running the analysis */
     if (ShowModel() == ERROR)
@@ -4532,7 +4543,7 @@ void FreeChainMemory (void)
 
 
         /* free pairwise dists and transition probs  */        
-        if (usePairwise) 
+        if (m->usePairwise) 
             {
             if (m->pwDists)
                 {
@@ -4571,7 +4582,7 @@ void FreeChainMemory (void)
                 }
 
             /*  free triplet dists and probabilities  */
-            if (useTriples) 
+            if (m->useTriples) 
                 {
                 if (m->tripleCnDists)
                     {
@@ -5815,7 +5826,7 @@ int InitAugmentedModels (void)
 int InitChainCondLikes (void)
 {
     int         c, d, i, j, k, s, t, numReps, condLikesUsed, nIntNodes, nNodes,
-                clIndex, tiIndex, scalerIndex, indexStep, pwIdx, tripIdx;
+                clIndex, tiIndex, scalerIndex, indexStep, pwIdx, tripIdx, numTrips;
     BitsLong    *charBits;
     CLFlt       *cL;
     ModelInfo   *m;
@@ -5889,6 +5900,8 @@ int InitChainCondLikes (void)
         /* find size of tree */
         nIntNodes = GetTree(m->brlens, 0, 0)->nIntNodes;
         nNodes = GetTree(m->brlens, 0, 0)->nNodes;
+        m->numPairs = (nNodes - nIntNodes) * (nNodes - nIntNodes - 1) / 2;
+        m->numTrips = (nNodes - nIntNodes) * (nNodes - nIntNodes - 2) * (nNodes - nIntNodes - 2)/ 6;
 
         /* figure out number of cond like arrays */
         m->numCondLikes = (numLocalChains + 1) * (nIntNodes);
@@ -5953,10 +5966,10 @@ int InitChainCondLikes (void)
             }
 
         m->numTiProbs = (numLocalChains + 1) * nNodes;
-        m->numTiProbsPw = (numLocalChains + 1) * numPairs;
-        m->numDoubletProbs = (numLocalChains + 1) * numPairs;
-        m->numTiProbsTrip = (numLocalChains + 1) * numTrips * 3;
-        m->numTripleProbs = (numLocalChains + 1) * numTrips;
+        m->numTiProbsPw = (numLocalChains + 1) * m->numPairs;
+        m->numDoubletProbs = (numLocalChains + 1) * m->numPairs;
+        m->numTiProbsTrip = (numLocalChains + 1) * m->numTrips * 3;
+        m->numTripleProbs = (numLocalChains + 1) * m->numTrips;
 
         /* set info about eigen systems */
         if (InitEigenSystemInfo (m) == ERROR)
@@ -6232,13 +6245,12 @@ int InitChainCondLikes (void)
                 }
 
             /*  allocate pw stuff, if pairwise is set */
-            if (usePairwise) 
+            if (m->usePairwise) 
                 {
-
                 /*  allocate space for pw distances */
                 m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
                 for (i=0; i<numLocalChains; i++)
-                    m->pwDists[i] = (MrBFlt*) SafeMalloc(numPairs * sizeof(MrBFlt));
+                    m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
 
                 /*  allocate space for pw ti probs  */
                 m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
@@ -6264,7 +6276,7 @@ int InitChainCondLikes (void)
                 }
 
             /*  allocate triplet stuff if necessary */
-            if (useTriples) 
+            if (m->useTriples) 
                 {
                 /*  allocate triple cn distances */
                 m->tripleCnDists=(MrBFlt**)SafeMalloc(numLocalChains * sizeof(MrBFlt*));
@@ -6286,7 +6298,7 @@ int InitChainCondLikes (void)
 
             } /*  end of (if usebeagle==false)  */
 
-        if (usePairwise) 
+        if (m->usePairwise) 
             {
             /* allocate and set indices from chain/pair to pw probs */
             m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
@@ -6294,7 +6306,7 @@ int InitChainCondLikes (void)
                 return (ERROR);
             for (i=0; i<numLocalChains; i++)
                 {
-                m->pwIndex[i] = (int *) SafeMalloc (numPairs * sizeof(int));
+                m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
                 if (!m->pwIndex[i])
                     return (ERROR);
                 }
@@ -6303,7 +6315,7 @@ int InitChainCondLikes (void)
             pwIdx = 0;
             for (i=0; i<numLocalChains; i++)
                 {
-                for (j=0; j<numPairs; j++)
+                for (j=0; j<m->numPairs; j++)
                     {
                     m->pwIndex[i][j] = pwIdx;
                     pwIdx += indexStep;
@@ -6311,7 +6323,7 @@ int InitChainCondLikes (void)
                 }
             }
             
-        if (useTriples)         
+        if (m->useTriples)         
             {
             /*  allocate triple indices  */
             m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
@@ -16588,10 +16600,13 @@ int RunChain (RandLong *seed)
             }
         TouchAllTrees (chn);
         TouchAllCijks (chn);
-        if (usePairwise)
+
+
+        if (modelSettings->usePairwise && (modelSettings->pwHotChains == NO || chn % numLocalChains != 0))
             curLnL[chn] = LogLikePairwise(chn);
         else 
             curLnL[chn] = LogLike(chn);
+
         curLnPr[chn] = LogPrior(chn);
         for (i=0; i<numCurrentDivisions; i++)
             {
@@ -17030,6 +17045,16 @@ int RunChain (RandLong *seed)
             /* decide which move to make */
             whichMove = PickProposal(seed, chainId[chn]);
             theMove = usedMoves[whichMove];
+
+            /*  skip alpha proposals when using pairwise likelihood in the hot chains */
+            if (modelSettings->pwHotChains && (chn % chainParams.numChains != 0)) 
+                {
+                while (!strcmp(theMove->parm->name,"Alpha")) 
+                    {
+                    whichMove = PickProposal(seed, chainId[chn]);
+                    theMove = usedMoves[whichMove];
+                    }
+                }
 #   if defined SHOW_MOVE
             printf ("Making move '%s'\n", theMove->name);
 #   endif
@@ -17073,7 +17098,7 @@ int RunChain (RandLong *seed)
             /*  check if using pairwise with hybrid proposal for alpha. 
              *  also grab the alpha lkhood before making the move 
              */
-            if (!strcmp(theMove->parm->name,"Alpha") && useFullForAlpha == YES)
+            if (!strcmp(theMove->parm->name,"Alpha") && modelSettings->useFullForAlpha == YES)
                 {
                 hybridAlphaStep = YES;
                 if (PrepareHybridStep(chn) == ERROR)
@@ -17082,6 +17107,7 @@ int RunChain (RandLong *seed)
                 lnLikeAlCurr=LogLike(chn);
                 numAlphaHybridSteps++;
                 }
+
 
             /* make move  */
             if ((theMove->moveFxn)(theMove->parm, chn, seed, &lnPriorRatio, &lnProposalRatio, theMove->tuningParam[chainId[chn]]) == ERROR)
@@ -17105,20 +17131,21 @@ int RunChain (RandLong *seed)
                 abortMove = YES;
                 }
 
-
-            /*                                       *
-             *                                       *
-             *  start hybrid composite mcmc step     *
-             *                                       *
-             *                                       */
-
-            if (usePairwise == YES)
+            /*  start hybrid composite mcmc step     */
+            if (modelSettings->usePairwise == YES)
                 {
                  if (abortMove == NO)
                     {
                     if (hybridAlphaStep == YES) 
-                        lnLikeAlMove = LogLike(chn);
-                    lnLike = LogLikePairwise(chn);                
+                        lnLikeAlMove=LogLike(chn);
+                    else if (modelSettings->pwHotChains == YES && chn % chainParams.numChains == 0)
+                        {
+                        if (PrepareHybridStep(chn) == ERROR)
+                             MrBayesPrint("%s Error preparing for hybrid step", spacer);
+                        lnLike=LogLike(chn);
+                        }
+                    else 
+                        lnLike=LogLikePairwise(chn);                
                     }
                 }
             else 
@@ -17128,7 +17155,7 @@ int RunChain (RandLong *seed)
             if (abortMove == NO)
                 {
 
-                if (hybridAlphaStep)/*  TODO: rename the rhs vars lnLikeAlProp/Curr or something */
+                if (hybridAlphaStep)
                     lnLikelihoodRatio = lnLikeAlMove - lnLikeAlCurr;
                 else 
                     lnLikelihoodRatio = lnLike - curLnL[chn];
