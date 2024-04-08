@@ -50,7 +50,7 @@
 
 
 #define NUMCOMMANDS                     62 + 3    /* The total number of commands in the program  */
-#define NUMPARAMS                       288   /* The total number of parameters  */
+#define NUMPARAMS                       289   /* The total number of parameters  */
 #define PARAM(i, s, f, l)               p->string = s;    \
                                         p->fp = f;        \
                                         p->valueList = l; \
@@ -318,7 +318,7 @@ CmdType     commands[] =
             { 22,            "Link",  NO,            DoLink, 30,  {55,56,57,58,59,60,61,62,63,72,73,74,75,76,105,118,193,194,195,196,197,242,243,252,253,255,256,
                                                                                                                                                      270,273,274},        4,               "Links parameters across character partitions",  IN_CMD, SHOW },
             { 23,             "Log",  NO,             DoLog,  5,                                                                                 {85,86,87,88,89},        4,                               "Logs screen output to a file",  IN_CMD, SHOW },
-            { 24,            "Lset",  NO,            DoLset, 22,                         {28,29,30,31,32,33,34,40,51,52,53,90,91,131,188,189,276,277,280,282,286},        4,                "Sets the parameters of the likelihood model",  IN_CMD, SHOW },
+            { 24,            "Lset",  NO,            DoLset, 23,                         {28,29,30,31,32,33,34,40,51,52,53,90,91,131,188,189,276,277,280,282,286,287,288},        4,                "Sets the parameters of the likelihood model",  IN_CMD, SHOW },
             { 25,          "Manual",  NO,          DoManual,  1,                                                                                            {126},       36,                  "Prints a command reference to a text file",  IN_CMD, SHOW },
             { 26,          "Matrix", YES,          DoMatrix,  1,                                                                                             {11},649252640,                 "Defines matrix of characters in data block", IN_FILE, SHOW },
             { 27,            "Mcmc",  NO,            DoMcmc, 46,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
@@ -14818,6 +14818,8 @@ void SetUpParms (void)
     PARAM (285, "Relrates",       DoPwSetParm,       "\0"); 
     PARAM (286, "Pairwise",       DoLsetParm,        "Yes|No|\0"); 
     PARAM (287, "PwAlphaLike",    DoLsetParm,        "None|Full|Triplet|\0"); 
+    PARAM (288, "PwHotChain",    DoLsetParm,    "Yes|No|\0"); 
+
 
     /* NOTE: If a change is made to the parameter table, make certain you change
             NUMPARAMS (now 283; one more than last index) at the top of this file. */

@@ -3327,7 +3327,7 @@ int DoLsetParm (char *parmName, char *tkn)
                                     modelSettings->usePairwise=NO;
                                     }
                                     /*  modelSettings[i].usePairwise = NO; */
-                                MrBayesPrint ("%s   Setting Pairwise flag to %d\n", spacer, usePairwise);
+                                MrBayesPrint ("%s   Setting Pairwise flag to %d\n", spacer, modelSettings->usePairwise);
                                 /* 
                                 if (nApplied == 0 && numCurrentDivisions == 1)
                                 else
@@ -3432,7 +3432,7 @@ int DoLsetParm (char *parmName, char *tkn)
 
 
         /* set  Pairwise flag (pairwise) **********************************************************************/
-        else if (!strcmp(parmName, "PwHotChainOnly"))
+        else if (!strcmp(parmName, "PwHotChain"))
             {
             if (expecting == Expecting(EQUALSIGN))
                 
@@ -3450,13 +3450,13 @@ int DoLsetParm (char *parmName, char *tkn)
                                 {
                                 if (!strcmp(tempStr, "Yes"))
                                     {
-                                    modelSettings->pwColdChains=1;
+                                    modelSettings->pwHotChains=1;
                                     }
                                 if (nApplied == 0 && numCurrentDivisions == 1)
-                                    MrBayesPrint ("%s   Setting Pw cold chain flag to to: pwColdChains=%d\n", spacer, modelSettings->pwColdChains);
+                                    MrBayesPrint ("%s   Setting Pw hot chain flag to to: pwHotChains=%d\n", spacer, modelSettings->pwHotChains);
                                 else
-                                    MrBayesPrint ("%s   Setting to:  pwColdChains=%d for partition %d\n", 
-                                                    spacer, modelSettings->pwColdChains, i+1);
+                                    MrBayesPrint ("%s   Setting to:  pwHotChains=%d for partition %d\n", 
+                                                    spacer, modelSettings->pwHotChains, i+1);
                                 }
                             else 
                                 {
@@ -21576,12 +21576,11 @@ int SetUpAnalysis (RandLong *seed)
     if (CompressData() == ERROR)
         return (ERROR);
 
-    MrBayesPrint("Foo \n");
-    if (usePairwise)
+    if (modelSettings->usePairwise)
         if (CountPairwise() == ERROR)
             return (ERROR);
 
-    if (useTriples)
+    if (modelSettings->useTriples)
         if (CountTriplets() == ERROR)
             return (ERROR);
 

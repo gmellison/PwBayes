@@ -1362,7 +1362,7 @@ int TiProbsPairwise_JukesCantor (int division, int chain)
     else
         catRate = &theRate;
 
-    for (p=0; p<numPairs; p++)
+    for (p=0; p<m->numPairs; p++)
         {
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
@@ -1470,7 +1470,7 @@ int TiProbsPairwise_Gen (int division, int chain)
     eigenValues = m->cijks[m->cijkIndex[chain]];
     cijk        = eigenValues + (2 * n);
 
-    for (p=0; p<numPairs; p++)
+    for (p=0; p<m->numPairs; p++)
         {
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
@@ -1552,7 +1552,7 @@ int DoubletProbs_JukesCantor(int division, int chain)
     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
     m = &modelSettings[division];
 
-    for (p=0; p<numPairs; p++)
+    for (p=0; p<m->numPairs; p++)
         {
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
@@ -1588,7 +1588,7 @@ int DoubletProbs_Gen(int division, int chain)
     m = &modelSettings[division];
     bs = GetParamSubVals(m->stateFreq, chain, state[chain]);
 
-    for (p=0; p<numPairs; p++)
+    for (p=0; p<m->numPairs; p++)
         {
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
@@ -1702,7 +1702,6 @@ int PrepareHybridStep(int chain)
 
     m->upDateCijk=YES;
 
-
     for (i=0; i<tree->nIntNodes; i++) 
         {
         p = tree->intDownPass[i];
@@ -1735,7 +1734,7 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
     m = &modelSettings[division];
     (*lnL)=0.0;
 
-    for (p=0; p<numPairs; p++)
+    for (p=0; p<m->numPairs; p++)
         {
 
         /* find transition probabilities */

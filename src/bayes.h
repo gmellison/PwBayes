@@ -1476,7 +1476,7 @@ typedef struct modelinfo
     int         usePairwise;                  /*  Flag for whether pairwise likelihood is used in mcmc */
     int         useTriples;
     int         useFullForAlpha;
-    int         pwColdChains;
+    int         pwHotChains;
 
     /*  Pairwise model information */
     MrBFlt      **pwDists;
@@ -1487,8 +1487,10 @@ typedef struct modelinfo
     CLFlt       **doubletProbs;              
     int         doubletProbsLength;
     int         numDoubletProbs;
+    int         numPairs;
 
     /*  Triplet model information */
+    int         numTrips;
     MrBFlt      **tripleCnDists;    /*  [chainId][tripleIndex * 3]   */
     CLFlt       **tripleTiProbs;    /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
     CLFlt       **tripleProbs;      /*  site pattern probs: [chainId*triptId][64] */ 
