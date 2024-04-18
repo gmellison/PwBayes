@@ -1576,6 +1576,34 @@ int DoubletProbs_JukesCantor(int division, int chain)
     return(NO_ERROR);
 }
 
+// int PwLikelihoodWeight_JukesCantor(int division, int chain) 
+// {
+//     int         i, j, k, p, index, dpIdx;
+//     CLFlt       *tiP, *doubP, ;   
+//     MrBFlt      *dists;
+//     ModelInfo   *m;
+// 
+//     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+//     m = &modelSettings[division];
+// 
+//     for (p=0; p<m->numPairs; p++)
+//         {
+//         dists = m->pwDists[m->pwIndex[chain][p]];
+// 
+//         index=0; 
+//         for (k=0; k<m->numRateCats; k++) 
+//             {
+//                 
+//             }
+//         }
+//     return(1);
+// }
+// 
+// void EstimatePairwiseHess_JukesCantor() {
+// }
+// 
+// void EstimatePairwiseJacob_JukesCantor() {
+// }
 
 int DoubletProbs_Gen(int division, int chain)
 {
@@ -1775,7 +1803,6 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
     return (NO_ERROR);
 }
 
-
 MrBFlt LogLikePairwise(int chain) 
 {
     ModelInfo  *m;
@@ -1805,11 +1832,10 @@ MrBFlt LogLikePairwise(int chain)
     m->DoubletProbs(d,chain);
 
     m->PwLikelihood(d,chain,&(m->lnLike[2*chain+state[chain]]));
-    chainLnLike += m->lnLike[2*chain+state[chain]];
+    chainLnLike+=m->lnLike[2*chain+state[chain]];
 
     return(chainLnLike);
 }
-
 
 int FreePairwise(void) 
 {

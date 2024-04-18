@@ -594,7 +594,7 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
 {
     int             d, tempX, reweightingChars, isSwapSuccessful, chI, chJ, runId;
     MrBFlt          tempA, tempB, lnLikeA, lnLikeB, lnPriorA, lnPriorB, lnR, r,
-                    lnLikeStateAonDataB=0.0, lnLikeStateBonDataA=0.0, lnL;
+                    lnLikeStateAonDataB=0.0, lnLikeStateBonDataA=0.0, lnL, lnLikePwA, lnLikePwB;
     ModelInfo       *m;
     Tree            *tree;
 #   if defined (MPI_ENABLED)
@@ -1199,12 +1199,42 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
     if (modelSettings->pwHotChains == YES) /*  We're using pairwise lkhd for hot and full for cold chains */
         {
         /* if one is hot & one cold , compute the other full likelihood for fair comparison*/
-        if (swapA % chainParams.numChains != 0 && swapB % chainParams.numChains == 0)
+        if (chainId[swapA] % chainParams.numChains != 0 && chainId[swapB] % chainParams.numChains == 0)
+            { /*  B is the cold chain -- need to calc full likelihood for swapA */
+            lnLikePwA = lnLikeA;
+            TouchEverything(swapA);
             lnLikeA = LogLike(swapA);
-        if (swapA % chainParams.numChains == 0 && swapB % chainParams.numChains != 0)
-            lnLikeB = LogLike(swapB);
-        }
+            /*
+            lnLikeA = 0.0;
+            TouchEverything(swapA);
+            for (d=0; d<numCurrentDivisions; d++)
+                {
+                m = &modelSettings[d];
+                tree = GetTree(m->brlens, swapA, state[swapA]);
+                lnL = 0.0;
+                m->Likelihood (tree->root->left, d, swapA, &lnL, chainId[swapA] % chainParams.numChains);
+                lnLikeA += lnL;
+                }  */
 
+            }
+        if (chainId[swapA] % chainParams.numChains == 0 && chainId[swapB] % chainParams.numChains != 0)
+            { /*  A is the cold chain  */
+            lnLikePwB = lnLikeB;
+            TouchEverything(swapB);
+            lnLikeB = LogLike(swapB);
+            /*            lnLikeB = 0.0;
+            TouchEverything(swapB);
+            for (d=0; d<numCurrentDivisions; d++)
+                {
+                m = &modelSettings[d];
+                tree = GetTree(m->brlens, swapB, state[swapB]);
+                lnL = 0.0;
+                m->Likelihood (tree->root->left, d, swapB, &lnL, chainId[swapB] % chainParams.numChains);
+                lnLikeB += lnL;
+                }*/
+            }  
+
+        }
 
     if (chainParams.isSS == YES)
         {
@@ -1242,7 +1272,37 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
             }
         isSwapSuccessful = YES;
         }
-        
+
+    if (isSwapSuccessful && modelSettings->pwHotChains == YES) 
+        {
+        if (chainId[swapA] % chainParams.numChains == 0 && chainId[swapB] % chainParams.numChains != 0)
+            { /* cold chain: swap B->A -- B WAS the cold chain so set its curLnL to it's full lkhd and B to the pwlkhd */
+              /*  but indexes still point to pre-swap chains (only the indices swap...) */
+              /*  so, need to replace swapA with the pw likelihood & swapB with the full... */
+            lnLikePwB = LogLikePairwise(swapB);
+            curLnL[swapB] = lnLikePwB;
+            curLnL[swapA] = lnLikeA;
+
+            if (curLnL[swapB] > 0 || curLnL[swapB] < -1000000000)
+                    MrBayesPrint("Problem!\n");
+            if (curLnL[swapA] > 0 || curLnL[swapA] < -1000000000)
+                    MrBayesPrint("Problem!\n");
+
+            }
+        if (chainId[swapB] % chainParams.numChains == 0 && chainId[swapA] % chainParams.numChains != 0)
+            {
+            lnLikePwA = LogLikePairwise(swapA);
+            curLnL[swapA] = lnLikePwA;
+            curLnL[swapB] = lnLikeB;
+
+            if (curLnL[swapB] > 0 || curLnL[swapB] < -1000000000)
+                    MrBayesPrint("Problem!\n");
+            if (curLnL[swapA] > 0 || curLnL[swapA] < -1000000000) 
+                    MrBayesPrint("Problem!\n");
+
+            }
+        }
+      
     chI = chainId[swapA];
     chJ = chainId[swapB];
     if (chainId[swapB] < chainId[swapA])
@@ -1256,14 +1316,6 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
     swapInfo[runId][chJ][chI]++;
     if (isSwapSuccessful == YES)
         swapInfo[runId][chI][chJ]++;
-
-    if (isSwapSuccessful && modelSettings->pwHotChains == YES) 
-        {
-        if (swapA % chainParams.numChains != 0 && swapB % chainParams.numChains == 0)
-            curLnL[swapA] = lnLikeB;
-        if (swapA % chainParams.numChains == 0 && swapB % chainParams.numChains != 0)
-            curLnL[swapB] = lnLikeA;
-        }
 
 #   endif
     
@@ -16602,7 +16654,7 @@ int RunChain (RandLong *seed)
         TouchAllCijks (chn);
 
 
-        if (modelSettings->usePairwise && (modelSettings->pwHotChains == NO || chn % numLocalChains != 0))
+        if (modelSettings->usePairwise && (modelSettings->pwHotChains == NO || chn % chainParams.numChains != 0))
             curLnL[chn] = LogLikePairwise(chn);
         else 
             curLnL[chn] = LogLike(chn);
@@ -17131,14 +17183,14 @@ int RunChain (RandLong *seed)
                 abortMove = YES;
                 }
 
-            /*  start hybrid composite mcmc step     */
+            /*  start hybrid composite mcmc step */
             if (modelSettings->usePairwise == YES)
                 {
                  if (abortMove == NO)
                     {
                     if (hybridAlphaStep == YES) 
                         lnLikeAlMove=LogLike(chn);
-                    else if (modelSettings->pwHotChains == YES && chn % chainParams.numChains == 0)
+                    else if (modelSettings->pwHotChains == YES && chainId[chn] % chainParams.numChains == 0)
                         {
                         if (PrepareHybridStep(chn) == ERROR)
                              MrBayesPrint("%s Error preparing for hybrid step", spacer);
@@ -17150,11 +17202,10 @@ int RunChain (RandLong *seed)
                 }
             else 
                 lnLike = LogLike(chn);                
- 
+
             /* calculate acceptance probability */
             if (abortMove == NO)
                 {
-
                 if (hybridAlphaStep)
                     lnLikelihoodRatio = lnLikeAlMove - lnLikeAlCurr;
                 else 
@@ -17253,8 +17304,10 @@ int RunChain (RandLong *seed)
                 /* store the likelihood and prior of the chain */
                 curLnL[chn] = lnLike;
                 curLnPr[chn] = lnPrior;
+                if (hybridAlphaStep && modelSettings->usePairwise == YES)
+                        curLnL[chn] = LogLikePairwise(chn);
                 }
-             
+            
             /* check if time to autotune */
             if (theMove->nTried[i] >= chainParams.tuneFreq)
                 {
@@ -17273,9 +17326,9 @@ int RunChain (RandLong *seed)
                 }
 
             /* ShowValuesForChain (chn); */
-
-            if (curLnL[chn] > maxLnL0[chainId[chn]])
-                maxLnL0[chainId[chn]] = curLnL[chn];
+            /*  if (curLnL[chn] > maxLnL0[chainId[chn]]) */
+            if (curLnL[chn] > maxLnL0[chainId[chn]/chainParams.numChains])
+                maxLnL0[chainId[chn]/chainParams.numChains] = curLnL[chn];
 
             }
 
