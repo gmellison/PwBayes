@@ -237,10 +237,10 @@ int AddDummyChars (void)
         return NO_ERROR;
 
     /* print original compressed matrix */
-#   if  defined (DEBUG_ADDDUMMYCHARS)
+//#   if  defined (DEBUG_ADDDUMMYCHARS)
     MrBayesPrint ("Compressed matrix before adding dummy characters...\n");
     PrintCompMatrix();
-#   endif
+//#   endif
 
     /* set row sizes for old and new matrices */
     oldRowSize = compMatrixRowSize;
@@ -2711,11 +2711,11 @@ int CompressData (void)
     for (i=0; i<compMatrixRowSize; i++)
         origChar[i] = tempChar[i];
 
-#   if defined (DEBUG_COMPRESSDATA)
+//#   if defined (DEBUG_COMPRESSDATA)
     if (PrintCompMatrix() == ERROR)
         goto errorExit;
     getchar();
-#   endif
+//#   endif
 
     /* free the temporary variables */
     free (tempSitesOfPat);
@@ -3344,7 +3344,6 @@ int DoLsetParm (char *parmName, char *tkn)
                                                     spacer, i+1);
                                 MrBayesPrint ("because dataType is not DNA\n");
                                 }
-
                             } 
                         }
                     }
@@ -3355,13 +3354,7 @@ int DoLsetParm (char *parmName, char *tkn)
                     }
                 expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
                 }
-            else 
-                {
-                return (ERROR);
-                }
             }
-
-
         /* set  Pairwise flag (pairwise) **********************************************************************/
         else if (!strcmp(parmName, "PwAlphaLike"))
             {
@@ -3484,7 +3477,64 @@ int DoLsetParm (char *parmName, char *tkn)
                 }
             }
 
-
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "PwWeights"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    /*  TODO: either: 1. implement pairwise for different data partitions or 
+                     *  2: don't bother to loop through parts and just set global flags. if multiple 
+                     *  partitions, return warning or error.    */
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if (activeParts[i] == YES || nApplied == 0)
+                            {
+                            if (modelSettings[i].dataType == DNA)
+                                {
+                                if (!strcmp(tempStr, "Yes"))
+                                    {
+                                     modelSettings[i].pwWeights = YES;
+                                    // modelSettings->pwWeights=YES;
+                                    }
+                                else
+                                    {
+                                    modelSettings[i].pwWeights = NO;
+                                    // modelSettings->pwWeights=NO;
+                                    }
+                                MrBayesPrint ("%s   Setting pw weighting flag to %d\n", spacer, modelSettings[i].pwWeights);
+                                /* 
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                else
+                                    MrBayesPrint ("%s   Setting Pairwise flag to %d for partition %d\n", 
+                                                    spacer, modelSettings[i].usePairwise, i+1);
+                                 */
+                                }
+                            else 
+                                {
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Pairwise weight flag unchanged ", spacer);
+                                else
+                                    MrBayesPrint ("%s   Pairwise weight flag unchanged for partition %d ", 
+                                                    spacer, i+1);
+                                MrBayesPrint ("because dataType is not DNA\n");
+                                }
+                            } 
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for PwWeights\n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            }
 
         /* set Ngammacat (numGammaCats) ************************************************************/
         else if (!strcmp(parmName, "Ngammacat"))
@@ -3519,6 +3569,8 @@ int DoLsetParm (char *parmName, char *tkn)
             else
                 return (ERROR);
             }
+
+
         /* set Nlnormcat (numLnormCats) ************************************************************/
         else if (!strcmp(parmName, "Nlnormcat"))
             {
@@ -16418,7 +16470,12 @@ int PrintCompMatrix (void)
             whichChar = &WhichStand;
 
         MrBayesPrint ("\nCompressed matrix for division %d\n\n", d+1);
-        
+
+        MrBayesPrint ("\n Comp Matrix Start:  %d\n", m->compMatrixStart);
+        MrBayesPrint ("\n Comp Matrix Stop:  %d\n", m->compMatrixStop);
+        MrBayesPrint ("\n Comp Char Start:  %d\n", m->compCharStart);
+        MrBayesPrint ("\n Comp Char Stop:  %d\n", m->compCharStop);
+         
         k = 66;
         if (mp->dataType == CONTINUOUS)
             k /= 4;

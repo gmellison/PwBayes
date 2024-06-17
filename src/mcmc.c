@@ -2468,6 +2468,10 @@ int DoMcmc (void)
     if (InitChainCondLikes () == ERROR)
         goto errorExit;
 
+    /* Initialize conditional likelihoods and transition probabilities for chain (the working space). */
+    if (InitPairwise () == ERROR)
+        goto errorExit;
+
     /* Initialize adgamma conditional likelihoods */
     if (InitAdGamma () == ERROR)
         goto errorExit;
@@ -6324,6 +6328,10 @@ int InitChainCondLikes (void)
                     m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
                     if (!m->doubletProbs[i])
                         return (ERROR);
+                    }
+                if (m->pwWeights)  
+                    {
+                        m->pwLikeWeights = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(CLFlt*));
                     }
                 }
 
@@ -17099,7 +17107,7 @@ int RunChain (RandLong *seed)
             theMove = usedMoves[whichMove];
 
             /*  skip alpha proposals when using pairwise likelihood in the hot chains */
-            if (modelSettings->pwHotChains && (chn % chainParams.numChains != 0)) 
+            if (modelSettings->pwHotChains && (chainId[chn] % chainParams.numChains != 0)) 
                 {
                 while (!strcmp(theMove->parm->name,"Alpha")) 
                     {
@@ -17107,6 +17115,7 @@ int RunChain (RandLong *seed)
                     theMove = usedMoves[whichMove];
                     }
                 }
+
 #   if defined SHOW_MOVE
             printf ("Making move '%s'\n", theMove->name);
 #   endif

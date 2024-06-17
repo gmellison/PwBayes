@@ -1202,6 +1202,8 @@ typedef struct model
     char        inferPosSel[5];        /* should site selection be inferred (Yes/No)?   */
 
     int         usePairwise;
+    int         pwWeights;       
+
     } Model, ModelParams;
 
 typedef struct chain
@@ -1489,12 +1491,18 @@ typedef struct modelinfo
     int         numDoubletProbs;
     int         numPairs;
 
+    /*  pairwise likelihood weights */
+    int         pwWeights;       
+    int         numPwWeights;
+    int         *pwWSubsetCounts;
+    MrBFlt      *pwW;       /* single index, [pairid], since weights are shared across all chains*/
+ 
     /*  Triplet model information */
     int         numTrips;
-    MrBFlt      **tripleCnDists;    /*  [chainId][tripleIndex * 3]   */
-    CLFlt       **tripleTiProbs;    /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
-    CLFlt       **tripleProbs;      /*  site pattern probs: [chainId*triptId][64] */ 
-    int         **tripIndex;     /*  holds indices for triplets: [chainId][tripId]  */
+    MrBFlt      **tripleCnDists;     /*  [chainId][tripleIndex * 3]   */
+    CLFlt       **tripleTiProbs;     /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
+    CLFlt       **tripleProbs;       /*  site pattern probs: [chainId*triptId][64] */ 
+    int         **tripIndex;         /*  holds indices for triplets: [chainId][tripId]  */
     int         **tripDistIndex;     /*  holds indices for triplets: [chainId][tripId]  */
     int         numTripleProbs;
     int         numTiProbsTrip;

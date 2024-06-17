@@ -1,4 +1,5 @@
 /*
+
  * =====================================================================================
  *
  *       Filename:  pairwise.c
@@ -574,6 +575,28 @@ int DoPairwiseLogLike(void) {
 
     return(NO_ERROR);
 
+}
+
+int InitPairwiseWeights (void) {
+
+    /* pw like/tiprob stuff in 'mcmc.c: InitChainCondLikes already.'   */
+    /* for now, just init stuff for pw like weights - partition counts, 
+     * & J/H matrix componenets per pair.  */
+    
+        
+    for (d=0; d<numCurrentDivisions; d++)
+        {
+        m = &modelSettings[d];
+
+        m->pwWSubsetCounts = (int*) SafeMalloc(numPairs * 10 * sizeof(int*));
+        m->pwWeights = (MrBFlt*) SafeMalloc(numPairs * 10 * sizeof(int*))
+        m->pwWJEst = (MrBFlt*) SafeMalloc(numPairs * 10 * sizeof(int*))
+
+        }
+
+
+
+    return NO_ERROR;
 }
 
 /* Inits a PairwiseDists struct from a polytree  
@@ -1837,6 +1860,80 @@ MrBFlt LogLikePairwise(int chain)
     return(chainLnLike);
 }
 
+int PwWeight_PartitionCounts_JC() 
+{
+    ModelInfo* m;
+    MrBFlt* pww;
+    
+    m = &modelSettings[d];
+    pw_pc = m->pwWeightSubsetCounts;
+
+    int k,l,p,c,c1,c2,d,s;
+    int* n11,n10;
+    MrBFlt e10,e11; 
+
+    int numSubsets=10;
+
+    // loop over the partitions:
+    for (d=0; d<numCurrentDivisions; d++)
+        {
+        /* first calculate the n_ii for the division */
+        for (k=0; k<m->numPairs-1; k++) 
+            {
+            for (l=k+1; l<m->numPairs; l++)
+                {
+
+                for (s=0; s<numSubsets; s++)
+                    {
+                    n10[s]=0;
+                    n11[s]=0;
+                    }
+
+                p=pairIdx(k,l,m->numPairs); /*  just get the single pair idx */
+                for (c=0; c<numChar; c++)
+                    {
+                    if (partitionId[c][partitionNum] != d+1) 
+                            continue;
+                    c1=matrix[pos(k,c,numChar)];
+                    c2=matrix[pos(k,c,numChar)];
+                    if (c1 == c2)
+                        n10[c %% numSubsets] += 1;
+                    else 
+                        n11[c %% numSubsets] += 1;
+                    }
+                
+                }
+            }
+        }
+
+    return(0);
+}
+
+
+/* 
+ * calculate the weights for adjusting composite likelihoods within the MH proposal. 
+ * The weights depend on 1. the data and 2.  the max comp. like. estimate 
+ *   also need the rate shape parameter to be given. 
+ * */
+
+
+
+int PwWeights_JC(int d) 
+{
+    MrBFlt *pww;
+    ModelInfo *m;
+    
+    m = &modelSettings[d];
+    pww = m->pwLikeWeights;
+
+    /* first calculate the n_ii for the division */
+
+
+
+
+    return(0);
+}
+
 int FreePairwise(void) 
 {
     free(pairwiseCounts);
@@ -2250,10 +2347,5 @@ MrBFlt LogLikeTriplet_Alpha(int chain)
     TIME(Likelihood_Triples(d,chain,&lnL),CPULilklihood); 
     return(lnL);
 }
-
-
-
-
-
 
 
