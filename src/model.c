@@ -3536,6 +3536,37 @@ int DoLsetParm (char *parmName, char *tkn)
                 }
             }
 
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "NumDataSplits"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(NUMBER);
+            else if (expecting == Expecting(NUMBER))
+                {
+                sscanf (tkn, "%d", &tempInt);
+                if (tempInt >= 2 && tempInt < MAX_DATA_SPLITS)
+                    {
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if ((activeParts[i] == YES || nApplied == 0) && (modelParams[i].dataType != CONTINUOUS))
+                            {
+                            modelParams[i].numDataSplits = tempInt;
+                            if (nApplied == 0 && numCurrentDivisions == 1)
+                                MrBayesPrint ("%s   Setting Numdatasplits to %d\n", spacer, modelParams[i].numDataSplits);
+                            else
+                                MrBayesPrint ("%s   Setting Numdatasplits to %d for partition %d\n", spacer, modelParams[i].numGammaCats, i+1);
+                            }
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid Numdatasplits argument (should be between 2 and %d)\n", spacer, MAX_DATA_SPLITS);
+                    return (ERROR);
+                    }
+                }
+            }
+                
         /* set Ngammacat (numGammaCats) ************************************************************/
         else if (!strcmp(parmName, "Ngammacat"))
             {

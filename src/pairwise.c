@@ -582,15 +582,19 @@ int InitPairwiseWeights (void) {
     /* pw like/tiprob stuff in 'mcmc.c: InitChainCondLikes already.'   */
     /* for now, just init stuff for pw like weights - partition counts, 
      * & J/H matrix componenets per pair.  */
-    
-        
+    ModelInfo *m;  
+
+    int nS;
     for (d=0; d<numCurrentDivisions; d++)
         {
         m = &modelSettings[d];
+        nS = m->numDataSplits;
 
-        m->pwWSubsetCounts = (int*) SafeMalloc(numPairs * 10 * sizeof(int*));
-        m->pwWeights = (MrBFlt*) SafeMalloc(numPairs * 10 * sizeof(int*))
-        m->pwWJEst = (MrBFlt*) SafeMalloc(numPairs * 10 * sizeof(int*))
+        m->numPwWeights = numPairs * numPairs;
+        m->numPwSplitCounts = numPairs * m->nModelCats * numDataSplits;
+        m->pwWSubsetCounts = (int*) SafeMalloc(numPairs * numDataSplits * sizeof(int*));
+        m->pwWeights = (MrBFlt*) SafeMalloc(numPairs * sizeof(int*))
+        m->pwWJEst = (MrBFlt*) SafeMalloc(numPairs * sizeof(int*))
 
         }
 
@@ -1599,34 +1603,34 @@ int DoubletProbs_JukesCantor(int division, int chain)
     return(NO_ERROR);
 }
 
-// int PwLikelihoodWeight_JukesCantor(int division, int chain) 
-// {
-//     int         i, j, k, p, index, dpIdx;
-//     CLFlt       *tiP, *doubP, ;   
-//     MrBFlt      *dists;
-//     ModelInfo   *m;
-// 
-//     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
-//     m = &modelSettings[division];
-// 
-//     for (p=0; p<m->numPairs; p++)
-//         {
-//         dists = m->pwDists[m->pwIndex[chain][p]];
-// 
-//         index=0; 
-//         for (k=0; k<m->numRateCats; k++) 
-//             {
-//                 
-//             }
-//         }
-//     return(1);
-// }
-// 
-// void EstimatePairwiseHess_JukesCantor() {
-// }
-// 
-// void EstimatePairwiseJacob_JukesCantor() {
-// }
+int PwLikelihoodWeight_JukesCantor(int division, int chain) 
+{
+    int         i, j, k, p, index, dpIdx;
+    CLFlt       *tiP, *doubP, ;   
+    MrBFlt      *dists;
+    ModelInfo   *m;
+
+    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+    m = &modelSettings[division];
+
+    for (p=0; p<m->numPairs; p++)
+        {
+        dists = m->pwDists[m->pwIndex[chain][p]];
+
+        index=0; 
+        for (k=0; k<m->numRateCats; k++) 
+            {
+                
+            }
+        }
+    return(1);
+}
+
+void EstimatePairwiseHess_JukesCantor() {
+}
+
+void EstimatePairwiseJacob_JukesCantor() {
+}
 
 int DoubletProbs_Gen(int division, int chain)
 {

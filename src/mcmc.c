@@ -2469,7 +2469,7 @@ int DoMcmc (void)
         goto errorExit;
 
     /* Initialize conditional likelihoods and transition probabilities for chain (the working space). */
-    if (InitPairwise () == ERROR)
+    if (InitPairwiseWeights () == ERROR)
         goto errorExit;
 
     /* Initialize adgamma conditional likelihoods */
@@ -6381,6 +6381,11 @@ int InitChainCondLikes (void)
                     pwIdx += indexStep;
                     }
                 }
+
+            if (m->weightPairwise) 
+                {
+                }
+
             }
             
         if (m->useTriples)         

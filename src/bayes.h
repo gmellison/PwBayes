@@ -352,6 +352,8 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define INDRVAR_MAX             10000.0f
 #define OMEGA_MIN               0.001f
 #define OMEGA_MAX               1000.0f
+#define MAX_DATA_SPLITS         100 
+
 
 #define POS_MIN                 1E-25f
 #define POS_INFINITY            1E25f
@@ -1203,6 +1205,7 @@ typedef struct model
 
     int         usePairwise;
     int         pwWeights;       
+    int         numDataSplits;
 
     } Model, ModelParams;
 
@@ -1492,10 +1495,11 @@ typedef struct modelinfo
     int         numPairs;
 
     /*  pairwise likelihood weights */
-    int         pwWeights;       
+    /*  int         pwWeights;  */        
     int         numPwWeights;
     int         *pwWSubsetCounts;
     MrBFlt      *pwW;       /* single index, [pairid], since weights are shared across all chains*/
+    MrBFlt      pwWJEst;
  
     /*  Triplet model information */
     int         numTrips;

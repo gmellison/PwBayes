@@ -14820,6 +14820,7 @@ void SetUpParms (void)
     PARAM (287, "PwAlphaLike",    DoLsetParm,        "None|Full|Triplet|\0"); 
     PARAM (288, "PwHotChain",     DoLsetParm,        "Yes|No|\0"); 
     PARAM (289, "PwWeights",      DoLsetParm,        "Yes|No|\0"); 
+    PARAM (290, "NumDataSplits",  DoLsetParm,        "\0"); 
 
     /* NOTE: If a change is made to the parameter table, make certain you change
             NUMPARAMS (now 283; one more than last index) at the top of this file. */
