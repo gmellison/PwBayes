@@ -6329,10 +6329,6 @@ int InitChainCondLikes (void)
                     if (!m->doubletProbs[i])
                         return (ERROR);
                     }
-                if (m->pwWeights)  
-                    {
-                        m->pwLikeWeights = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(CLFlt*));
-                    }
                 }
 
             /*  allocate triplet stuff if necessary */
@@ -6381,11 +6377,6 @@ int InitChainCondLikes (void)
                     pwIdx += indexStep;
                     }
                 }
-
-            if (m->weightPairwise) 
-                {
-                }
-
             }
             
         if (m->useTriples)         

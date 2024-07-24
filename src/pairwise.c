@@ -583,18 +583,38 @@ int InitPairwiseWeights (void) {
     /* for now, just init stuff for pw like weights - partition counts, 
      * & J/H matrix componenets per pair.  */
     ModelInfo *m;  
+    int d;
+    int nSplits, nStates, nPairs;
+    int i, j, index, indexStep;
 
-    int nS;
     for (d=0; d<numCurrentDivisions; d++)
         {
         m = &modelSettings[d];
-        nS = m->numDataSplits;
+        nSplits = modelParams[d].numDataSplits;
+        nStates = modelParams[d].nStates;
+        nPairs = m->numPairs; 
 
         m->numPwWeights = numPairs * numPairs;
-        m->numPwSplitCounts = numPairs * m->nModelCats * numDataSplits;
-        m->pwWSubsetCounts = (int*) SafeMalloc(numPairs * numDataSplits * sizeof(int*));
-        m->pwWeights = (MrBFlt*) SafeMalloc(numPairs * sizeof(int*))
-        m->pwWJEst = (MrBFlt*) SafeMalloc(numPairs * sizeof(int*))
+        m->pwWeightLength = 1; 
+        m->pwCounts = (int*) SafeMalloc( (nSplits+1) * nPairs * nStates * nStates * sizeof(int));
+
+        m->pwCountsIndex = (int**) SafeMalloc( (nSplits+1) * sizeof(int*));
+        for (i=0; i<(nSplits+1); i++)
+                m->pwCountsIndex[i]=(int*) SafeMalloc( nPairs * sizeof(int));
+
+        index=0;
+        indexStep=nStates*nStates;
+        for (i=0; i<(nSplits+1); i++)
+            {
+            for (j=0; j<nPairs; j++)
+                {
+                m->pwCountsIndex[i][j]=index;
+                index+=indexStep;
+                }
+            }
+
+        m->pwWJEst = (MrBFlt*) SafeMalloc(numPairs * numPairs * sizeof(MrBFlt));
+        //m->pwWeights = (MrBFlt*) SafeMalloc(numPairs * numPairs * sizeof(MrBFlt));
 
         }
 
@@ -1603,28 +1623,28 @@ int DoubletProbs_JukesCantor(int division, int chain)
     return(NO_ERROR);
 }
 
-int PwLikelihoodWeight_JukesCantor(int division, int chain) 
-{
-    int         i, j, k, p, index, dpIdx;
-    CLFlt       *tiP, *doubP, ;   
-    MrBFlt      *dists;
-    ModelInfo   *m;
-
-    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
-    m = &modelSettings[division];
-
-    for (p=0; p<m->numPairs; p++)
-        {
-        dists = m->pwDists[m->pwIndex[chain][p]];
-
-        index=0; 
-        for (k=0; k<m->numRateCats; k++) 
-            {
-                
-            }
-        }
-    return(1);
-}
+// int PwLikelihoodWeight_JukesCantor(int division, int chain) 
+// {
+//     int         i, j, k, p, index, dpIdx;
+//     CLFlt       *tiP, *doubP;   
+//     MrBFlt      *dists;
+//     ModelInfo   *m;
+// 
+//     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
+//     m = &modelSettings[division];
+// 
+//     for (p=0; p<m->numPairs; p++)
+//         {
+//         dists = m->pwDists[m->pwIndex[chain][p]];
+// 
+//         index=0; 
+//         for (k=0; k<m->numRateCats; k++) 
+//             {
+//                 
+//             }
+//         }
+//     return(1);
+// }
 
 void EstimatePairwiseHess_JukesCantor() {
 }
@@ -1864,51 +1884,242 @@ MrBFlt LogLikePairwise(int chain)
     return(chainLnLike);
 }
 
-int PwWeight_PartitionCounts_JC() 
+MrBFlt EstPwDist_GTR(int k, int l) 
 {
-    ModelInfo* m;
-    MrBFlt* pww;
+    int i,j,pid;
+    int r1, r2, ridx;
+    MrBFlt tau;
+    MrBFlt *ratesEst;
+
+    MrBFlt **V;
+    MrBFlt **Vinv;      
+    MrBFlt **LaLog;     
+                       
+    MrBComplex **Vc;    
+    MrBComplex **Vcinv; 
+    MrBFlt la[4]; 
+    MrBFlt laC[4];
+                       
+    MrBFlt **F;            
+    MrBFlt **Q;            
+    MrBFlt **Temp;         
+
+
+    // set up matrices 
+    V     = AllocateSquareDoubleMatrix(4);
+    Vinv  = AllocateSquareDoubleMatrix(4);
+    LaLog = AllocateSquareDoubleMatrix(4);
+
+    Vc    = AllocateSquareComplexMatrix(4); 
+    Vcinv = AllocateSquareComplexMatrix(4);
+
+    F = AllocateSquareDoubleMatrix(4);
+    Q = AllocateSquareDoubleMatrix(4);
+    Temp = AllocateSquareDoubleMatrix(4);
     
-    m = &modelSettings[d];
-    pw_pc = m->pwWeightSubsetCounts;
+    tau=0.0;
 
-    int k,l,p,c,c1,c2,d,s;
-    int* n11,n10;
-    MrBFlt e10,e11; 
+    pid = pairIdx(k,l,numTaxa);
 
-    int numSubsets=10;
+    // set up matrix of empirical transitions 
+    //   probabilities, 'Q' (will be modified in place)  
+    for (i=0;i<4;i++) {
+        for (j=0;j<4;j++){
+            F[i][j] = 1.0 * pairwiseCounts[tIdx(pid,i,j,I,J)] / (2*numChar*nucFreqs[j]);
+        }
+    }
+
+    // Symmetrize F:
+    for (i=0;i<4;i++) {
+        for (j=i;j<4;j++){
+            F[i][j] = (F[i][j]+F[j][i])/2.0;
+            if (i != j)
+                    F[j][i] = F[i][j];
+        }
+    }
+
+
+    int isComplex=GetEigens(4,F,la,laC,V,Vinv,Vc,Vcinv);
+    (void)isComplex;
+    
+    // diagonal matrix of log^{lambda_i}, lambdas are eigvals of Q
+    for (i=0;i<4;i++) {
+        LaLog[i][i] = log(la[i]);
+        for (j=0;j<i;j++) {
+            LaLog[i][j]=0.0;
+            LaLog[j][i]=0.0;
+        }
+    }
+    
+    // calculate the matrix log: log(e^Qt) = V log[La] V^-1) 
+    MultiplyMatrices(4,V,LaLog,Temp); 
+    MultiplyMatrices(4,Temp,Vinv,Q); // Q is ptr to resulting matrix
+    
+    // set diagonal so rowsums are 0, mult by inverse Dpi mat:
+    double rowsum;
+    for (i=0;i<4;i++) {
+        rowsum=0.0;
+        for (j=0;j<4;j++) {
+            if (j!=i) rowsum+=Q[i][j];
+        }
+        Q[i][i]=-1*rowsum;
+    }
+    
+    for (i=0;i<4;i++)
+        tau += -1.0 * Q[i][i] * nucFreqs[i];
+    
+    return(tau);
+}
+
+MrBFlt EstPwDist_JC(int p) 
+{
+    int i,j,pid;
+    int r1, r2, ridx;
+    MrBFlt tau;
+    MrBFlt *ratesEst;
+
+    MrBFlt **V;
+    MrBFlt **Vinv;      
+    MrBFlt **LaLog;     
+                       
+    MrBComplex **Vc;    
+    MrBComplex **Vcinv; 
+    MrBFlt la[4]; 
+    MrBFlt laC[4];
+                       
+    MrBFlt **F;            
+    MrBFlt **Q;            
+    MrBFlt **Temp;         
+
+
+    // set up matrices 
+    V     = AllocateSquareDoubleMatrix(4);
+    Vinv  = AllocateSquareDoubleMatrix(4);
+    LaLog = AllocateSquareDoubleMatrix(4);
+
+    Vc    = AllocateSquareComplexMatrix(4); 
+    Vcinv = AllocateSquareComplexMatrix(4);
+
+    F = AllocateSquareDoubleMatrix(4);
+    Q = AllocateSquareDoubleMatrix(4);
+    Temp = AllocateSquareDoubleMatrix(4);
+    
+    tau=0.0;
+
+    pid = pairIdx(k,l,numTaxa);
+
+    // set up matrix of empirical transitions 
+    //   probabilities, 'Q' (will be modified in place)  
+    for (i=0;i<4;i++) {
+        for (j=0;j<4;j++){
+            F[i][j] = 1.0 * pairwiseCounts[tIdx(pid,i,j,I,J)] / (2*numChar*nucFreqs[j]);
+        }
+    }
+
+    // Symmetrize F:
+    for (i=0;i<4;i++) {
+        for (j=i;j<4;j++){
+            F[i][j] = (F[i][j]+F[j][i])/2.0;
+            if (i != j)
+                    F[j][i] = F[i][j];
+        }
+    }
+
+
+    int isComplex=GetEigens(4,F,la,laC,V,Vinv,Vc,Vcinv);
+    (void)isComplex;
+    
+    // diagonal matrix of log^{lambda_i}, lambdas are eigvals of Q
+    for (i=0;i<4;i++) {
+        LaLog[i][i] = log(la[i]);
+        for (j=0;j<i;j++) {
+            LaLog[i][j]=0.0;
+            LaLog[j][i]=0.0;
+        }
+    }
+    
+    // calculate the matrix log: log(e^Qt) = V log[La] V^-1) 
+    MultiplyMatrices(4,V,LaLog,Temp); 
+    MultiplyMatrices(4,Temp,Vinv,Q); // Q is ptr to resulting matrix
+    
+    // set diagonal so rowsums are 0, mult by inverse Dpi mat:
+    double rowsum;
+    for (i=0;i<4;i++) {
+        rowsum=0.0;
+        for (j=0;j<4;j++) {
+            if (j!=i) rowsum+=Q[i][j];
+        }
+        Q[i][i]=-1*rowsum;
+    }
+    
+    for (i=0;i<4;i++)
+        tau += -1.0 * Q[i][i] * nucFreqs[i];
+    
+    return(tau);
+}
+
+
+int PairwiseDataSplitCounts(void) 
+{
+    /*  setup the arays for pairwise counts,
+     *  and populate the counts.
+     * 
+     *  this function will supercede the 'PairwiseCounts'
+     *  function, since that just uses a global variable and 
+     *  we want to be able to apply pw likelihood within partitions.
+     *
+     *  We'll also make and populate the counts for the data splits
+     *  for estimating jacobians for weighting the pw likelihood. 
+     *  */
+
+    ModelInfo* m;
+    ModelParams* mp;
+
+    int k,l,c,c1,c2,d,s,nS;
+    int pI, dI;
+    int **counts;
+    int states;
+    int overallPwIdx;
 
     // loop over the partitions:
     for (d=0; d<numCurrentDivisions; d++)
         {
+        m = &modelSettings[d];
+        mp = &modelParams[d];
+
+        if (m->usePwWeights == YES) 
+            m->overallPwIdx = mp->numDataSplits;
+        else 
+            m->overallPwIdx = mp->numDataSplits;
+
+        counts = m->pwWSubsetCounts;
+        states = m->numModelStates;
+        
         /* first calculate the n_ii for the division */
         for (k=0; k<m->numPairs-1; k++) 
             {
             for (l=k+1; l<m->numPairs; l++)
                 {
 
-                for (s=0; s<numSubsets; s++)
-                    {
-                    n10[s]=0;
-                    n11[s]=0;
-                    }
-
-                p=pairIdx(k,l,m->numPairs); /*  just get the single pair idx */
+                pI=pairIdx(k,l,m->numPairs); /*  just get the single pair idx */
                 for (c=0; c<numChar; c++)
                     {
-                    if (partitionId[c][partitionNum] != d+1) 
-                            continue;
+                    if (partitionId[c][partitionNum] != d+1) /* only count within */
+                            continue; 
                     c1=matrix[pos(k,c,numChar)];
-                    c2=matrix[pos(k,c,numChar)];
-                    if (c1 == c2)
-                        n10[c %% numSubsets] += 1;
-                    else 
-                        n11[c %% numSubsets] += 1;
+                    c2=matrix[pos(l,c,numChar)];
+                    counts[c % nS][dIdx(c1,c2,states)] += 1;
+                    
                     }
-                
                 }
             }
         }
+
+    /*  now populate the overall counts. 
+     *  this is the final 'row' of the counts array,
+     *  and gets its own index in the modelparams struct.
+     *  if not weighting, it'll be the only row of the array.
+     *  */
 
     return(0);
 }
@@ -1922,21 +2133,19 @@ int PwWeight_PartitionCounts_JC()
 
 
 
-int PwWeights_JC(int d) 
-{
-    MrBFlt *pww;
-    ModelInfo *m;
-    
-    m = &modelSettings[d];
-    pww = m->pwLikeWeights;
-
-    /* first calculate the n_ii for the division */
-
-
-
-
-    return(0);
-}
+//int PwWeights_JC(int d) 
+//{
+//    MrBFlt *pww;
+//    ModelInfo *m;
+//    
+//    m = &modelSettings[d];
+//    pww = m->pwLikeWeights;
+//
+//    /* first calculate the n_ii for the division */
+//
+//
+//    return(0);
+//}
 
 int FreePairwise(void) 
 {
