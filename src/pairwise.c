@@ -2385,12 +2385,22 @@ int InitPairwiseWeights (void) {
     ModelParams* mp;
 
     int i,j,k,l,c,c1,c2,d;
-    int cI, dI, pI, splitI;
-    int *counts;
+    int cI,dI,pI,splitI;
+    int nI, nIOverall;
+    int *counts, count;
     int **countIndex;
     int overallPwIdx;
     int index, indexStep;
     int nSplits, nPairs, nStates;
+    int *n10, *n11;
+    MrBFlt *pwDists;
+    MrBFlt baseRate;
+    MrBFlt *catRate;
+    MrBFlt theRate;
+    MrBFlt rc;
+    MrBFlt *p_10, *p_11, *p1_10, *p1_11, *p2_10, *p2_11; 
+    int    nidxl, nidxk;
+    MrBFlt **J, **H;
 
     // loop over the partitions:
     for (d=0; d<numCurrentDivisions; d++)
@@ -2407,10 +2417,11 @@ int InitPairwiseWeights (void) {
         else 
             overallPwIdx = mp->numDataSplits;
 
-        /* initialize counts & index array
-         * */
-        counts = (int*) SafeMalloc( nPairs * (nSplits+1) * nStates * nStates * sizeof(int));
-
+        /*  * 
+         *  Initialize necessary arrays:
+         *  */
+        /* initialize counts & index array */
+        counts = (int*) SafeMalloc( (nSplits+1) * nPairs * nStates * nStates * sizeof(int));
         countIndex=(int**) SafeMalloc( (nSplits+1) * sizeof(int*));
         for (i=0; i<(nSplits+1); i++)
                 countIndex[i]=(int*) SafeMalloc( nPairs * sizeof(int));
@@ -2426,21 +2437,62 @@ int InitPairwiseWeights (void) {
                 }
             }
 
+        /*  init array for pw distances */
+        pwDists = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+
+        n10 = (int*) SafeMalloc( (nSplits+1) * nPairs * sizeof(int));
+        n11 = (int*) SafeMalloc( (nSplits+1) * nPairs * sizeof(int));
+
+        int **niiIndex ;
+        niiIndex=(int**) SafeMalloc( (nSplits+1) * sizeof(int*));
+        for (i=0; i<(nSplits+1); i++)
+                niiIndex[i]=(int*) SafeMalloc( nPairs * sizeof(int));
+
+        index=0;
+        indexStep=1;
+        for (splitI=0; splitI<(nSplits+1); splitI++)
+            {
+            for (j=0; j<nPairs; j++)
+                {
+                niiIndex[splitI][j]=index;
+                index+=indexStep;
+                }
+            }
+
+        /* init arrays for derivatives  */
+        p_10 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        p_11 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        p1_10 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        p1_11 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        p2_10 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        p2_11 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+
+        /*  init arrays for hessian and jacobian */
+        H = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
+        J = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
+        for (i=0; i<nPairs; i++) 
+            { 
+            H[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+            J[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+            }
+
+        /*  *
+         *  Done initializing
+         *  */
+
         /* first calculate the n_ii for the division */
         for (k=0; k<numTaxa-1; k++) 
             {
             for (l=k+1; l<numTaxa; l++)
                 {
                 pI=pairIdx(k,l,numTaxa); /*  just get the single pair idx */
+                overallPwIdx=countIndex[nSplits][pI];
                 for (c=0; c<numChar; c++)
                     {
                     if (partitionId[c][partitionNum] != d+1) /* only count within partition */
                         continue; 
 
-                    splitI=c % nSplits;
-                    MrBayesPrint("%d, %d \n", c, splitI);
-
-                    MrBayesPrint("cI: %d \n", cI);
+                    splitI=(c*nSplits)/numChar;
                     cI=countIndex[splitI][pI];
 
                     c1=matrix[pos(k,c,numChar)];
@@ -2448,48 +2500,139 @@ int InitPairwiseWeights (void) {
 
                     dI=dIdx(toIdx(c1),toIdx(c2),nStates);
                     counts[cI+dI] += 1;
-                    
+                    counts[overallPwIdx+dI] += 1;
                     }
                 }
             }
-        }
 
-        for (pI=0; pI<2; pI++) 
-            {
-            MrBayesPrint("Pair: %d: \n",pI);
-            for (cI=0; cI<nSplits+1; cI++)
+        /*  calculate pw dists based on JC  */
+        for (k=0; k<nPairs; k++) 
+            {   
+            for (splitI=0; splitI<nSplits; splitI++) 
                 {
-                cI=countIndex[cI][pI];
-                MrBayesPrint("Data Split %d", cI);
-                for (dI=0; dI<nStates*nStates; dI++)    
+                cI=countIndex[splitI][k];
+                nI=niiIndex[splitI][k];
+                nIOverall=niiIndex[nSplits][k];
+                for (i=0;i<nStates;i++) 
                     {
-                    MrBayesPrint("    count of dblt %d: %d \n", dI, counts[cI+dI]);
+                    for (j=0;j<nStates;j++) 
+                        {
+                        dI = dIdx(i,j,nStates);
+                        count=counts[cI+dI];
+                        if (i==j) 
+                            {
+                            n11[nI]        += count;
+                            n11[nIOverall] += count; 
+                            }
+                        else 
+                            {
+                            n10[nI]        += count;
+                            n10[nIOverall] += count;
+                            }
+                        }
                     }
                 }
             }
 
-    /*  now populate the overall counts. 
-     *  this is the final 'row' of the counts array,
-     *  and gets its own index in the modelparams struct.
-     *  if not weighting, it'll be the only row of the array.
-     *  */
+        /*  now just calculate the pw dists */
+        for (k=0; k<nPairs; k++) 
+            {   
+            nI=niiIndex[nSplits][k];
+            if (n10[nI] == 0) 
+                pwDists[k] = 0.0;
+            else 
+                pwDists[k] = -1.0 * (3.0/4) * log(1.0 - (n10[nI] * 1.0) / (n10[nI] + n11[nI]));
+            } 
+
+        int chain=0;
+        for (k=0; k<nPairs; k++) 
+            {
+            /*  calculate derivatives needed for J/H */
+            /* get base rate */
+            baseRate = GetRate (d, chain);
+            baseRate = 0.0;
+    
+            /* compensate for invariable sites if appropriate */
+            if (m->pInvar != NULL)
+                baseRate /= (1.0 - (*GetParamVals(m->pInvar, chain, state[chain])));
+       
+            /* get category rates */
+            theRate = 1.0;
+            if (m->shape != NULL)
+                catRate = GetParamSubVals (m->shape, chain, state[chain]);
+            else if (m->mixtureRates != NULL)
+                catRate = GetParamSubVals (m->mixtureRates, chain, state[chain]);
+            else
+                catRate = &theRate;
+
+            int nRates = 4; 
+            for (l=0; l<nRates; l++)
+                {
+                //rc =  baseRate * catRate[l];
+                rc = 1.0;
+                // p_10[k] += (1.0/m->numRateCats) * ((3.0/4) - (3.0/4) * exp(-(4.0/3)*rc*pwDists[k]));
+                // p_11[k] += (1.0/m->numRateCats) * ((3.0/4) + (1.0/4) * exp(-(4.0/3)*rc*pwDists[k]));
+                p_10[k] += (1.0/nRates) * ((3.0/4) - (3.0/4) * exp(-(4.0/3)*rc*pwDists[k]));
+                p_11[k] += (1.0/nRates) * ((1.0/4) + (3.0/4) * exp(-(4.0/3)*rc*pwDists[k]));
+                p1_11[k] += (-1.0 / 12) * rc * exp(-(4.0/3)*rc*pwDists[k]);
+                p1_10[k] += (1.0 / 4) * rc * exp(-(4.0/3)*rc*pwDists[k]);
+                p2_11[k] += (1.0 / 9) * rc * rc * exp(-(4.0/3)*rc*pwDists[k]);
+                p2_10[k] += (-1.0 / 3) * rc * rc * exp(-(4.0/3)*rc*pwDists[k]);
+                }
+            }
+
+        /*  Now fill in the Hessian and Jacobian */
+        for (k=0; k<nPairs; k++)
+            {
+            nidxk = countIndex[nSplits][k];
+            /*  fill in hessian */
+            if (l == k) 
+                {
+                H[k][l] = n11[nidxk] * (p2_11[nidxk] / p_11[nidxk] - p1_11[nidxk]/(p_11[nidxk]*p_11[nidxk])) + 
+                                            n10[nidxk] * (p2_10[nidxk] / p_10[nidxk] - p1_10[nidxk]/(p_10[nidxk]*p_10[nidxk]));
+                }
+
+            for (l=0; l<nPairs; l++)
+                {
+                /*  fill in jacobian */
+                MrBFlt t1,t2,t3,t4;
+                t1 = (p1_11[k] * p1_11[l] / (p_11[k] * p_11[l]));
+                t2 = (p1_11[k] * p1_10[l] / (p_11[k] * p_10[l]));
+                t3 = (p1_10[k] * p1_11[l] / (p_10[k] * p_11[l]));
+                t4 = (p1_10[k] * p1_10[l] / (p_10[k] * p_10[l]));
+
+                J[k][l] = 0.0;
+                for (i=0; i<nSplits; i++)
+                    {
+                    nidxl=niiIndex[i][l];
+                    nidxk=niiIndex[i][k];
+                    J[k][l] += (1.0/nSplits) * (n11[nidxk] * n11[nidxl] * t1 + n11[nidxk] * n10[nidxl] * t2 + 
+                                                            n10[nidxk] * n11[nidxl] * t3 + n10[nidxk] * n10[nidxl] * t4);
+                    }
+                J[l][k]=J[k][l];
+                }
+            }
+        } /* end loop over numCurrentDivisions */
+
+    for (k=0; k<nPairs; k++) {
+         for (l=0; l<nPairs; l++)  {
+             MrBayesPrint("  %.3f", J[k][l]);
+         }
+         MrBayesPrint("\n");
+    }
+
+
+    /*  free allocations   */
     free(counts);
     for (i=0; i<(nSplits+1); i++)
         free(countIndex[i]);
     free(countIndex);
-
-
-
-    /*  free allocations   */
+    free(pwDists);
 
 
     return(0);
 
 }
-
-
-
-
 
 
 
