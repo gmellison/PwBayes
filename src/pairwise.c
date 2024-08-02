@@ -2400,7 +2400,7 @@ int InitPairwiseWeights (void) {
     MrBFlt rc;
     MrBFlt *p_10, *p_11, *p1_10, *p1_11, *p2_10, *p2_11; 
     int    nidxl, nidxk;
-    MrBFlt **J, **H;
+    MrBFlt **J, **H, **Hinv;
 
     // loop over the partitions:
     for (d=0; d<numCurrentDivisions; d++)
@@ -2470,10 +2470,12 @@ int InitPairwiseWeights (void) {
         /*  init arrays for hessian and jacobian */
         H = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
         J = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
+        Hinv = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
         for (i=0; i<nPairs; i++) 
             { 
             H[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
             J[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+            Hinv[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
             }
 
         /*  *
@@ -2585,12 +2587,9 @@ int InitPairwiseWeights (void) {
         for (k=0; k<nPairs; k++)
             {
             nidxk = countIndex[nSplits][k];
-            /*  fill in hessian */
-            if (l == k) 
-                {
-                H[k][l] = n11[nidxk] * (p2_11[nidxk] / p_11[nidxk] - p1_11[nidxk]/(p_11[nidxk]*p_11[nidxk])) + 
-                                            n10[nidxk] * (p2_10[nidxk] / p_10[nidxk] - p1_10[nidxk]/(p_10[nidxk]*p_10[nidxk]));
-                }
+            H[k][k] = n11[nidxk] * (p2_11[nidxk] / p_11[nidxk] - p1_11[nidxk]/(p_11[nidxk]*p_11[nidxk])) + 
+                        n10[nidxk] * (p2_10[nidxk] / p_10[nidxk] - p1_10[nidxk]/(p_10[nidxk]*p_10[nidxk]));
+            Hinv[k][k] = 1.0 / H[k][k] ;
 
             for (l=0; l<nPairs; l++)
                 {
