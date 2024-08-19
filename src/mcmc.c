@@ -279,7 +279,6 @@ extern CLFlt     *preLikeL;                  /* precalculated cond likes for lef
 extern CLFlt     *preLikeR;                  /* precalculated cond likes for right descendant*/
 extern CLFlt     *preLikeA;                  /* precalculated cond likes for ancestor        */
 
-
 /* local (to this file) variables */
 int             numLocalChains;              /* number of Markov chains                      */
 int             *chainId = NULL;             /* information on the id (0 ...) of the chain   */
@@ -349,6 +348,9 @@ int             highestLocalRunId;           /* highest local run Id            
 #if defined (PRINT_DUMP)
 FILE            **fpDump = NULL;             /* pointer to .dump file(s)                     */
 #endif
+
+/* used here but declared in bayes.h */
+int stepsTilAlpha;
 
 /* AddPartition: Add a partition to the tree keeping track of partition frequencies */
 PFNODE *AddPartition (PFNODE *r, BitsLong *p, int runId)
@@ -2469,8 +2471,10 @@ int DoMcmc (void)
         goto errorExit;
 
     /* Initialize conditional likelihoods and transition probabilities for chain (the working space). */
-    if (InitPairwiseWeights () == ERROR)
-        goto errorExit;
+    MrBayesPrint("usepw: %d \n", modelSettings->usePairwise);
+    if (modelSettings->usePairwise) 
+        if (InitPairwise (numLocalChains) == ERROR)
+            goto errorExit;
 
     /* Initialize adgamma conditional likelihoods */
     if (InitAdGamma () == ERROR)
@@ -4598,97 +4602,6 @@ void FreeChainMemory (void)
             }
 
 
-        /* free pairwise dists and transition probs  */        
-        if (m->usePairwise) 
-            {
-            if (m->pwDists)
-                {
-                for (j=0; j<numLocalChains; j++)
-                    {
-                    if (m->pwDists[j])
-                        free(m->pwDists[j]);
-                    }
-                free(m->pwDists);
-                }
-
-            if (m->tiProbsPw)
-                {
-                for (j=0; j<m->numTiProbsPw; j++)
-                    if (m->tiProbsPw[j]) /*  chain pw probs */
-                        free(m->tiProbsPw[j]);
-                free(m->tiProbsPw);
-                }
-
-            if (m->doubletProbs)
-                {
-                for (j=0; j<m->numDoubletProbs; j++)
-                    if (m->doubletProbs[j]) /*  chain pw probs */
-                        free(m->doubletProbs[j]);
-                free(m->doubletProbs);
-                }
-
-            if (m->pwIndex)
-                {
-                for (j=0; j<numLocalChains; j++)
-                    {
-                    if (m->pwIndex[j]) /*  chain pw probs */
-                        free(m->pwIndex[j]);
-                    }
-                free(m->pwIndex);
-                }
-
-            /*  free triplet dists and probabilities  */
-            if (m->useTriples) 
-                {
-                if (m->tripleCnDists)
-                    {
-                    for (j=0; j<numLocalChains; j++)
-                        {
-                        if (m->tripleCnDists[j])
-                            free(m->tripleCnDists[j]);
-                        }
-                    free(m->tripleCnDists);
-                    }
-
-                if (m->tripleTiProbs)
-                    {
-                    for (i=0; j<numLocalChains; i++)
-                        if (m->tripleTiProbs[i]) 
-                            free(m->tripleTiProbs[i]);
-                    free(m->tripleTiProbs);
-                    }
-
-                if (m->tripleProbs)
-                    {
-                    for (i=0; i<numLocalChains; i++)
-                        if (m->tripleProbs[i]) 
-                            free(m->tripleProbs[i]);
-                    free(m->tripleProbs);
-                    }
-
-                if (m->tripIndex)
-                    {
-                    for (j=0; j<numLocalChains; j++)
-                        {
-                        if (m->tripIndex[j]) /*  chain pw probs */
-                            free(m->tripIndex[j]);
-                        }
-                    free(m->tripIndex);
-                    }
-
-                if (m->tripDistIndex)
-                    {
-                    for (j=0; j<numLocalChains; j++)
-                        {
-                        if (m->tripDistIndex[j]) /*  chain pw probs */
-                            free(m->tripDistIndex[j]);
-                        }
-                    free(m->tripDistIndex);
-                    }
-                }
-            }
-
-
         if (m->cijks)
             {
             for (j=0; j<numLocalChains+1; j++)
@@ -4959,7 +4872,7 @@ void FreeChainMemory (void)
         }
     if (memAllocs[ALLOC_PAIRWISE] == YES) 
         {
-        FreePairwise();
+        FreePairwise(numCurrentDivisions, numLocalChains);
         memAllocs[ALLOC_PAIRWISE] = NO;
         }
     if (memAllocs[ALLOC_TRIPLES] == YES) 
@@ -6300,133 +6213,134 @@ int InitChainCondLikes (void)
                     return (ERROR);
                 }
 
+
             /*  allocate pw stuff, if pairwise is set */
-            if (m->usePairwise) 
-                {
-                /*  allocate space for pw distances */
-                m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
-                for (i=0; i<numLocalChains; i++)
-                    m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
+            //if (m->usePairwise) 
+            //    {
+            //    /*  allocate space for pw distances */
+            //    m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+            //    for (i=0; i<numLocalChains; i++)
+            //        m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
 
-                /*  allocate space for pw ti probs  */
-                m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
-                if (!m->tiProbs)
-                    return (ERROR);
-                for (i=0; i<m->numTiProbsPw; i++)
-                    {
-                    m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
-                    if (m->tiProbsPw[i] == NULL)
-                         return (ERROR);
-                    }
+            //    /*  allocate space for pw ti probs  */
+            //    m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
+            //    if (!m->tiProbs)
+            //        return (ERROR);
+            //    for (i=0; i<m->numTiProbsPw; i++)
+            //        {
+            //        m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
+            //        if (m->tiProbsPw[i] == NULL)
+            //             return (ERROR);
+            //        }
 
-                /*  allocate space for pw doublet probs  */
-                m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
-                if (!m->doubletProbs)
-                    return (ERROR);
-                for (i=0; i<m->numDoubletProbs; i++)
-                    {
-                    m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
-                    if (!m->doubletProbs[i])
-                        return (ERROR);
-                    }
-                }
+            //    /*  allocate space for pw doublet probs  */
+            //    m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
+            //    if (!m->doubletProbs)
+            //        return (ERROR);
+            //    for (i=0; i<m->numDoubletProbs; i++)
+            //        {
+            //        m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
+            //        if (!m->doubletProbs[i])
+            //            return (ERROR);
+            //        }
+            //    }
 
-            /*  allocate triplet stuff if necessary */
-            if (m->useTriples) 
-                {
-                /*  allocate triple cn distances */
-                m->tripleCnDists=(MrBFlt**)SafeMalloc(numLocalChains * sizeof(MrBFlt*));
-                for (i=0;i<numLocalChains;i++)
-                    m->tripleCnDists[i]=(MrBFlt*)SafeMalloc(numTrips * 3 * sizeof(MrBFlt));
+            ///*  allocate triplet stuff if necessary */
+            //if (m->useTriples) 
+            //    {
+            //    /*  allocate triple cn distances */
+            //    m->tripleCnDists=(MrBFlt**)SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+            //    for (i=0;i<numLocalChains;i++)
+            //        m->tripleCnDists[i]=(MrBFlt*)SafeMalloc(numTrips * 3 * sizeof(MrBFlt));
 
 
-                /*  allocate triple ti probabilities */
-                m->tripleTiProbs=(CLFlt**)SafeMalloc(m->numTiProbsTrip * sizeof(CLFlt*));
-                for (i=0;i<m->numTiProbsTrip;i++)
-                    m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->tiProbsTripLength * sizeof(CLFlt));
-                MrBayesPrint("TripleTiProbs Size: %d, %d \n", m->numTiProbsTrip, m->tiProbsTripLength);
+            //    /*  allocate triple ti probabilities */
+            //    m->tripleTiProbs=(CLFlt**)SafeMalloc(m->numTiProbsTrip * sizeof(CLFlt*));
+            //    for (i=0;i<m->numTiProbsTrip;i++)
+            //        m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->tiProbsTripLength * sizeof(CLFlt));
+            //    MrBayesPrint("TripleTiProbs Size: %d, %d \n", m->numTiProbsTrip, m->tiProbsTripLength);
 
-                /*  allocate triple site pattern probabilities */
-                m->tripleProbs=(CLFlt**)SafeMalloc(m->numTripleProbs * sizeof(CLFlt*));
-                for (i=0;i<m->numTripleProbs;i++)
-                    m->tripleProbs[i]=(CLFlt*)SafeMalloc(m->tripleProbsLength * sizeof(CLFlt));
-                }
+            //    /*  allocate triple site pattern probabilities */
+            //    m->tripleProbs=(CLFlt**)SafeMalloc(m->numTripleProbs * sizeof(CLFlt*));
+            //    for (i=0;i<m->numTripleProbs;i++)
+            //        m->tripleProbs[i]=(CLFlt*)SafeMalloc(m->tripleProbsLength * sizeof(CLFlt));
+            //    }
 
             } /*  end of (if usebeagle==false)  */
 
-        if (m->usePairwise) 
-            {
-            /* allocate and set indices from chain/pair to pw probs */
-            m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-            if (!m->pwIndex)
-                return (ERROR);
-            for (i=0; i<numLocalChains; i++)
-                {
-                m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
-                if (!m->pwIndex[i])
-                    return (ERROR);
-                }
+        //if (m->usePairwise) 
+        //    {
+        //    /* allocate and set indices from chain/pair to pw probs */
+        //    m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+        //    if (!m->pwIndex)
+        //        return (ERROR);
+        //    for (i=0; i<numLocalChains; i++)
+        //        {
+        //        m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
+        //        if (!m->pwIndex[i])
+        //            return (ERROR);
+        //        }
 
-            /* set up pw indices */
-            pwIdx = 0;
-            for (i=0; i<numLocalChains; i++)
-                {
-                for (j=0; j<m->numPairs; j++)
-                    {
-                    m->pwIndex[i][j] = pwIdx;
-                    pwIdx += indexStep;
-                    }
-                }
-            }
-            
-        if (m->useTriples)         
-            {
-            /*  allocate triple indices  */
-            m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-            if (!m->tripIndex)
-                return (ERROR);
-            for (i=0; i<numLocalChains; i++)
-                {
-                m->tripIndex[i] = (int *) SafeMalloc (numTrips * sizeof(int));
-                if (!m->tripIndex[i])
-                    return (ERROR);
-                }
+        //    /* set up pw indices */
+        //    pwIdx = 0;
+        //    for (i=0; i<numLocalChains; i++)
+        //        {
+        //        for (j=0; j<m->numPairs; j++)
+        //            {
+        //            m->pwIndex[i][j] = pwIdx;
+        //            pwIdx += indexStep;
+        //            }
+        //        }
+        //    }
+        //    
+        //if (m->useTriples)         
+        //    {
+        //    /*  allocate triple indices  */
+        //    m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+        //    if (!m->tripIndex)
+        //        return (ERROR);
+        //    for (i=0; i<numLocalChains; i++)
+        //        {
+        //        m->tripIndex[i] = (int *) SafeMalloc (numTrips * sizeof(int));
+        //        if (!m->tripIndex[i])
+        //            return (ERROR);
+        //        }
 
-            /* set up triple indices */
-            tripIdx = 0;
-            for (i=0; i<numLocalChains; i++)
-                {
-                for (j=0; j<numTrips; j++)
-                    {
-                    m->tripIndex[i][j] = tripIdx;
-                    tripIdx += indexStep;
-                    }
-                }
-            
+        //    /* set up triple indices */
+        //    tripIdx = 0;
+        //    for (i=0; i<numLocalChains; i++)
+        //        {
+        //        for (j=0; j<numTrips; j++)
+        //            {
+        //            m->tripIndex[i][j] = tripIdx;
+        //            tripIdx += indexStep;
+        //            }
+        //        }
+        //    
 
 
-            /*  allocate triple indices  */
-            m->tripDistIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-            if (!m->tripDistIndex)
-                return (ERROR);
-            for (i=0; i<numLocalChains; i++)
-                {
-                m->tripDistIndex[i] = (int *) SafeMalloc ((numTrips * 3) * sizeof(int));
-                if (!m->tripDistIndex[i])
-                    return (ERROR);
-                }
+        //    /*  allocate triple indices  */
+        //    m->tripDistIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+        //    if (!m->tripDistIndex)
+        //        return (ERROR);
+        //    for (i=0; i<numLocalChains; i++)
+        //        {
+        //        m->tripDistIndex[i] = (int *) SafeMalloc ((numTrips * 3) * sizeof(int));
+        //        if (!m->tripDistIndex[i])
+        //            return (ERROR);
+        //        }
 
-            /* set up triple indices */
-            tripIdx = 0;
-            for (i=0; i<numLocalChains; i++)
-                {
-                for (j=0; j<(numTrips*3); j++)
-                    {
-                    m->tripDistIndex[i][j] = tripIdx;
-                    tripIdx += indexStep;
-                    }
-                }
-            }
+        //    /* set up triple indices */
+        //    tripIdx = 0;
+        //    for (i=0; i<numLocalChains; i++)
+        //        {
+        //        for (j=0; j<(numTrips*3); j++)
+        //            {
+        //            m->tripDistIndex[i][j] = tripIdx;
+        //            tripIdx += indexStep;
+        //            }
+        //        }
+        //    }
             /* allocate and set indices from pw edges to ti prob arrays */
             /*  -- just kidding; don't need these since they aren't associated with  
              *  the node structure of the tree 
@@ -6820,7 +6734,7 @@ int InitChainCondLikes (void)
         nPartsOfPat = NULL;
          /* Set up scalers for Beagle */
         for (i=0; i<modelSettings[0].numScalers*modelSettings[0].nCijkParts; i++)
-            beagleResetScaleFactors(modelSettings[0].beagleInstance, i);
+            beagleResetScaleFactors(modelSettings[1].beagleInstance, i);
         }
 #endif
 
@@ -16658,6 +16572,7 @@ int RunChain (RandLong *seed)
         TouchAllCijks (chn);
 
 
+        /*  pairwise  */
         if (modelSettings->usePairwise && (modelSettings->pwHotChains == NO || chn % chainParams.numChains != 0))
             curLnL[chn] = LogLikePairwise(chn);
         else 
@@ -17336,6 +17251,24 @@ int RunChain (RandLong *seed)
                 maxLnL0[chainId[chn]/chainParams.numChains] = curLnL[chn];
 
             }
+
+        /*  if we're using pairwise weights, check if it's time to update the weight */
+
+        if (n == stepsTilAlpha) 
+            {
+            /* calculate pairwise adjustment weights based on cold chain alpha. (only do this once per run) */
+            if (modelSettings->usePwWeights )  
+                {
+                MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
+                chn=0;
+                CalcPairwiseWeights(chn);
+                }
+
+            /*  update current lnls with weighted lnls */
+            for (chn=0;chn<numLocalChains;chn++)
+                curLnL[chn]=LogLikePairwise(chn);
+            }
+
 
         /* attempt swap(s) Non-blocking for MPI if no swap with external process. */
         if (chainParams.numChains > 1 && n % chainParams.swapFreq == 0)

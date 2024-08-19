@@ -90,7 +90,6 @@ int              FreeDists(MrBFlt* dists);
 int              FreePairwiseDists(PairwiseDists* pd);
 double           CalcPairwiseLogLike_Full(PairwiseDists *pd);
 int              FreeTriples(void);
-int              FreePairwise(void);
 
 
 /*  *****************
@@ -1299,6 +1298,245 @@ int FreePairwiseDists(PairwiseDists* pd)
     return(NO_ERROR);
 }
 
+int InitPairwise(int numLocalChains) 
+{
+    int         d, i, j, nIntNodes, nNodes,
+                indexStep, pwIdx, tripIdx, numTrips;
+    ModelInfo   *m;
+
+    for (d=0; d<numCurrentDivisions; d++)
+        {
+        m = &modelSettings[d];
+       
+        /* find size of tree */
+        nIntNodes = GetTree(m->brlens, 0, 0)->nIntNodes;
+        nNodes = GetTree(m->brlens, 0, 0)->nNodes;
+        m->numPairs = (nNodes - nIntNodes) * (nNodes - nIntNodes - 1) / 2;
+        m->numTrips = (nNodes - nIntNodes) * (nNodes - nIntNodes - 2) * (nNodes - nIntNodes - 2)/ 6;
+        m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
+        m->tiProbsTripLength = m->numModelStates * m->numModelStates * m->numTiCats;
+        m->doubletProbsLength = m->numModelStates * m->numModelStates;
+        m->tripleProbsLength = m->numModelStates * m->numModelStates * m->numModelStates;
+        m->numTiProbs = (numLocalChains + 1) * nNodes;
+        m->numTiProbsPw = (numLocalChains + 1) * m->numPairs;
+        m->numDoubletProbs = (numLocalChains + 1) * m->numPairs;
+        m->numTiProbsTrip = (numLocalChains + 1) * m->numTrips * 3;
+        m->numTripleProbs = (numLocalChains + 1) * m->numTrips;
+        }
+
+            /* allocate space and fill in info for tips */
+    for (d=0; d<numCurrentDivisions; d++)
+        {
+        m = &modelSettings[d];
+        /* get size of tree */
+        nIntNodes = GetTree(m->brlens,0,0)->nIntNodes;
+        nNodes = GetTree(m->brlens,0,0)->nNodes;
+
+        /*  allocate space for pw distances */
+        m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+        for (i=0; i<numLocalChains; i++)
+            m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
+
+        /*  allocate space for pw ti probs  */
+        m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
+        if (!m->tiProbs)
+            return (ERROR);
+        for (i=0; i<m->numTiProbsPw; i++)
+            {
+            m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
+            if (m->tiProbsPw[i] == NULL)
+                 return (ERROR);
+            }
+
+        /*  allocate space for pw doublet probs  */
+        m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
+        if (!m->doubletProbs)
+            return (ERROR);
+        for (i=0; i<m->numDoubletProbs; i++)
+            {
+            m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
+            if (!m->doubletProbs[i])
+                return (ERROR);
+            }
+
+        int indexStep=1;
+        /* allocate and set indices from chain/pair to pw probs */
+        m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+        if (!m->pwIndex)
+            return (ERROR);
+        for (i=0; i<numLocalChains; i++)
+            {
+            m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
+            if (!m->pwIndex[i])
+                return (ERROR);
+            }
+
+        /* set up pw indices */
+        pwIdx = 0;
+        for (i=0; i<numLocalChains; i++)
+            {
+            for (j=0; j<m->numPairs; j++)
+                {
+                m->pwIndex[i][j] = pwIdx;
+                pwIdx += indexStep;
+                }
+            }
+
+        /*  allocate triplet stuff if necessary */
+        if (m->useTriples) 
+            {
+            /*  allocate triple cn distances */
+            m->tripleCnDists=(MrBFlt**)SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+            for (i=0;i<numLocalChains;i++)
+                m->tripleCnDists[i]=(MrBFlt*)SafeMalloc(numTrips * 3 * sizeof(MrBFlt));
+
+
+            /*  allocate triple ti probabilities */
+            m->tripleTiProbs=(CLFlt**)SafeMalloc(m->numTiProbsTrip * sizeof(CLFlt*));
+            for (i=0;i<m->numTiProbsTrip;i++)
+                m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->tiProbsTripLength * sizeof(CLFlt));
+            MrBayesPrint("TripleTiProbs Size: %d, %d \n", m->numTiProbsTrip, m->tiProbsTripLength);
+
+            /*  allocate triple site pattern probabilities */
+            m->tripleProbs=(CLFlt**)SafeMalloc(m->numTripleProbs * sizeof(CLFlt*));
+            for (i=0;i<m->numTripleProbs;i++)
+                m->tripleProbs[i]=(CLFlt*)SafeMalloc(m->tripleProbsLength * sizeof(CLFlt));
+
+             /*  allocate triple indices  */
+            m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+            if (!m->tripIndex)
+                return (ERROR);
+            for (i=0; i<numLocalChains; i++)
+                {
+                m->tripIndex[i] = (int *) SafeMalloc (numTrips * sizeof(int));
+                if (!m->tripIndex[i])
+                    return (ERROR);
+                }
+
+            /* set up triple indices */
+            tripIdx = 0;
+            for (i=0; i<numLocalChains; i++)
+                {
+                for (j=0; j<numTrips; j++)
+                    {
+                    m->tripIndex[i][j] = tripIdx;
+                    tripIdx += indexStep;
+                    }
+                }
+            
+            }
+       }
+
+
+    if (m->usePwWeights)  
+        {
+        m->pwWeight=1.0;  
+        }
+
+    memAllocs[ALLOC_PAIRWISE]=YES;
+    return NO_ERROR;
+}
+
+int FreePairwise(int numCurrentDivisions, int numLocalChains) {
+    int         i, j, k, nRates;
+    ModelInfo   *m;
+
+    /* free model variables for Gibbs gamma */
+    for (i=0; i<numCurrentDivisions; i++)
+        {
+        /* free pairwise dists and transition probs  */        
+        if (m->usePairwise) 
+            {
+            if (m->pwDists)
+                {
+                for (j=0; j<numLocalChains; j++)
+                    {
+                    if (m->pwDists[j])
+                        free(m->pwDists[j]);
+                    }
+                free(m->pwDists);
+                }
+
+            if (m->tiProbsPw)
+                {
+                for (j=0; j<m->numTiProbsPw; j++)
+                    if (m->tiProbsPw[j]) /*  chain pw probs */
+                        free(m->tiProbsPw[j]);
+                free(m->tiProbsPw);
+                }
+
+            if (m->doubletProbs)
+                {
+                for (j=0; j<m->numDoubletProbs; j++)
+                    if (m->doubletProbs[j]) /*  chain pw probs */
+                        free(m->doubletProbs[j]);
+                free(m->doubletProbs);
+                }
+
+            if (m->pwIndex)
+                {
+                for (j=0; j<numLocalChains; j++)
+                    {
+                    if (m->pwIndex[j]) /*  chain pw probs */
+                        free(m->pwIndex[j]);
+                    }
+                free(m->pwIndex);
+                }
+
+            /*  free triplet dists and probabilities  */
+            if (m->useTriples) 
+                {
+                if (m->tripleCnDists)
+                    {
+                    for (j=0; j<numLocalChains; j++)
+                        {
+                        if (m->tripleCnDists[j])
+                            free(m->tripleCnDists[j]);
+                        }
+                    free(m->tripleCnDists);
+                    }
+
+                if (m->tripleTiProbs)
+                    {
+                    for (i=0; j<numLocalChains; i++)
+                        if (m->tripleTiProbs[i]) 
+                            free(m->tripleTiProbs[i]);
+                    free(m->tripleTiProbs);
+                    }
+
+                if (m->tripleProbs)
+                    {
+                    for (i=0; i<numLocalChains; i++)
+                        if (m->tripleProbs[i]) 
+                            free(m->tripleProbs[i]);
+                    free(m->tripleProbs);
+                    }
+
+                if (m->tripIndex)
+                    {
+                    for (j=0; j<numLocalChains; j++)
+                        {
+                        if (m->tripIndex[j]) /*  chain pw probs */
+                            free(m->tripIndex[j]);
+                        }
+                    free(m->tripIndex);
+                    }
+
+                if (m->tripDistIndex)
+                    {
+                    for (j=0; j<numLocalChains; j++)
+                        {
+                        if (m->tripDistIndex[j]) /*  chain pw probs */
+                            free(m->tripDistIndex[j]);
+                        }
+                    free(m->tripDistIndex);
+                    }
+                }
+            }
+
+        }
+}
+
 int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
 {
     int         i,j,a,d,k;
@@ -2193,6 +2431,9 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
                     return ERROR;
                     }
 
+                if (m->usePwWeights)
+                    like=like*(m->pwWeight);
+
                 (*lnL)+=like;
                 }
             }
@@ -2208,7 +2449,6 @@ MrBFlt LogLikePairwise(int chain)
     MrBFlt     chainLnLike;
 
     int d=0; /*  for now, only implemented for a single DNA partition */
-    
     chainLnLike = 0.0;
     
     m = &modelSettings[d];
@@ -2224,14 +2464,12 @@ MrBFlt LogLikePairwise(int chain)
         m->upDateAll = YES;
         }
 
-
     CalcPairwiseDists_ReverseDownpass(tree,d,chain);
     m->PwTiProbs(d,chain);
     m->DoubletProbs(d,chain);
 
     m->PwLikelihood(d,chain,&(m->lnLike[2*chain+state[chain]]));
     chainLnLike+=m->lnLike[2*chain+state[chain]];
-
     return(chainLnLike);
 }
 
@@ -2352,12 +2590,6 @@ MrBFlt EstPwDist_JC(int p)
 //    return(0);
 //}
 
-int FreePairwise(void) 
-{
-    free(pairwiseCounts);
-    return (NO_ERROR);
-}
-
 
 /* ****************************
  * 
@@ -2368,7 +2600,7 @@ int FreePairwise(void)
  *
    **************************** */
 
-int InitPairwiseWeights (void) {
+int CalcPairwiseWeights (int chain) {
 
     /*  setup the arays for pairwise counts,
      *  and populate the counts.
@@ -2401,6 +2633,16 @@ int InitPairwiseWeights (void) {
     MrBFlt *p_10, *p_11, *p1_10, *p1_11, *p2_10, *p2_11; 
     int    nidxl, nidxk;
     MrBFlt **J, **H, **Hinv;
+    MrBFlt **HiJ, *eigvals, *eigvalsc;
+    int **niiIndex ;
+    MrBFlt t1,t2,t3,t4;
+    MrBFlt eterm;
+
+
+    /*  first set up worker matrices for eigen computation */
+    // set up matrices 
+    MrBFlt **V, **Vinv;
+    MrBComplex **Vc, **Vcinv; 
 
     // loop over the partitions:
     for (d=0; d<numCurrentDivisions; d++)
@@ -2421,6 +2663,13 @@ int InitPairwiseWeights (void) {
          *  Initialize necessary arrays:
          *  */
         /* initialize counts & index array */
+
+        V     = AllocateSquareDoubleMatrix(nPairs);
+        Vinv  = AllocateSquareDoubleMatrix(nPairs);
+    
+        Vc    = AllocateSquareComplexMatrix(nPairs); 
+        Vcinv = AllocateSquareComplexMatrix(nPairs);
+
         counts = (int*) SafeMalloc( (nSplits+1) * nPairs * nStates * nStates * sizeof(int));
         countIndex=(int**) SafeMalloc( (nSplits+1) * sizeof(int*));
         for (i=0; i<(nSplits+1); i++)
@@ -2443,7 +2692,6 @@ int InitPairwiseWeights (void) {
         n10 = (int*) SafeMalloc( (nSplits+1) * nPairs * sizeof(int));
         n11 = (int*) SafeMalloc( (nSplits+1) * nPairs * sizeof(int));
 
-        int **niiIndex ;
         niiIndex=(int**) SafeMalloc( (nSplits+1) * sizeof(int*));
         for (i=0; i<(nSplits+1); i++)
                 niiIndex[i]=(int*) SafeMalloc( nPairs * sizeof(int));
@@ -2467,16 +2715,31 @@ int InitPairwiseWeights (void) {
         p2_10 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
         p2_11 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
 
+        for (k=0;k<nPairs;k++)
+            {
+            p_10[k] = 0.0;
+            p_11[k] = 0.0;
+            p1_10[k] =0.0;
+            p1_11[k] =0.0;
+            p2_10[k] =0.0;
+            p2_11[k] =0.0;            
+            }
+
         /*  init arrays for hessian and jacobian */
         H = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
         J = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
         Hinv = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
+        HiJ = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
         for (i=0; i<nPairs; i++) 
             { 
             H[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
             J[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
             Hinv[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+            HiJ[i]=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
             }
+
+        eigvals=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        eigvalsc=(MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
 
         /*  *
          *  Done initializing
@@ -2507,7 +2770,7 @@ int InitPairwiseWeights (void) {
                 }
             }
 
-        /*  calculate pw dists based on JC  */
+        /*  get the counts per data split  */
         for (k=0; k<nPairs; k++) 
             {   
             for (splitI=0; splitI<nSplits; splitI++) 
@@ -2546,55 +2809,80 @@ int InitPairwiseWeights (void) {
                 pwDists[k] = -1.0 * (3.0/4) * log(1.0 - (n10[nI] * 1.0) / (n10[nI] + n11[nI]));
             } 
 
-        int chain=0;
+//        for (k=0; k<nPairs; k++) 
+//            {   
+//            MrBayesPrint("Pair %d : ", k);
+//            MrBayesPrint("Dist = %.5f \n", pwDists[k]);
+//            for (splitI=0; splitI<=nSplits; splitI++) 
+//                {
+//                MrBayesPrint("   Split %d: ", splitI);
+//                nI=niiIndex[splitI][k];
+//                MrBayesPrint("      n11: %d", n11[nI]);
+//                MrBayesPrint("      n10: %d \n", n10[nI]);
+//                }
+//            }
+//
+        /* get base rate */
+        baseRate = GetRate (d, chain);
+    
+        /* compensate for invariable sites if appropriate */
+        if (m->pInvar != NULL)
+            baseRate /= (1.0 - (*GetParamVals(m->pInvar, chain, state[chain])));
+       
+        /* get category rates */
+        theRate = 1.0;
+        if (m->shape != NULL)
+            catRate = GetParamSubVals (m->shape, chain, state[chain]);
+        else if (m->mixtureRates != NULL)
+            catRate = GetParamSubVals (m->mixtureRates, chain, state[chain]);
+        else
+            catRate = &theRate;
+
         for (k=0; k<nPairs; k++) 
             {
             /*  calculate derivatives needed for J/H */
-            /* get base rate */
-            baseRate = GetRate (d, chain);
-            baseRate = 0.0;
-    
-            /* compensate for invariable sites if appropriate */
-            if (m->pInvar != NULL)
-                baseRate /= (1.0 - (*GetParamVals(m->pInvar, chain, state[chain])));
-       
-            /* get category rates */
-            theRate = 1.0;
-            if (m->shape != NULL)
-                catRate = GetParamSubVals (m->shape, chain, state[chain]);
-            else if (m->mixtureRates != NULL)
-                catRate = GetParamSubVals (m->mixtureRates, chain, state[chain]);
-            else
-                catRate = &theRate;
-
-            int nRates = 4; 
+            int nRates=m->numRateCats; 
             for (l=0; l<nRates; l++)
                 {
-                //rc =  baseRate * catRate[l];
-                rc = 1.0;
-                // p_10[k] += (1.0/m->numRateCats) * ((3.0/4) - (3.0/4) * exp(-(4.0/3)*rc*pwDists[k]));
-                // p_11[k] += (1.0/m->numRateCats) * ((3.0/4) + (1.0/4) * exp(-(4.0/3)*rc*pwDists[k]));
-                p_10[k] += (1.0/nRates) * ((3.0/4) - (3.0/4) * exp(-(4.0/3)*rc*pwDists[k]));
-                p_11[k] += (1.0/nRates) * ((1.0/4) + (3.0/4) * exp(-(4.0/3)*rc*pwDists[k]));
-                p1_11[k] += (-1.0 / 12) * rc * exp(-(4.0/3)*rc*pwDists[k]);
-                p1_10[k] += (1.0 / 4) * rc * exp(-(4.0/3)*rc*pwDists[k]);
-                p2_11[k] += (1.0 / 9) * rc * rc * exp(-(4.0/3)*rc*pwDists[k]);
-                p2_10[k] += (-1.0 / 3) * rc * rc * exp(-(4.0/3)*rc*pwDists[k]);
+                rc =  baseRate * catRate[l];
+                eterm = exp(-(4.0/3)*rc*pwDists[k]);
+                p_10[k] +=  (1.0/nRates) * ((3.0/4) - (3.0/4) * eterm);
+                p_11[k] +=  (1.0/nRates) * ((1.0/4) + (3.0/4) * eterm);
+                p1_11[k] += (-1.0 / nRates) * rc * eterm;
+                p1_10[k] += ( 1.0 / nRates) * rc * eterm;
+                p2_11[k] += ( 4.0 / (3.0*nRates)) * rc*rc * eterm;
+                p2_10[k] += (-4.0 / (3.0*nRates)) * rc*rc * eterm;
                 }
-            }
+          }
 
-        /*  Now fill in the Hessian and Jacobian */
+        //for (k=0; k<nPairs; k++) 
+        //    {
+        //        MrBayesPrint("Derivs, pair %d: p10=%f, p11=%f, p1_10=%f, p1_11=%f, p2_10=%f, p2_11=%f \n", k,
+        //        p_10[k]  ,
+        //        p_11[k]  ,
+        //        p1_11[k] ,
+        //        p1_10[k] ,
+        //        p2_11[k] ,
+        //        p2_10[k] );
+        //   }
+
+                /*  Now fill in the Hessian and Jacobian */
         for (k=0; k<nPairs; k++)
             {
-            nidxk = countIndex[nSplits][k];
-            H[k][k] = n11[nidxk] * (p2_11[nidxk] / p_11[nidxk] - p1_11[nidxk]/(p_11[nidxk]*p_11[nidxk])) + 
-                        n10[nidxk] * (p2_10[nidxk] / p_10[nidxk] - p1_10[nidxk]/(p_10[nidxk]*p_10[nidxk]));
-            Hinv[k][k] = 1.0 / H[k][k] ;
-
-            for (l=0; l<nPairs; l++)
+            H[k][k]=0.0;
+            for (i=0; i<nSplits; i++)
                 {
-                /*  fill in jacobian */
-                MrBFlt t1,t2,t3,t4;
+                nidxk=niiIndex[i][k];
+                t1 = (p2_11[k] / p_11[k] - p1_11[k]/(p_11[k]*p_11[k]));
+                t2 = (p2_10[k] / p_10[k] - p1_10[k]/(p_10[k]*p_10[k]));
+                H[k][k] -= (1.0/nSplits) * (n11[nidxk] * t1 + n11[nidxk] * t2) ;
+                }
+            Hinv[k][k] = 1.0 / H[k][k] ;
+           
+            /*  fill in jacobian */
+            MrBayesPrint("J[%d][.] = ",k);
+            for (l=k; l<nPairs; l++)
+                {
                 t1 = (p1_11[k] * p1_11[l] / (p_11[k] * p_11[l]));
                 t2 = (p1_11[k] * p1_10[l] / (p_11[k] * p_10[l]));
                 t3 = (p1_10[k] * p1_11[l] / (p_10[k] * p_11[l]));
@@ -2606,31 +2894,91 @@ int InitPairwiseWeights (void) {
                     nidxl=niiIndex[i][l];
                     nidxk=niiIndex[i][k];
                     J[k][l] += (1.0/nSplits) * (n11[nidxk] * n11[nidxl] * t1 + n11[nidxk] * n10[nidxl] * t2 + 
-                                                            n10[nidxk] * n11[nidxl] * t3 + n10[nidxk] * n10[nidxl] * t4);
+                                                n10[nidxk] * n11[nidxl] * t3 + n10[nidxk] * n10[nidxl] * t4);
                     }
-                J[l][k]=J[k][l];
+                if (l != k) 
+                    J[l][k]=J[k][l];
+                MrBayesPrint("  % .3f", J[k][l]);
                 }
+                MrBayesPrint("\n \n");
             }
+
+        for (k=0; k<nPairs; k++)
+            {
+            //MrBayesPrint("H[%d][%d] = %f \n",k,k,H[k][k]);
+            MrBayesPrint("Hi[%d][%d] = %f \n",k,k,Hinv[k][k]);
+            }
+
+        /*  compute  H^-1 * J and the eigenvalues:  */
+        MultiplyMatrices(nPairs, Hinv, J, HiJ);
+        for (k=0; k<nPairs; k++)
+            {
+            MrBayesPrint("HiJ[%d][.] =",k);
+            for (l=0; l<nPairs; l++)
+                {
+                MrBayesPrint("  % .3f", HiJ[k][l]);
+                }
+                MrBayesPrint("\n");
+            }
+
+        int isComplex=GetEigens(nPairs,HiJ,eigvals,eigvalsc,V,Vinv,Vc,Vcinv);
+        MrBayesPrint("isComplex: %d \n", isComplex);
+
+        MrBFlt eigsum=0.0 ;
+        for (i=0; i<nPairs; i++) {
+            MrBayesPrint("Eigen %d = %f \n", i, eigvals[i]);
+            eigsum += eigvals[i];
+        }
+        
+        m->pwWeight=(1.0*nPairs)/eigsum;
+        MrBayesPrint("pw weight: %f", m->pwWeight);
+
+        /*  free allocations   */
+        /*  helper matrices */
+        FreeSquareDoubleMatrix(V);
+        FreeSquareDoubleMatrix(Vinv);
+        FreeSquareComplexMatrix(Vc);
+        FreeSquareComplexMatrix(Vcinv);
+
+        /*  counts */
+        free(counts);
+        for (i=0; i<(nSplits+1); i++)
+            free(countIndex[i]);
+        free(countIndex);
+        for (i=0; i<(nSplits+1); i++)
+            free(niiIndex[i]);
+        free(niiIndex);
+        free(n10);
+        free(n11);
+
+        /*  dists and probabilities */
+        free(pwDists);
+        free(p_10 );
+        free(p_11 );
+        free(p1_10); 
+        free(p1_11);  
+        free(p2_10); 
+        free(p2_11);  
+                      
+        /*  hessian and jacobian */
+        for (i=0; i<nPairs; i++) 
+            { 
+            free(H[i]);
+            free(J[i]);
+            free(HiJ[i]);
+            free(Hinv[i]);
+            }
+        free(H);
+        free(J);
+        free(Hinv);
+        free(HiJ);
+
+        free(eigvals);
+        free(eigvalsc);
+
         } /* end loop over numCurrentDivisions */
 
-    for (k=0; k<nPairs; k++) {
-         for (l=0; l<nPairs; l++)  {
-             MrBayesPrint("  %.3f", J[k][l]);
-         }
-         MrBayesPrint("\n");
-    }
-
-
-    /*  free allocations   */
-    free(counts);
-    for (i=0; i<(nSplits+1); i++)
-        free(countIndex[i]);
-    free(countIndex);
-    free(pwDists);
-
-
     return(0);
-
 }
 
 
