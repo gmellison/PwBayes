@@ -1207,7 +1207,6 @@ typedef struct model
     int         usePairwiseWeights;
     int         numDataSplits;
 
-
     } Model, ModelParams;
 
 typedef struct chain
@@ -1504,7 +1503,7 @@ typedef struct modelinfo
     int         pwSplitCountsLength;
     int         **pwSplitCounts;
     MrBFlt      *pwWJEst;
-    MrBFlt      *pwWeights;       
+    MrBFlt      pwWeight;       
 
     /*  Triplet model information */
     int         numTrips;
@@ -1888,6 +1887,8 @@ extern MrBFlt           cprevPi[20];                 /* stationary frequencies f
 extern MrBFlt           vtPi[20];                    /* stationary frequencies for VT model          */
 extern MrBFlt           blosPi[20];                  /* stationary frequencies for Blosum62 model    */
 extern MrBFlt           lgPi[20];                    /* stationary frequencies for LG model          */
+
+extern int              stepsTilAlpha;
 
 #if defined (PRINT_DUMP)
 FILE                    *dumpFile;                   /* for debugging logs */
