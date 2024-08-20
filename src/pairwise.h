@@ -75,12 +75,12 @@ int TiProbsPairwise_Gen (int division, int chain);
 int DoubletProbs_Gen(int division, int chain);
 int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain);
 int CountPairwise(void);
-int InitPairwiseWeights(void);
+int CalcPairwiseWeights(int chain);
 int Likelihood_Pairwise(int division, int chain, MrBFlt *lnL);
 
 int CountTriplets(void);
-
-int FreePairwise(void);
+int InitPairwise(int numLocalChains);
+int FreePairwise(int numCurrentDivisions, int numLocalChains);
 int FreeTriples(void);
 
 int CalcTripletCnDists(int division, int chain);
