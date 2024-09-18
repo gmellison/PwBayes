@@ -1427,7 +1427,6 @@ int InitPairwise(int numLocalChains)
             }
        }
 
-
     if (m->usePwWeights)  
         {
         m->pwWeight=1.0;  
@@ -2800,13 +2799,19 @@ int CalcPairwiseWeights (int chain) {
             }
 
         /*  now just calculate the pw dists */
+        MrBFlt al=*GetParamVals(m->shape,chain,state[chain]);
+
+        MrBFlt prop =  (n10[nI] * 1.0) / (n10[nI] + n11[nI]);
         for (k=0; k<nPairs; k++) 
             {   
             nI=niiIndex[nSplits][k];
             if (n10[nI] == 0) 
                 pwDists[k] = 0.0;
             else 
+                {
                 pwDists[k] = -1.0 * (3.0/4) * log(1.0 - (n10[nI] * 1.0) / (n10[nI] + n11[nI]));
+                //pwDists[k] = al * (3.0/4) * log( (pow(1-(4 * prop/3), -(1.0/al))) - 1.0);
+                }
             } 
 
 //        for (k=0; k<nPairs; k++) 
@@ -2903,11 +2908,11 @@ int CalcPairwiseWeights (int chain) {
                 MrBayesPrint("\n \n");
             }
 
-        for (k=0; k<nPairs; k++)
-            {
-            //MrBayesPrint("H[%d][%d] = %f \n",k,k,H[k][k]);
-            MrBayesPrint("Hi[%d][%d] = %f \n",k,k,Hinv[k][k]);
-            }
+//        for (k=0; k<nPairs; k++)
+//            {
+//            //MrBayesPrint("H[%d][%d] = %f \n",k,k,H[k][k]);
+//            MrBayesPrint("Hi[%d][%d] = %f \n",k,k,Hinv[k][k]);
+//            }
 
         /*  compute  H^-1 * J and the eigenvalues:  */
         MultiplyMatrices(nPairs, Hinv, J, HiJ);
@@ -2925,12 +2930,23 @@ int CalcPairwiseWeights (int chain) {
         MrBayesPrint("isComplex: %d \n", isComplex);
 
         MrBFlt eigsum=0.0 ;
+        MrBFlt eigsum2=0.0 ;
+        MrBFlt em=0.0;
+        MrBFlt v=0.0;
         for (i=0; i<nPairs; i++) {
             MrBayesPrint("Eigen %d = %f \n", i, eigvals[i]);
             eigsum += eigvals[i];
+            eigsum2 += eigvals[i] * eigvals[i];
         }
-        
-        m->pwWeight=(1.0*nPairs)/eigsum;
+
+        em = eigsum/(1.0*nPairs); 
+        v = (eigsum * eigsum) / eigsum2;
+
+        if (m->usePwWeights == 1)
+            m->pwWeight=(1.0) / em;
+        else 
+            m->pwWeight=v / (1.0*nPairs*em);
+
         MrBayesPrint("pw weight: %f", m->pwWeight);
 
         /*  free allocations   */
@@ -2968,6 +2984,7 @@ int CalcPairwiseWeights (int chain) {
             free(HiJ[i]);
             free(Hinv[i]);
             }
+
         free(H);
         free(J);
         free(Hinv);

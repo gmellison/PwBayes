@@ -3301,7 +3301,6 @@ int DoLsetParm (char *parmName, char *tkn)
         else if (!strcmp(parmName, "Pairwise"))
             {
             if (expecting == Expecting(EQUALSIGN))
-                
                 expecting = Expecting(ALPHA);
             else if (expecting == Expecting(ALPHA))
                 {
@@ -3359,7 +3358,6 @@ int DoLsetParm (char *parmName, char *tkn)
         else if (!strcmp(parmName, "PwAlphaLike"))
             {
             if (expecting == Expecting(EQUALSIGN))
-                
                 expecting = Expecting(ALPHA);
             else if (expecting == Expecting(ALPHA))
                 {
@@ -3428,7 +3426,6 @@ int DoLsetParm (char *parmName, char *tkn)
         else if (!strcmp(parmName, "PwHotChain"))
             {
             if (expecting == Expecting(EQUALSIGN))
-                
                 expecting = Expecting(ALPHA);
             else if (expecting == Expecting(ALPHA))
                 {
@@ -3481,10 +3478,10 @@ int DoLsetParm (char *parmName, char *tkn)
         else if (!strcmp(parmName, "PwWeights"))
             {
             if (expecting == Expecting(EQUALSIGN))
-                
-                expecting = Expecting(ALPHA);
-            else if (expecting == Expecting(ALPHA))
+                expecting = Expecting(NUMBER);
+            else if (expecting == Expecting(NUMBER))
                 {
+                sscanf (tkn, "%d", &tempInt);
                 if (IsArgValid(tkn, tempStr) == NO_ERROR)
                     {
                     /*  TODO: either: 1. implement pairwise for different data partitions or 
@@ -3497,10 +3494,10 @@ int DoLsetParm (char *parmName, char *tkn)
                             {
                             if (modelSettings[i].dataType == DNA)
                                 {
-                                if (!strcmp(tempStr, "Yes"))
+                                if (tempInt!=0)
                                     {
                                      modelSettings[i].usePwWeights = YES;
-                                     modelSettings[i].pwWeight=1.0;
+                                     modelSettings[i].pwWeight=tempInt;
                                     // modelSettings->pwWeights=YES;
                                     }
                                 else
