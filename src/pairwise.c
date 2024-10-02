@@ -2204,9 +2204,11 @@ int DoubletProbs_JukesCantor(int division, int chain)
     int         i, j, k, p, index, dpIdx;
     CLFlt       *tiP, *doubP;   
     ModelInfo   *m;
+    MrBFlt      *bs;
 
     /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
     m = &modelSettings[division];
+    bs = GetParamSubVals(m->stateFreq, chain, state[chain]);
 
     for (p=0; p<m->numPairs; p++)
         {
@@ -2226,7 +2228,7 @@ int DoubletProbs_JukesCantor(int division, int chain)
             dpIdx=0;
             for (i=0; i<4; i++)
                 for (j=0; j<4; j++)
-                    doubP[dpIdx++] += 0.25 * tiP[index++]/((MrBFlt)m->numRateCats);
+                    doubP[dpIdx++] += bs[i] * tiP[index++]/((MrBFlt)m->numRateCats);
             }
         }
     return(NO_ERROR);
@@ -2939,13 +2941,13 @@ int CalcPairwiseWeights (int chain) {
             eigsum2 += eigvals[i] * eigvals[i];
         }
 
-        em = eigsum/(1.0*nPairs); 
+        em = eigsum/(1.0*(numTaxa+2)); 
         v = (eigsum * eigsum) / eigsum2;
 
         if (m->usePwWeights == 1)
             m->pwWeight=(1.0) / em;
         else 
-            m->pwWeight=v / (1.0*nPairs*em);
+            m->pwWeight=v / (1.0*numTaxa+2*em);
 
         MrBayesPrint("pw weight: %f", m->pwWeight);
 
