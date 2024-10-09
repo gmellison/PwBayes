@@ -237,10 +237,10 @@ int AddDummyChars (void)
         return NO_ERROR;
 
     /* print original compressed matrix */
-//#   if  defined (DEBUG_ADDDUMMYCHARS)
+#   if  defined (DEBUG_ADDDUMMYCHARS)
     MrBayesPrint ("Compressed matrix before adding dummy characters...\n");
     PrintCompMatrix();
-//#   endif
+#   endif
 
     /* set row sizes for old and new matrices */
     oldRowSize = compMatrixRowSize;
@@ -2711,11 +2711,11 @@ int CompressData (void)
     for (i=0; i<compMatrixRowSize; i++)
         origChar[i] = tempChar[i];
 
-//#   if defined (DEBUG_COMPRESSDATA)
+#   if defined (DEBUG_COMPRESSDATA)
     if (PrintCompMatrix() == ERROR)
         goto errorExit;
     getchar();
-//#   endif
+#   endif
 
     /* free the temporary variables */
     free (tempSitesOfPat);
@@ -3499,15 +3499,15 @@ int DoLsetParm (char *parmName, char *tkn)
                                 {
                                 if (!strcmp(tempStr, "Yes"))
                                     {
-                                     modelSettings[i].pwWeights = YES;
+                                     modelSettings[i].pwWeight = YES;
                                     // modelSettings->pwWeights=YES;
                                     }
                                 else
                                     {
-                                    modelSettings[i].pwWeights = NO;
+                                    modelSettings[i].pwWeight = NO;
                                     // modelSettings->pwWeights=NO;
                                     }
-                                MrBayesPrint ("%s   Setting pw weighting flag to %d\n", spacer, modelSettings[i].pwWeights);
+                                MrBayesPrint ("%s   Setting pw weighting flag to %d\n", spacer, modelSettings[i].pwWeight);
                                 /* 
                                 if (nApplied == 0 && numCurrentDivisions == 1)
                                 else

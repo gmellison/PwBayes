@@ -30,7 +30,7 @@
 #include "mcmc.h"
 #include "model.h"
 #include "likelihood.h"
-#include "model.h"
+#include "main.h"
 
 
 #if defined(__MWERKS__)
