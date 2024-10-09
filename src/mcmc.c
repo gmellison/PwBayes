@@ -350,7 +350,7 @@ FILE            **fpDump = NULL;             /* pointer to .dump file(s)        
 #endif
 
 /* used here but declared in bayes.h */
-int stepsTilAlpha;
+int stepsTilAlpha=1000;
 
 /* AddPartition: Add a partition to the tree keeping track of partition frequencies */
 PFNODE *AddPartition (PFNODE *r, BitsLong *p, int runId)
