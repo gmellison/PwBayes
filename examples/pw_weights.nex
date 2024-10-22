@@ -23,7 +23,7 @@ end;
 
 begin mrbayes;
     lset nst=1 nucmodel=4by4 pairwise=yes rates=gamma;
-    lset pwweights=2 nsplits=3 stepstilalpha=5000;
+    lset pwweights=2 nsplits=3 stepstilalpha=1000;
     [prset shapepr=exponential(1);]
     mcmc ngen=10000 samplefreq=100 burnin=5000;
     sump;
