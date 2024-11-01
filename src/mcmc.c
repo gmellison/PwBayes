@@ -17260,8 +17260,8 @@ int RunChain (RandLong *seed)
             if (modelSettings->usePwWeights )  
                 {
                 MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
-                chn=0;
-                CalcPairwiseWeights(chn);
+                int err=CalcPairwiseWeights(0);
+                if (err) return ERROR;
                 }
 
             /*  update current lnls with weighted lnls */

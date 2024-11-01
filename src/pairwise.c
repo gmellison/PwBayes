@@ -2832,7 +2832,10 @@ int CalcPairwiseWeights (int chain) {
             }
 
         /*  now just calculate the pw dists */
-        MrBFlt al=*GetParamVals(m->shape,chain,state[chain]);
+        MrBFlt al;
+        if (m->shape != NULL)
+            al=*GetParamVals(m->shape,chain,state[chain]);
+
         for (k=0; k<nPairs; k++) 
             {   
             nI=niiIndex[nSplits][k];
@@ -2841,8 +2844,10 @@ int CalcPairwiseWeights (int chain) {
                 pwDists[k] = 0.0;
             else 
                 {
-                //pwDists[k] = -1.0 * (3.0/4) * log(1.0 - (n10[nI] * 1.0) / (n10[nI] + n11[nI]));
-                pwDists[k] = al * (3.0/4) * (pow(1-(4 * prop/3), -(1.0/al)) - 1.0);
+                if (m->shape != NULL)
+                    pwDists[k] = al * (3.0/4) * (pow(1-(4 * prop/3), -(1.0/al)) - 1.0);
+                else 
+                    pwDists[k] = -1.0 * (3.0/4) * log(1.0 - (n10[nI] * 1.0) / (n10[nI] + n11[nI]));
                 }
             } 
 
@@ -3024,13 +3029,16 @@ int CalcPairwiseWeights (int chain) {
             eigsum2 += eigvals[i] * eigvals[i];
         }
 
-        em = eigsum/(1.0*(numTaxa+2)); 
+        em = eigsum/(1.0*(numBranches+2)); 
         v = (eigsum * eigsum) / eigsum2;
 
         if (m->usePwWeights == 1)
             m->pwWeight=(1.0) / em;
+        else if (m->usePwWeights == 2)  
+            m->pwWeight=v / (1.0*numBranches+2*em);
         else 
-            m->pwWeight=v / (1.0*numTaxa+2*em);
+            m->pwWeight= 2.0 / (numPairs * (numPairs - 1));
+
 
         MrBayesPrint("pw weight: %f", m->pwWeight);
 
