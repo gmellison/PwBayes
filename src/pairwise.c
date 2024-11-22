@@ -3032,13 +3032,12 @@ int CalcPairwiseWeights (int chain) {
         em = eigsum/(1.0*(numBranches+2)); 
         v = (eigsum * eigsum) / eigsum2;
 
+        m->pwWeight= 2.0 / (numPairs * (numPairs - 1));
+
         if (m->usePwWeights == 1)
             m->pwWeight=(1.0) / em;
         else if (m->usePwWeights == 2)  
             m->pwWeight=v / (1.0*numBranches+2*em);
-        else 
-            m->pwWeight= 2.0 / (numPairs * (numPairs - 1));
-
 
         MrBayesPrint("pw weight: %f", m->pwWeight);
 
