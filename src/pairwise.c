@@ -2273,12 +2273,12 @@ int DoubletProbs_Gen(int division, int chain)
 
 /*  
  *  Original doublet count setup. Used global pairwiseCounts. 
- *  Need to deprecate to allow for MrB partitioning
+ *  Need to update to allow for MrB partitioning
  */
-
-int CountPairwise(void) {
+int CountPairwise(int division) {
 
     int             i,j,k,c,id1,id2;
+    ModelInfo       *m;
     
     /*  For now, only inplemented for a single partition 
      *  of DNA type data */
@@ -2291,31 +2291,33 @@ int CountPairwise(void) {
         }
     */
 
-    MrBayesPrint("Counting Pairwise\n");
+    m=&modelSettings[division];
+
+    // MrBayesPrint("Counting Pairwise\n");
     if (defMatrix == NO) 
         {
         MrBayesPrint("%s Matrix needs to be defined before counting doublets  \n", spacer);
         return(ERROR);
         }  
     
-    if (numDefinedPartitions > 1)    
-        { 
-        MrBayesPrint("%s Pairwise count likelihood only implemented for a single partition  \n", spacer);
-        return(ERROR);
-        }
+    //if (numDefinedPartitions > 1)    
+    //    { 
+    //    MrBayesPrint("%s Pairwise count likelihood only implemented for a single partition  \n", spacer);
+    //    return(ERROR);
+    //    }
 
-    if (memAllocs[ALLOC_PAIRWISE] == YES) 
-        {
-        free(pairwiseCounts);
-        pairwiseCounts=NULL;
-        memAllocs[ALLOC_PAIRWISE] = NO;
-        }
+    //if (memAllocs[ALLOC_PAIRWISE] == YES) 
+    //    {
+    //    free(pairwiseCounts);
+    //    pairwiseCounts=NULL;
+    //    memAllocs[ALLOC_PAIRWISE] = NO;
+    //    }
 
     numPairs=(int)numTaxa*(numTaxa-1)/2;
-    MrBayesPrint("%s Using pairwise likelihood with %d pairs. \n", spacer, numPairs);
+    //MrBayesPrint("%s Using pairwise likelihood with %d pairs. \n", spacer, numPairs);
 
     /* first allocate pairwise doublet counts:  */
-    pairwiseCounts=(int*)SafeMalloc(numPairs * 16 * sizeof(int));
+    m->pairwiseCounts=(int*)SafeMalloc(numPairs * 16 * sizeof(int));
     if (!pairwiseCounts)
         {
         MrBayesPrint("%s Problem allocating pairwise counts! \n", spacer);
@@ -2352,7 +2354,6 @@ int CountPairwise(void) {
 
 /*
  * Utility function for resetting CI calculation flags. 
- *
  */
 int PrepareHybridStep(int chain)
 {
@@ -2413,11 +2414,6 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
                 like = 0.0;
                 nijk=pairwiseCounts[tIdx(p,i,j,4,4)];
                 pijk=doubP[idx++];
-
-                if (0) {
-                MrBayesPrint("doubl prob: %f \n", pijk);
-                MrBayesPrint("count : %d \n", nijk);
-                }
 
                 if (nijk == 0)
                     like+=0;
@@ -2658,11 +2654,11 @@ int CalcPairwiseWeights (int chain) {
         tree = GetTree(m->brlens, chain, state[chain]);
 
         nStates = m->numModelStates;
-        nSplits = mp->numDataSplits;
+        nSplits = m->numDataSplits;
         nPairs = m->numPairs;
         numBranches=numLocalTaxa*2 - 3;
 
-        overallPwIdx = mp->numDataSplits;
+        overallPwIdx = m->numDataSplits;
 
         /*  * 
          *  Initialize necessary arrays:

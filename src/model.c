@@ -3298,7 +3298,7 @@ int DoLsetParm (char *parmName, char *tkn)
             }
 
         /* set  Pairwise flag (pairwise) **********************************************************************/
-        else if (!strcmp(parmName, "Pairwise"))
+        else if (!strcmp(parmName, "UsePairwise"))
             {
             if (expecting == Expecting(EQUALSIGN))
                 expecting = Expecting(ALPHA);
@@ -3319,14 +3319,17 @@ int DoLsetParm (char *parmName, char *tkn)
                                 if (!strcmp(tempStr, "Yes"))
                                     {
                                     /* modelSettings[i].usePairwise = YES; */
-                                    modelSettings->usePairwise=YES;
+                                    modelSettings[i].usePairwise=YES;
                                     }
                                 else
                                     {
-                                    modelSettings->usePairwise=NO;
+                                    modelSettings[i].usePairwise=NO;
                                     }
                                     /*  modelSettings[i].usePairwise = NO; */
-                                MrBayesPrint ("%s   Setting Pairwise flag to %d\n", spacer, modelSettings->usePairwise);
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting usePairwise to %d\n", spacer, modelSettings[i].usePairwise);
+                                else
+                                    MrBayesPrint ("%s   Setting usePairwise to %d for partition %d\n", spacer, modelSettings[i].usePairwise, i+1);
                                 /* 
                                 if (nApplied == 0 && numCurrentDivisions == 1)
                                 else
@@ -3376,24 +3379,24 @@ int DoLsetParm (char *parmName, char *tkn)
                                     modelSettings[i].useTriples = NO;
                                     modelSettings[i].useFull = NO;
                                     */
-                                    modelSettings->useTriples = NO;   
-                                    modelSettings->useFullForAlpha = NO;
+                                    modelSettings[i].useTriples = NO;   
+                                    modelSettings[i].useFullForAlpha = NO;
                                     }
                                 else if (!strcmp(tempStr, "Full"))
                                     {
-                                    modelSettings->useTriples = NO;
-                                    modelSettings->useFullForAlpha = YES;
+                                    modelSettings[i].useTriples = NO;
+                                    modelSettings[i].useFullForAlpha = YES;
                                     } 
                                 else if (!strcmp(tempStr, "Triplet"))
                                     {
-                                    modelSettings->useTriples = YES;
-                                    modelSettings->useFullForAlpha = NO;
+                                    modelSettings[i].useTriples = YES;
+                                    modelSettings[i].useFullForAlpha = NO;
                                     } 
                                 if (nApplied == 0 && numCurrentDivisions == 1)
-                                    MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d\n", spacer, modelSettings->useTriples, modelSettings->useFullForAlpha);
+                                    MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d\n", spacer, modelSettings[i].useTriples, modelSettings[i].useFullForAlpha);
                                 else
                                     MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d for partition %d\n", 
-                                                    spacer, modelSettings->useTriples,modelSettings->useFullForAlpha, i+1);
+                                                    spacer, modelSettings[i].useTriples,modelSettings[i].useFullForAlpha, i+1);
                                 }
                             else 
                                 {
@@ -3440,13 +3443,13 @@ int DoLsetParm (char *parmName, char *tkn)
                                 {
                                 if (!strcmp(tempStr, "Yes"))
                                     {
-                                    modelSettings->pwHotChains=1;
+                                    modelSettings[i].pwHotChains=1;
                                     }
                                 if (nApplied == 0 && numCurrentDivisions == 1)
-                                    MrBayesPrint ("%s   Setting Pw hot chain flag to to: pwHotChains=%d\n", spacer, modelSettings->pwHotChains);
+                                    MrBayesPrint ("%s   Setting Pw hot chain flag to to: pwHotChains=%d\n", spacer, modelSettings[i].pwHotChains);
                                 else
                                     MrBayesPrint ("%s   Setting to:  pwHotChains=%d for partition %d\n", 
-                                                    spacer, modelSettings->pwHotChains, i+1);
+                                                    spacer, modelSettings[i].pwHotChains, i+1);
                                 }
                             else 
                                 {
@@ -3496,7 +3499,7 @@ int DoLsetParm (char *parmName, char *tkn)
                                 {
                                 if (tempInt!=0)
                                     {
-                                     modelSettings[i].usePwWeights = YES;
+                                     modelSettings[i].usePwWeights=YES;
                                      modelSettings[i].pwWeight=tempInt;
                                     // modelSettings->pwWeights=YES;
                                     }
@@ -3506,12 +3509,12 @@ int DoLsetParm (char *parmName, char *tkn)
                                     // modelSettings->pwWeights=NO;
                                     }
                                 MrBayesPrint ("%s   Setting pw weighting flag to %d\n", spacer, modelSettings[i].usePwWeights);
-                                /* 
                                 if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting pw weights flag to %d \n", 
+                                                    spacer, modelSettings[i].usePairwise);
                                 else
-                                    MrBayesPrint ("%s   Setting Pairwise flag to %d for partition %d\n", 
+                                    MrBayesPrint ("%s   Setting pw weights flag to %d for partition %d\n", 
                                                     spacer, modelSettings[i].usePairwise, i+1);
-                                 */
                                 }
                             else 
                                 {
@@ -3549,11 +3552,11 @@ int DoLsetParm (char *parmName, char *tkn)
                         {
                         if ((activeParts[i] == YES || nApplied == 0) && (modelParams[i].dataType != CONTINUOUS))
                             {
-                            modelParams[i].numDataSplits = tempInt;
+                            modelSettings[i].numDataSplits = tempInt;
                             if (nApplied == 0 && numCurrentDivisions == 1)
-                                MrBayesPrint ("%s   Setting Numdatasplits to %d\n", spacer, modelParams[i].numDataSplits);
+                                MrBayesPrint ("%s   Setting Numdatasplits to %d\n", spacer, modelSettings[i].numDataSplits);
                             else
-                                MrBayesPrint ("%s   Setting Numdatasplits to %d for partition %d\n", spacer, modelParams[i].numDataSplits, i+1);
+                                MrBayesPrint ("%s   Setting Numdatasplits to %d for partition %d\n", spacer, modelSettings[i].numDataSplits, i+1);
                             }
                         }
                     }

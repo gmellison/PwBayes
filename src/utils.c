@@ -106,7 +106,6 @@ void    GaussianElimination (int dim, MrBFlt **a, MrBFlt **bMat, MrBFlt **xMat);
 int     Hqr2 (int dim, int low, int high, MrBFlt **h, MrBFlt *wr, MrBFlt *wi, MrBFlt **z);
 MrBFlt  IncompleteBetaFunction (MrBFlt alpha, MrBFlt beta, MrBFlt x);
 MrBFlt  IncompleteGamma (MrBFlt x, MrBFlt alpha, MrBFlt LnGamma_alpha);
-int     InvertMatrix (int dim, MrBFlt **a, MrBFlt *col, int *indx, MrBFlt **aInv);
 MrBFlt  LBinormal (MrBFlt h1, MrBFlt h2, MrBFlt r);
 int     LogBase2Plus1 (MrBFlt x);
 void    LUBackSubstitution (int dim, MrBFlt **a, int *indx, MrBFlt *b);

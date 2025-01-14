@@ -228,6 +228,7 @@ void      FreeSquareComplexMatrix (MrBComplex **m);
 void      FreeSquareDoubleMatrix (MrBFlt **m);
 void      FreeSquareIntegerMatrix (int **m);
 int       GetEigens (int dim, MrBFlt **q, MrBFlt *eigenValues, MrBFlt *eigvalsImag, MrBFlt **eigvecs, MrBFlt **inverseEigvecs, MrBComplex **Ceigvecs, MrBComplex **CinverseEigvecs);
+int       InvertMatrix (int dim, MrBFlt **a, MrBFlt *col, int *indx, MrBFlt **aInv);
 MrBFlt    LnFactorial (int value);
 MrBFlt    LnGamma (MrBFlt alp);
 MrBFlt    LnPriorProbExponential (MrBFlt val, MrBFlt *params);

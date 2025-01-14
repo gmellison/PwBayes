@@ -7974,7 +7974,6 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
         TIME(m->Likelihood (tree->root->left, d, chain, lnL, (chainId[chain] % chainParams.numChains)),CPULilklihood);
         } 
 
-    
     return;
 }
 
