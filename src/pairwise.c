@@ -2317,13 +2317,15 @@ int CountPairwise(int division) {
     //MrBayesPrint("%s Using pairwise likelihood with %d pairs. \n", spacer, numPairs);
 
     /* first allocate pairwise doublet counts:  */
-    m->pairwiseCounts=(int*)SafeMalloc(numPairs * 16 * sizeof(int));
-    if (!pairwiseCounts)
+    m->pwCounts=(int*)SafeMalloc(numPairs * 16 * sizeof(int));
+
+    if (!m->pwCounts)
         {
         MrBayesPrint("%s Problem allocating pairwise counts! \n", spacer);
-        free(pairwiseCounts);
+        free(m->pwCounts);
         return(ERROR);
         }
+
     memAllocs[ALLOC_PAIRWISE]=YES;
 
     /* now count the doublets across taxa pairs */
