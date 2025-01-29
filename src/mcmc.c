@@ -5866,8 +5866,8 @@ int InitChainCondLikes (void)
         /* find size of tree */
         nIntNodes = GetTree(m->brlens, 0, 0)->nIntNodes;
         nNodes = GetTree(m->brlens, 0, 0)->nNodes;
-        m->numPairs = (nNodes - nIntNodes) * (nNodes - nIntNodes - 1) / 2;
-        m->numTrips = (nNodes - nIntNodes) * (nNodes - nIntNodes - 2) * (nNodes - nIntNodes - 2)/ 6;
+        m->numPairs = (numLocalTaxa) * (numLocalTaxa - 1) / 2;
+        //m->numTrips = (nNodes - nIntNodes) * (nNodes - nIntNodes - 2) * (nNodes - nIntNodes - 2)/ 6;
 
         /* figure out number of cond like arrays */
         m->numCondLikes = (numLocalChains + 1) * (nIntNodes);
