@@ -170,9 +170,9 @@ int             *stateSize;                  /* # states for each compressed cha
 
 
 /*  globals declared here (pairwise.c) */
-int    usePairwise;
-int    useTriples;
-int    useFullForAlpha;
+//int    usePairwise;
+//int    useTriples;
+//int    useFullForAlpha;
 
 
 
@@ -21692,13 +21692,9 @@ int SetUpAnalysis (RandLong *seed)
     if (CompressData() == ERROR)
         return (ERROR);
 
-    if (modelSettings->usePairwise)
-        if (CountPairwise() == ERROR)
-            return (ERROR);
-
-    if (modelSettings->useTriples)
-        if (CountTriplets() == ERROR)
-            return (ERROR);
+    // if (modelSettings->useTriples)
+    //     if (CountTriplets() == ERROR)
+    //         return (ERROR);
 
     /* Add dummy characters, if needed. */
     if (AddDummyChars() == ERROR)

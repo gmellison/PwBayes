@@ -14817,7 +14817,7 @@ void SetUpParms (void)
     PARAM (283, "Dist",           DoPwSetParm,       "\0"); 
     PARAM (284, "Alpha",          DoPwSetParm,       "\0"); 
     PARAM (285, "Relrates",       DoPwSetParm,       "\0"); 
-    PARAM (286, "Pairwise",       DoLsetParm,        "Yes|No|\0"); 
+    PARAM (286, "UsePairwise",       DoLsetParm,        "Yes|No|\0"); 
     PARAM (287, "PwAlphaLike",    DoLsetParm,        "None|Full|Triplet|\0"); 
     PARAM (288, "PwHotChain",     DoLsetParm,        "Yes|No|\0"); 
     PARAM (289, "PwWeights",      DoLsetParm,        "0|1|2|\0"); 

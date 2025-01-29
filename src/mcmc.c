@@ -2470,10 +2470,6 @@ int DoMcmc (void)
     if (InitChainCondLikes () == ERROR)
         goto errorExit;
 
-    /* Initialize pairwise. */
-    if (InitPairwise (numLocalChains) == ERROR)
-         goto errorExit;
-
     /* Initialize adgamma conditional likelihoods */
     if (InitAdGamma () == ERROR)
         goto errorExit;
@@ -2481,6 +2477,10 @@ int DoMcmc (void)
     /* Initialize invariable conditional likelihoods. */
     if (InitInvCondLikes() == ERROR)
         goto errorExit;
+
+    /*  initialize pairwise counts */ 
+    if (InitPairwise() == ERROR)
+        return (ERROR);
 
     /* Allocate BEST chain variables */
     if (numTopologies > 1 && !strcmp(modelParams[0].topologyPr,"Speciestree"))
@@ -5792,7 +5792,7 @@ int InitAugmentedModels (void)
 int InitChainCondLikes (void)
 {
     int         c, d, i, j, k, s, t, numReps, condLikesUsed, nIntNodes, nNodes,
-                clIndex, tiIndex, scalerIndex, indexStep, pwIdx, tripIdx, numTrips;
+                clIndex, tiIndex, scalerIndex, indexStep, pwIdx;
     BitsLong    *charBits;
     CLFlt       *cL;
     ModelInfo   *m;
@@ -6212,35 +6212,35 @@ int InitChainCondLikes (void)
 
 
             /*  allocate pw stuff, if pairwise is set */
-            //if (m->usePairwise) 
-            //    {
-            //    /*  allocate space for pw distances */
-            //    m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
-            //    for (i=0; i<numLocalChains; i++)
-            //        m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
+            if (m->usePairwise) 
+                {
+                /*  allocate space for pw distances */
+                m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+                for (i=0; i<numLocalChains; i++)
+                    m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
 
-            //    /*  allocate space for pw ti probs  */
-            //    m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
-            //    if (!m->tiProbs)
-            //        return (ERROR);
-            //    for (i=0; i<m->numTiProbsPw; i++)
-            //        {
-            //        m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
-            //        if (m->tiProbsPw[i] == NULL)
-            //             return (ERROR);
-            //        }
+                /*  allocate space for pw ti probs  */
+                m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
+                if (!m->tiProbs)
+                    return (ERROR);
+                for (i=0; i<m->numTiProbsPw; i++)
+                    {
+                    m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
+                    if (m->tiProbsPw[i] == NULL)
+                         return (ERROR);
+                    }
 
-            //    /*  allocate space for pw doublet probs  */
-            //    m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
-            //    if (!m->doubletProbs)
-            //        return (ERROR);
-            //    for (i=0; i<m->numDoubletProbs; i++)
-            //        {
-            //        m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
-            //        if (!m->doubletProbs[i])
-            //            return (ERROR);
-            //        }
-            //    }
+                /*  allocate space for pw doublet probs  */
+                m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
+                if (!m->doubletProbs)
+                    return (ERROR);
+                for (i=0; i<m->numDoubletProbs; i++)
+                    {
+                    m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
+                    if (!m->doubletProbs[i])
+                        return (ERROR);
+                    }
+                }
 
             ///*  allocate triplet stuff if necessary */
             //if (m->useTriples) 
@@ -6265,30 +6265,30 @@ int InitChainCondLikes (void)
 
             } /*  end of (if usebeagle==false)  */
 
-        //if (m->usePairwise) 
-        //    {
-        //    /* allocate and set indices from chain/pair to pw probs */
-        //    m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-        //    if (!m->pwIndex)
-        //        return (ERROR);
-        //    for (i=0; i<numLocalChains; i++)
-        //        {
-        //        m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
-        //        if (!m->pwIndex[i])
-        //            return (ERROR);
-        //        }
+        if (m->usePairwise) 
+            {
+            /* allocate and set indices from chain/pair to pw probs */
+            m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+            if (!m->pwIndex)
+                return (ERROR);
+            for (i=0; i<numLocalChains; i++)
+                {
+                m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
+                if (!m->pwIndex[i])
+                    return (ERROR);
+                }
 
-        //    /* set up pw indices */
-        //    pwIdx = 0;
-        //    for (i=0; i<numLocalChains; i++)
-        //        {
-        //        for (j=0; j<m->numPairs; j++)
-        //            {
-        //            m->pwIndex[i][j] = pwIdx;
-        //            pwIdx += indexStep;
-        //            }
-        //        }
-        //    }
+            /* set up pw indices */
+            pwIdx = 0;
+            for (i=0; i<numLocalChains; i++)
+                {
+                for (j=0; j<m->numPairs; j++)
+                    {
+                    m->pwIndex[i][j] = pwIdx;
+                    pwIdx += indexStep;
+                    }
+                }
+            }
         //    
         //if (m->useTriples)         
         //    {
@@ -17107,6 +17107,7 @@ int RunChain (RandLong *seed)
                 else if (modelSettings->pwHotChains == YES && chainId[chn] % chainParams.numChains == 0)
                     if (PrepareHybridStep(chn) == ERROR)
                         MrBayesPrint("%s Error preparing for hybrid step", spacer);
+
                 lnLike=LogLike(chn);                
                 }
 

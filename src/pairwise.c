@@ -1298,177 +1298,177 @@ int FreePairwiseDists(PairwiseDists* pd)
     return(NO_ERROR);
 }
 
-int InitPairwise(int numLocalChains) 
-{
-    int         d, i, j, c, k, id1, id2,
-                indexStep, pwIdx, tripIdx;
-    ModelInfo   *m;
-
-    for (d=0; d<numCurrentDivisions; d++)
-        {
-        m = &modelSettings[d];
-        if (m->usePairwise == NO) 
-            continue;
-        
-        if (m->dataType != DNA)
-            {
-            MrBayesPrint("%s attempt to init pairwise for division with non DNA data", spacer);
-            return ERROR; 
-            }
-
-        /* find size of tree */
-        //nIntNodes = GetTree(m->brlens, 0, 0)->nIntNodes;
-        //nNodes = GetTree(m->brlens, 0, 0)->nNodes;
-
-        m->numPairs = (numLocalTaxa) * (numLocalTaxa - 1) / 2;
-        m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
-        m->doubletProbsLength = m->numModelStates * m->numModelStates;
-        //m->numTiProbs = (numLocalChains + 1) * nNodes;
-        m->numTiProbsPw = (numLocalChains + 1) * m->numPairs;
-        m->numDoubletProbs = (numLocalChains + 1) * m->numPairs;
-        
-        /*  allocate space for pw distances */
-        m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
-        for (i=0; i<numLocalChains; i++)
-            m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
-
-        /*  allocate space for pw ti probs  */
-        m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
-        if (!m->tiProbs)
-            return (ERROR);
-        for (i=0; i<m->numTiProbsPw; i++)
-            {
-            m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
-            if (m->tiProbsPw[i] == NULL)
-                 return (ERROR);
-            }
-
-        /*  allocate space for pw doublet probs  */
-        m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
-        if (!m->doubletProbs)
-            return (ERROR);
-        for (i=0; i<m->numDoubletProbs; i++)
-            {
-            m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
-            if (!m->doubletProbs[i])
-                return (ERROR);
-            }
-
-        /* allocate and set indices from chain/pair to pw probs */
-        m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-        if (!m->pwIndex)
-            return (ERROR);
-        for (i=0; i<numLocalChains; i++)
-            {
-            m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
-            if (!m->pwIndex[i])
-                return (ERROR);
-            }
-
-        indexStep=1;
-        /* set up pw indices */
-        pwIdx = 0;
-        for (i=0; i<numLocalChains; i++)
-            {
-            for (j=0; j<m->numPairs; j++)
-                {
-                m->pwIndex[i][j] = pwIdx;
-                pwIdx += indexStep;
-                }
-            }
-
-        m->pwCounts=(int*)SafeMalloc(m->numPairs * 16 * sizeof(int));
-        if (!m->pwCounts)
-            {
-            MrBayesPrint("%s Problem allocating pairwise counts! \n", spacer);
-            free(m->pwCounts);
-            return(ERROR);
-            }
-
-        ///memAllocs[ALLOC_PAIRWISE]=YES;
-
-        /* now count the doublets across taxa pairs */
-        for (i=0; i<(numTaxa-1); i++)
-            {
-            for (j=i+1; j<numTaxa; j++)
-                {
-                k=pairIdx(i,j,numTaxa);
-                for (c=0;c<numChar;c++)
-                    {
-                    if (matrix[pos(i,c,numChar)]==GAP | matrix[pos(j,c,numChar)]==GAP)
-                        continue;
-
-                    if (charInfo[c].isExcluded == YES || partitionId[c][partitionNum]!=d+1) 
-                        continue;
-
-                    /* nucleotides at position x of sequences i & j   */        
-                    id2=toIdx(matrix[pos(j,c,numChar)]);
-                    id1=toIdx(matrix[pos(i,c,numChar)]);
-
-                    /* increment the count of that nucleotide pair, at pair k  */
-                    m->pwCounts[tIdx(k,id1,id2,4,4)]++;
-                    }
-                }
-            }
-
-        memAllocs[ALLOC_PAIRWISE] = YES;
-
-        /*  allocate triplet stuff if necessary */
-        if (!m->useTriples) 
-            continue;
-
-        m->numTrips = (numLocalTaxa) * (numLocalTaxa - 1) * (numLocalTaxa - 2)/ 6;
-        m->tiProbsTripLength = m->numModelStates * m->numModelStates * m->numTiCats;
-        m->tripleProbsLength = m->numModelStates * m->numModelStates * m->numModelStates;
-        m->numTiProbsTrip = (numLocalChains + 1) * m->numTrips * 3;
-        m->numTripleProbs = (numLocalChains + 1) * m->numTrips;
-    
-        /*  allocate triple cn distances */
-        m->tripleCnDists=(MrBFlt**)SafeMalloc(numLocalChains * sizeof(MrBFlt*));
-        for (i=0;i<numLocalChains;i++)
-            m->tripleCnDists[i]=(MrBFlt*)SafeMalloc(m->numTrips * 3 * sizeof(MrBFlt));
-
-        /*  allocate triple ti probabilities */
-        m->tripleTiProbs=(CLFlt**)SafeMalloc(m->numTiProbsTrip * sizeof(CLFlt*));
-        for (i=0;i<m->numTiProbsTrip;i++)
-            m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->tiProbsTripLength * sizeof(CLFlt));
-        MrBayesPrint("TripleTiProbs Size: %d, %d \n", m->numTiProbsTrip, m->tiProbsTripLength);
-
-        /*  allocate triple site pattern probabilities */
-        m->tripleProbs=(CLFlt**)SafeMalloc(m->numTripleProbs * sizeof(CLFlt*));
-        for (i=0;i<m->numTripleProbs;i++)
-            m->tripleProbs[i]=(CLFlt*)SafeMalloc(m->tripleProbsLength * sizeof(CLFlt));
-
-         /*  allocate triple indices  */
-        m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
-        if (!m->tripIndex)
-            return (ERROR);
-        for (i=0; i<numLocalChains; i++)
-            {
-            m->tripIndex[i] = (int *) SafeMalloc (m->numTrips * sizeof(int));
-            if (!m->tripIndex[i])
-                return (ERROR);
-            }
-
-        /* set up triple indices */
-        tripIdx = 0;
-        for (i=0; i<numLocalChains; i++)
-            {
-            for (j=0; j<m->numTrips; j++)
-                {
-                m->tripIndex[i][j] = tripIdx;
-                tripIdx += indexStep;
-                }
-            }
-            
-      
-        /* set pwWeight temporarily. It'll be updated once the chain has run for some time  */ 
-        if (m->usePwWeights)  
-            m->pwWeight=1.0;  
-
-        }
-    return NO_ERROR;
-}
+//int InitPairwiseCondLikes(int numLocalChains) 
+//{
+//    int         d, i, j, c, k, id1, id2,
+//                indexStep, pwIdx, tripIdx;
+//    ModelInfo   *m;
+//
+//    for (d=0; d<numCurrentDivisions; d++)
+//        {
+//        m = &modelSettings[d];
+//        if (m->usePairwise == NO) 
+//            continue;
+//        
+//        if (m->dataType != DNA)
+//            {
+//            MrBayesPrint("%s attempt to init pairwise for division with non DNA data", spacer);
+//            return ERROR; 
+//            }
+//
+//        /* find size of tree */
+//        //nIntNodes = GetTree(m->brlens, 0, 0)->nIntNodes;
+//        //nNodes = GetTree(m->brlens, 0, 0)->nNodes;
+//
+//        m->numPairs = (numLocalTaxa) * (numLocalTaxa - 1) / 2;
+//        m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
+//        m->doubletProbsLength = m->numModelStates * m->numModelStates;
+//        //m->numTiProbs = (numLocalChains + 1) * nNodes;
+//        m->numTiProbsPw = (numLocalChains + 1) * m->numPairs;
+//        m->numDoubletProbs = (numLocalChains + 1) * m->numPairs;
+//        
+//        /*  allocate space for pw distances */
+//        m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+//        for (i=0; i<numLocalChains; i++)
+//            m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
+//
+//        /*  allocate space for pw ti probs  */
+//        m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
+//        if (!m->tiProbs)
+//            return (ERROR);
+//        for (i=0; i<m->numTiProbsPw; i++)
+//            {
+//            m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
+//            if (m->tiProbsPw[i] == NULL)
+//                 return (ERROR);
+//            }
+//
+//        /*  allocate space for pw doublet probs  */
+//        m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
+//        if (!m->doubletProbs)
+//            return (ERROR);
+//        for (i=0; i<m->numDoubletProbs; i++)
+//            {
+//            m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
+//            if (!m->doubletProbs[i])
+//                return (ERROR);
+//            }
+//
+//        /* allocate and set indices from chain/pair to pw probs */
+//        m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+//        if (!m->pwIndex)
+//            return (ERROR);
+//        for (i=0; i<numLocalChains; i++)
+//            {
+//            m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
+//            if (!m->pwIndex[i])
+//                return (ERROR);
+//            }
+//
+//        indexStep=1;
+//        /* set up pw indices */
+//        pwIdx = 0;
+//        for (i=0; i<numLocalChains; i++)
+//            {
+//            for (j=0; j<m->numPairs; j++)
+//                {
+//                m->pwIndex[i][j] = pwIdx;
+//                pwIdx += indexStep;
+//                }
+//            }
+//
+//        m->pwCounts=(int*)SafeMalloc(m->numPairs * 16 * sizeof(int));
+//        if (!m->pwCounts)
+//            {
+//            MrBayesPrint("%s Problem allocating pairwise counts! \n", spacer);
+//            free(m->pwCounts);
+//            return(ERROR);
+//            }
+//
+//        ///memAllocs[ALLOC_PAIRWISE]=YES;
+//
+//        /* now count the doublets across taxa pairs */
+//        for (i=0; i<(numTaxa-1); i++)
+//            {
+//            for (j=i+1; j<numTaxa; j++)
+//                {
+//                k=pairIdx(i,j,numTaxa);
+//                for (c=0;c<numChar;c++)
+//                    {
+//                    if (matrix[pos(i,c,numChar)]==GAP | matrix[pos(j,c,numChar)]==GAP)
+//                        continue;
+//
+//                    if (charInfo[c].isExcluded == YES || partitionId[c][partitionNum]!=d+1) 
+//                        continue;
+//
+//                    /* nucleotides at position x of sequences i & j   */        
+//                    id2=toIdx(matrix[pos(j,c,numChar)]);
+//                    id1=toIdx(matrix[pos(i,c,numChar)]);
+//
+//                    /* increment the count of that nucleotide pair, at pair k  */
+//                    m->pwCounts[tIdx(k,id1,id2,4,4)]++;
+//                    }
+//                }
+//            }
+//
+//        memAllocs[ALLOC_PAIRWISE] = YES;
+//
+//        /*  allocate triplet stuff if necessary */
+//        if (!m->useTriples) 
+//            continue;
+//
+//        m->numTrips = (numLocalTaxa) * (numLocalTaxa - 1) * (numLocalTaxa - 2)/ 6;
+//        m->tiProbsTripLength = m->numModelStates * m->numModelStates * m->numTiCats;
+//        m->tripleProbsLength = m->numModelStates * m->numModelStates * m->numModelStates;
+//        m->numTiProbsTrip = (numLocalChains + 1) * m->numTrips * 3;
+//        m->numTripleProbs = (numLocalChains + 1) * m->numTrips;
+//    
+//        /*  allocate triple cn distances */
+//        m->tripleCnDists=(MrBFlt**)SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+//        for (i=0;i<numLocalChains;i++)
+//            m->tripleCnDists[i]=(MrBFlt*)SafeMalloc(m->numTrips * 3 * sizeof(MrBFlt));
+//
+//        /*  allocate triple ti probabilities */
+//        m->tripleTiProbs=(CLFlt**)SafeMalloc(m->numTiProbsTrip * sizeof(CLFlt*));
+//        for (i=0;i<m->numTiProbsTrip;i++)
+//            m->tripleTiProbs[i]=(CLFlt*)SafeMalloc(m->tiProbsTripLength * sizeof(CLFlt));
+//        MrBayesPrint("TripleTiProbs Size: %d, %d \n", m->numTiProbsTrip, m->tiProbsTripLength);
+//
+//        /*  allocate triple site pattern probabilities */
+//        m->tripleProbs=(CLFlt**)SafeMalloc(m->numTripleProbs * sizeof(CLFlt*));
+//        for (i=0;i<m->numTripleProbs;i++)
+//            m->tripleProbs[i]=(CLFlt*)SafeMalloc(m->tripleProbsLength * sizeof(CLFlt));
+//
+//         /*  allocate triple indices  */
+//        m->tripIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+//        if (!m->tripIndex)
+//            return (ERROR);
+//        for (i=0; i<numLocalChains; i++)
+//            {
+//            m->tripIndex[i] = (int *) SafeMalloc (m->numTrips * sizeof(int));
+//            if (!m->tripIndex[i])
+//                return (ERROR);
+//            }
+//
+//        /* set up triple indices */
+//        tripIdx = 0;
+//        for (i=0; i<numLocalChains; i++)
+//            {
+//            for (j=0; j<m->numTrips; j++)
+//                {
+//                m->tripIndex[i][j] = tripIdx;
+//                tripIdx += indexStep;
+//                }
+//            }
+//            
+//      
+//        /* set pwWeight temporarily. It'll be updated once the chain has run for some time  */ 
+//        if (m->usePwWeights)  
+//            m->pwWeight=1.0;  
+//
+//        }
+//    return NO_ERROR;
+//}
 
 int FreePairwise(int numLocalChains) {
     int         i, j;
@@ -1580,7 +1580,6 @@ int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
     MrBFlt      *dists, **distsTemp;
     ModelInfo   *m;
 
-    /* MrBFlt  *bs;  don't need base freqs since this is JC submodel...*/
     m = &modelSettings[division];
 
     dists = m->pwDists[chain];
@@ -1590,6 +1589,7 @@ int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
     distsTemp=(MrBFlt**)malloc(t->nNodes*sizeof(MrBFlt*)); 
     for (k=0;k<t->nNodes;k++)
             distsTemp[k]=(MrBFlt*)malloc(t->nNodes*sizeof(MrBFlt));
+
 
     /*  make sure dists are init to 0  */
     for (i=0; i<t->nNodes; i++) 
@@ -1771,11 +1771,17 @@ int CountDoublets(int nTaxa) {
                 if (matrix[pos(i,s,numChar)]==GAP | matrix[pos(j,s,numChar)]==GAP)
                     continue;
 
+                if (matrix[pos(i,s,numChar)]==MISSING | matrix[pos(j,s,numChar)]==MISSING)
+                    continue;
+
                 /* nucleotides at position x of sequences i & j   */        
                 id2=toIdx(matrix[pos(j,s,numChar)]);
                 id1=toIdx(matrix[pos(i,s,numChar)]);
 
                 /* increment the count of that nucleotide pair, at pair k  */
+                if (id1 == -1 || id2 == -1)
+                    continue;
+
                 pairwiseCounts[tIdx(k,id1,id2,I,J)]++;
                 }
             }
@@ -1791,7 +1797,8 @@ int toIdx(int x){
     else if (x == 2) return 1;
     else if (x == 4) return 2;
     else if (x == 8) return 3;
-    else if (x == GAP) return 5;
+    else if (x == GAP) return -1;
+    else if (x == MISSING) return -1;
     else {
         MrBayesPrint("Problem in to Idx (maybe bad input: x=%d?)\n", x);
         return ERROR;
@@ -2313,88 +2320,91 @@ int DoubletProbs_Gen(int division, int chain)
  *  TODO: convert this into "InitPairwiseCounts"
  *  along with "InitPairwiseProbs" to run in the main MCMC method  
  *  */
-//int InitPairwise(void) {
-//
-//    int             i,j,k,c,d,id1,id2;
-//    ModelInfo       *m;
-//    
-//    /*  For now, only inplemented for a single partition 
-//     *  of DNA type data */
-//    /*  
-//    MrBayesPrint("Counting Pairwise\n"); 
-//    if (mp->dataType!=DNA && mp->dataType != RNA)
-//        { 
-//        MrBayesPrint("%s Can't count pairwise site-patterns for non DNA data  \n", spacer);
-//        return(ERROR);
-//        }
-//    */
-//
-//    for (d=0; d<numCurrentDivisions; d++) 
-//        {
-//        m=&modelSettings[d];
-//
-//        // MrBayesPrint("Counting Pairwise\n");
-//        if (defMatrix == NO) 
-//            {
-//            MrBayesPrint("%s Matrix needs to be defined before counting doublets  \n", spacer);
-//            return(ERROR);
-//            }  
-//        
-//        //if (numDefinedPartitions > 1)    
-//        //    { 
-//        //    MrBayesPrint("%s Pairwise count likelihood only implemented for a single partition  \n", spacer);
-//        //    return(ERROR);
-//        //    }
-//
-//        //if (memAllocs[ALLOC_PAIRWISE] == YES) 
-//        //    {
-//        //    free(pairwiseCounts);
-//        //    pairwiseCounts=NULL;
-//        //    memAllocs[ALLOC_PAIRWISE] = NO;
-//        //    }
-//
-//        numPairs=(int)numLocalTaxa*(numLocalTaxa-1)/2;
-//        //MrBayesPrint("%s Using pairwise likelihood with %d pairs. \n", spacer, numPairs);
-//
-//        /* first allocate pairwise doublet counts:  */
-//        m->pwCounts=(int*)SafeMalloc(numPairs * 16 * sizeof(int));
-//        if (!m->pwCounts)
-//            {
-//            MrBayesPrint("%s Problem allocating pairwise counts! \n", spacer);
-//            free(m->pwCounts);
-//            return(ERROR);
-//            }
-//
-//        ///memAllocs[ALLOC_PAIRWISE]=YES;
-//
-//        /* now count the doublets across taxa pairs */
-//        for (i=0; i<(numTaxa-1); i++)
-//            {
-//            for (j=i+1; j<numTaxa; j++)
-//                {
-//                k=pairIdx(i,j,numTaxa);
-//                for (c=0;c<numChar;c++)
-//                    {
-//                    if (matrix[pos(i,c,numChar)]==GAP | matrix[pos(j,c,numChar)]==GAP)
-//                        continue;
-//
-//                    if (charInfo[c].isExcluded == YES || partitionId[c][partitionNum] != d+1)
-//
-//                     /* nucleotides at position x of sequences i & j   */        
-//                    id2=toIdx(matrix[pos(j,c,numChar)]);
-//                    id1=toIdx(matrix[pos(i,c,numChar)]);
-//
-//                    /* increment the count of that nucleotide pair, at pair k  */
-//                    m->pwCounts[tIdx(k,id1,id2,4,4)]++;
-//
-//                   }
-//                }
-//            }
-//        }
-//
-//    // defPairwise=YES;
-//    return (NO_ERROR);
-//}
+int InitPairwise(void) {
+
+    int             i,j,k,c,d,id1,id2;
+    int             numPairs;
+    ModelInfo       *m;
+    
+    /*  For now, only inplemented for a single partition 
+     *  of DNA type data */
+    /*  
+    MrBayesPrint("Counting Pairwise\n"); 
+    if (mp->dataType!=DNA && mp->dataType != RNA)
+        { 
+        MrBayesPrint("%s Can't count pairwise site-patterns for non DNA data  \n", spacer);
+        return(ERROR);
+        }
+    */
+   if (memAllocs[ALLOC_PAIRWISE] == YES) 
+       {
+       free(pairwiseCounts);
+       for (d=0; d<numCurrentDivisions; d++) 
+           modelSettings[d].pwCounts=NULL;
+       memAllocs[ALLOC_PAIRWISE] = NO;
+       }
+
+
+    for (d=0; d<numCurrentDivisions; d++) 
+        {
+        m=&modelSettings[d];
+        if (!m->usePairwise)
+            continue;
+
+        // MrBayesPrint("Counting Pairwise\n");
+        if (defMatrix == NO) 
+            {
+            MrBayesPrint("%s Matrix needs to be defined before counting doublets  \n", spacer);
+            return(ERROR);
+            }  
+        
+        //if (numDefinedPartitions > 1)    
+        //    { 
+        //    MrBayesPrint("%s Pairwise count likelihood only implemented for a single partition  \n", spacer);
+        //    return(ERROR);
+        //    }
+
+        numPairs=numLocalTaxa*(numLocalTaxa-1)/2;
+
+        /* first allocate pairwise doublet counts:  */
+        m->pwCounts=(int*)SafeMalloc(numPairs * m->numStates * m->numStates * sizeof(int));
+        if (!m->pwCounts)
+            {
+            MrBayesPrint("%s Problem allocating pairwise counts! \n", spacer);
+            free(m->pwCounts);
+            return(ERROR);
+            }
+
+        /* now count the doublets across taxa pairs */
+        for (i=0; i<(numLocalTaxa-1); i++)
+            {
+            for (j=i+1; j<numLocalTaxa; j++)
+                {
+                k=pairIdx(i,j,numLocalTaxa);
+                for (c=0;c<numChar;c++)
+                    {
+                    if (matrix[pos(i,c,numChar)]==GAP | matrix[pos(j,c,numChar)]==GAP | matrix[pos(i,c,numChar)]==MISSING | matrix[pos(j,c,numChar)]==MISSING )
+                        continue;
+
+                    if (charInfo[c].isExcluded == YES || partitionId[c][partitionNum] != d+1)
+                        continue;
+
+                     /* nucleotides at position x of sequences i & j   */        
+                    id1=toIdx(matrix[pos(i,c,numChar)]);
+                    id2=toIdx(matrix[pos(j,c,numChar)]);
+
+                    /* increment the count of that nucleotide pair, at pair k  */
+                    m->pwCounts[tIdx(k,id1,id2,m->numStates,m->numStates)]++;
+
+                    }
+                }
+            }
+        }
+
+    memAllocs[ALLOC_PAIRWISE] = YES;
+
+    return (NO_ERROR);
+}
 
 
 
@@ -2474,13 +2484,15 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
                     return ERROR;
                     }
 
-                if (m->usePwWeights)
-                    like=like*(m->pwWeight);
+                //if (m->usePwWeights)
+                like=like*(1.0/m->numPairs);
 
                 (*lnL)+=like;
+
                 }
             }
         }
+    MrBayesPrint("like = %f \n", *lnL);
 
     return (NO_ERROR);
 }
