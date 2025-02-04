@@ -79,8 +79,8 @@ int CalcPairwiseWeights(int chain);
 int Likelihood_Pairwise(int division, int chain, MrBFlt *lnL);
 
 int CountTriplets(void);
-int InitPairwise(int numLocalChains);
-int FreePairwise(int numCurrentDivisions, int numLocalChains);
+int InitPairwise(void);
+int FreePairwise(int numCurrentDivisions);
 int FreeTriples(void);
 
 int CalcTripletCnDists(int division, int chain);

@@ -1203,7 +1203,8 @@ typedef struct model
     char        inferSiteRates[5];     /* should site rates be inferred (Yes/No)?       */
     char        inferPosSel[5];        /* should site selection be inferred (Yes/No)?   */
 
-    //int         usePairwise;
+    int         usePairwise;
+    MrBFlt      pwWeight; 
     //int         usePairwiseWeights;
     //int         numDataSplits;
 
