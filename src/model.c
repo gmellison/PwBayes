@@ -3497,16 +3497,16 @@ int DoLsetParm (char *parmName, char *tkn)
                             {
                             if (modelSettings[i].dataType == DNA)
                                 {
-                                if (tempInt!=0)
+                                if (tempInt == 1 || tempInt == 2)
                                     {
-                                     modelSettings[i].usePwWeights=YES;
-                                     modelSettings[i].pwWeight=tempInt;
-                                    // modelSettings->pwWeights=YES;
+                                    modelSettings[i].usePwWeights=tempInt;
+                                    modelSettings->usePwWeights=YES;
+                                    modelSettings[i].pwWeight=1.0;
                                     }
                                 else
                                     {
-                                    modelSettings[i].usePwWeights = NO;
-                                    // modelSettings->pwWeights=NO;
+                                    modelSettings[i].usePwWeights=NO;
+                                    modelSettings[i].pwWeight=1.0;
                                     }
                                 MrBayesPrint ("%s   Setting pw weighting flag to %d\n", spacer, modelSettings[i].usePwWeights);
                                 if (nApplied == 0 && numCurrentDivisions == 1)

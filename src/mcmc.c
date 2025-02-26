@@ -17071,7 +17071,6 @@ int RunChain (RandLong *seed)
                 hybridAlphaStep = YES;
                 if (PrepareHybridStep(chn) == ERROR)
                     MrBayesPrint("%s Error preparing for hybrid step", spacer);
-
                 lnLikeAlCurr=LogLike(chn);
                 numAlphaHybridSteps++;
                 }
@@ -17103,7 +17102,10 @@ int RunChain (RandLong *seed)
             if (abortMove == NO)
                 {
                 if (hybridAlphaStep == YES) 
+                    {
                     lnLikeAlMove=LogLike(chn);
+                    PostHybridStep(chn);
+                    }
                 else if (modelSettings->pwHotChains == YES && chainId[chn] % chainParams.numChains == 0)
                     if (PrepareHybridStep(chn) == ERROR)
                         MrBayesPrint("%s Error preparing for hybrid step", spacer);
@@ -17114,12 +17116,14 @@ int RunChain (RandLong *seed)
             /* calculate acceptance probability */
             if (abortMove == NO)
                 {
-                if (hybridAlphaStep)
+                if (hybridAlphaStep == YES)
+                    {
                     lnLikelihoodRatio = lnLikeAlMove - lnLikeAlCurr;
+                    hybridAlphaStep=NO;
+                    }
                 else 
                     lnLikelihoodRatio = lnLike - curLnL[chn];
 
-                hybridAlphaStep=NO;
                 lnPrior = curLnPr[chn] + lnPriorRatio;
 
 #   ifndef NDEBUG
@@ -17242,20 +17246,21 @@ int RunChain (RandLong *seed)
 
         /*  if we're using pairwise weights, check if it's time to update the weight */
 
-//        if (n == stepsTilAlpha) 
-//            {
-//            /* calculate pairwise adjustment weights based on cold chain alpha. (only do this once per run) */
-//            if (modelSettings->usePwWeights )  
-//                {
-//                MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
-//                int err=CalcPairwiseWeights(0);
-//                if (err) return ERROR;
-//                }
-//
-//            /*  update current lnls with weighted lnls */
-//            for (chn=0;chn<numLocalChains;chn++)
-//                curLnL[chn]=LogLikePairwise(chn);
-//            }
+        if (n == 1 && modelSettings->usePwWeights )  
+            {
+            /* calculate pairwise adjustment weights based on cold chain alpha. (only do this once per run) */
+            MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
+            if (CalcPairwiseWeights(0) == ERROR) 
+                {
+                MrBayesPrint("%s Error in CalcPairwiseWeights", spacer);
+                return ERROR;
+                }
+            
+
+            /*  update current lnls with weighted lnls */
+            //for (chn=0;chn<numLocalChains;chn++)
+            //    curLnL[chn]=LogLikePairwise(chn);
+            }
 
 
         /* attempt swap(s) Non-blocking for MPI if no swap with external process. */

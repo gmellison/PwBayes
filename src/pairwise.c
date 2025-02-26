@@ -2418,24 +2418,38 @@ int PrepareHybridStep(int chain)
     TreeNode    *p;
     int         i,d;
 
-    d = 0;
-    m = &modelSettings[d];
-    tree = GetTree(m->brlens, chain, state[chain]);
+    for (d=0; d<numCurrentDivisions; d++)
+    {
+        m = &modelSettings[d];
+        tree = GetTree(m->brlens, chain, state[chain]);
+        m->usePairwise=NO;
+        m->upDateCijk=YES;
 
-    m->upDateCijk=YES;
-
-    for (i=0; i<tree->nIntNodes; i++) 
-        {
-        p = tree->intDownPass[i];
-        p->left->upDateTi=YES;
-        p->right->upDateTi=YES;
-        p->upDateCl=YES; 
-        }
+        for (i=0; i<tree->nIntNodes; i++) 
+            {
+            p = tree->intDownPass[i];
+            p->left->upDateTi=YES;
+            p->right->upDateTi=YES;
+            p->upDateCl=YES; 
+            }
+    }
 
     return (NO_ERROR);
 }
 
+int PostHybridStep(int chain)
+{
+    ModelInfo   *m;
+    int         d;
 
+    for (d=0; d<numCurrentDivisions; d++)
+        {
+        m = &modelSettings[d];
+        m->usePairwise=YES;
+        }
+
+    return (NO_ERROR);
+}
 /*-----------------------------------------------------------------
 |
 |   Likelihood_Pairwise: update transition probabilities for 4by4
@@ -2484,8 +2498,8 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
                     return ERROR;
                     }
 
-                //if (m->usePwWeights)
-                like=like*(1.0/m->numPairs);
+                if (m->usePwWeights)
+                    like=like*m->pwWeight;
 
                 (*lnL)+=like;
 
@@ -2702,13 +2716,17 @@ int CalcPairwiseWeights (int chain) {
     for (d=0; d<numCurrentDivisions; d++)
         {
         m = &modelSettings[d];
-
         tree = GetTree(m->brlens, chain, state[chain]);
 
         nStates = m->numModelStates;
         nSplits = m->numDataSplits;
         nPairs = m->numPairs;
         numBranches=numLocalTaxa*2 - 3;
+//        if (m->usePwWeights == 0)
+//            {
+//            m->pwWeight=(1.0) / (1.0*nPairs);
+//            return(0);
+//            }
 
         overallPwIdx = m->numDataSplits;
 
@@ -3077,7 +3095,7 @@ int CalcPairwiseWeights (int chain) {
             eigsum2 += eigvals[i] * eigvals[i];
         }
 
-        em = eigsum/(1.0*(numBranches+2)); 
+        em = eigsum/(1.0*(numBranches)); 
         v = (eigsum * eigsum) / eigsum2;
 
         m->pwWeight= 2.0 / (numPairs * (numPairs - 1));
@@ -3085,7 +3103,7 @@ int CalcPairwiseWeights (int chain) {
         if (m->usePwWeights == 1)
             m->pwWeight=(1.0) / em;
         else if (m->usePwWeights == 2)  
-            m->pwWeight=v / (1.0*numBranches+2*em);
+            m->pwWeight=v / (1.0*numBranches+2.0*em);
 
         MrBayesPrint("pw weight: %f", m->pwWeight);
 
