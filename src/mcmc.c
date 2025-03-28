@@ -688,7 +688,7 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
                 lnLikeStateBonDataA = 0.0;
                 for (d=0; d<numCurrentDivisions; d++)
                     {
-                    m = &model
+                    m = &modelSettings[d];
                     tree = GetTree(m->brlens, whichElementB, state[whichElementB]);
                     lnL = 0.0;
                     m->Likelihood (tree->root->left, d, whichElementB, &lnL, chainId[whichElementA] % chainParams.numChains);
