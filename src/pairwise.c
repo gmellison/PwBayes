@@ -17,6 +17,7 @@
  * =====================================================================================
  */
 #include <stdlib.h>
+#include <math.h>
 /**
  * @author      : greg (greg@$HOSTNAME)
  * @file        : pairwise
@@ -31,7 +32,6 @@
 #include "model.h"
 #include "likelihood.h"
 #include "main.h"
-
 
 #if defined(__MWERKS__)
 #include "SIOUX.h"
@@ -2323,7 +2323,6 @@ int DoubletProbs_Gen(int division, int chain)
 int InitPairwise(void) {
 
     int             i,j,k,c,d,id1,id2;
-    int             numPairs;
     ModelInfo       *m;
     
     /*  For now, only inplemented for a single partition 
@@ -2364,10 +2363,9 @@ int InitPairwise(void) {
         //    return(ERROR);
         //    }
 
-        numPairs=numLocalTaxa*(numLocalTaxa-1)/2;
-
+        m->numPairs=numLocalTaxa*(numLocalTaxa-1)/2;
         /* first allocate pairwise doublet counts:  */
-        m->pwCounts=(int*)SafeMalloc(numPairs * m->numStates * m->numStates * sizeof(int));
+        m->pwCounts=(int*)SafeMalloc(m->numPairs * m->numStates * m->numStates * sizeof(int));
         if (!m->pwCounts)
             {
             MrBayesPrint("%s Problem allocating pairwise counts! \n", spacer);
@@ -2499,7 +2497,7 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
                     }
 
                 if (m->usePwWeights)
-                    like=like*m->pwWeight;
+                    like=like*m->pwWeight*(2.0/(numLocalTaxa * (numLocalTaxa-1)));
 
                 (*lnL)+=like;
 
@@ -2515,29 +2513,33 @@ MrBFlt LogLikePairwise(int chain)
     ModelInfo  *m;
     Tree       *tree;
     MrBFlt     chainLnLike;
+    int d;
 
-    int d=0; /*  for now, only implemented for a single DNA partition */
     chainLnLike = 0.0;
-    
-    m = &modelSettings[d];
-    tree = GetTree(m->brlens, chain, state[chain]);
-
-    if (m->upDateCijk == YES)
+   
+    for (d=0; d<numCurrentDivisions; d++) 
         {
-        if (UpDateCijk(d, chain)== ERROR)
+        m = &modelSettings[d];
+        tree = GetTree(m->brlens, chain, state[chain]);
+
+        if (m->upDateCijk == YES)
             {
-            (m->lnLike[2*chain+state[chain]]) = MRBFLT_NEG_MAX; /* effectively abort the move */
-            return (MRBFLT_NEG_MAX);
+            if (UpDateCijk(d, chain)== ERROR)
+                {
+                (m->lnLike[2*chain+state[chain]]) = MRBFLT_NEG_MAX; /* effectively abort the move */
+                return (MRBFLT_NEG_MAX);
+                }
+            m->upDateAll = YES;
             }
-        m->upDateAll = YES;
+
+        CalcPairwiseDists_ReverseDownpass(tree,d,chain);
+        m->PwTiProbs(d,chain);
+        m->DoubletProbs(d,chain);
+
+        m->PwLikelihood(d,chain,&(m->lnLike[2*chain+state[chain]]));
+        chainLnLike+=m->lnLike[2*chain+state[chain]];
         }
 
-    CalcPairwiseDists_ReverseDownpass(tree,d,chain);
-    m->PwTiProbs(d,chain);
-    m->DoubletProbs(d,chain);
-
-    m->PwLikelihood(d,chain,&(m->lnLike[2*chain+state[chain]]));
-    chainLnLike+=m->lnLike[2*chain+state[chain]];
     return(chainLnLike);
 }
 
@@ -2721,7 +2723,13 @@ int CalcPairwiseWeights (int chain) {
         nStates = m->numModelStates;
         nSplits = m->numDataSplits;
         nPairs = m->numPairs;
-        numBranches=numLocalTaxa*2 - 3;
+
+
+        if (!tree->isRooted)
+            numBranches=numLocalTaxa*2 - 3;
+        else 
+            numBranches=numLocalTaxa*2 - 2;
+
 //        if (m->usePwWeights == 0)
 //            {
 //            m->pwWeight=(1.0) / (1.0*nPairs);
@@ -2737,7 +2745,7 @@ int CalcPairwiseWeights (int chain) {
 
         V     = AllocateSquareDoubleMatrix(numBranches);
         Vinv  = AllocateSquareDoubleMatrix(numBranches);
-    
+             
         Vc    = AllocateSquareComplexMatrix(numBranches); 
         Vcinv = AllocateSquareComplexMatrix(numBranches);
 
@@ -2825,7 +2833,7 @@ int CalcPairwiseWeights (int chain) {
         J =    (MrBFlt**) SafeMalloc( numBranches * sizeof(MrBFlt*));
         Hinv = (MrBFlt**) SafeMalloc( numBranches * sizeof(MrBFlt*));
         HiJ =  (MrBFlt**) SafeMalloc( numBranches * sizeof(MrBFlt*));
-        for (i=0; i<nPairs; i++) 
+        for (i=0; i<numBranches; i++) 
             { 
             H[i]=(MrBFlt*) SafeMalloc(   numBranches * sizeof(MrBFlt));
             J[i]=(MrBFlt*) SafeMalloc(   numBranches * sizeof(MrBFlt));
@@ -2908,13 +2916,19 @@ int CalcPairwiseWeights (int chain) {
             MrBFlt prop =  (n10[nI] * 1.0) / (n10[nI] + n11[nI]);
             if (n10[nI] == 0) 
                 pwDists[k] = 0.0;
+            else if (n11[nI] == 0)
+                pwDists[k] = TIME_MAX; /* equilibrium...  */
+            else if (prop > 0.75) 
+                pwDists[k] = TIME_MAX;
             else 
                 {
                 if (m->shape != NULL)
                     pwDists[k] = al * (3.0/4) * (pow(1-(4 * prop/3), -(1.0/al)) - 1.0);
                 else 
-                    pwDists[k] = -1.0 * (3.0/4) * log(1.0 - (n10[nI] * 1.0) / (n10[nI] + n11[nI]));
+                    pwDists[k] = -1.0 * (3.0/4) * log(1.0 - prop);
                 }
+                if (isnan(pwDists[k])) 
+                    MrBayesPrint("nan dist\n");
             } 
 
         /* get base rate */
@@ -2975,7 +2989,7 @@ int CalcPairwiseWeights (int chain) {
             for (l1=FirstTaxonInPartition(p->partition, nLongsNeeded); 
                  l1<numLocalTaxa; 
                  l1=NextTaxonInPartition(l1, p->partition, nLongsNeeded))
-                tempPartitionPair[l1]=0; /*  now temp array has 1s for taxa not in partition */
+                 tempPartitionPair[l1]=0; /*  now temp array has 1s for taxa not in partition */
 
             /*  now loop again and fill in 1s for pairs with a taxa in this partition and one not in partition */
             for (l2=FirstTaxonInPartition(p->partition, nLongsNeeded); 
@@ -2999,16 +3013,33 @@ int CalcPairwiseWeights (int chain) {
         for (k=0; k<nPairs; k++) 
             {
             int nRates=m->numRateCats; 
-            for (l=0; l<nRates; l++)
+            if (pwDists[k] == 0.0) 
                 {
-                rc =  baseRate * catRate[l];
-                eterm = exp(-(4.0/3)*rc*pwDists[k]);
-                p_10[k]  +=  (1.0/nRates) * ((3.0/4) - (3.0/4) * eterm);
-                p_11[k]  +=  (1.0/nRates) * ((1.0/4) + (3.0/4) * eterm);
-                p1_10[k] += ( 1.0 / nRates) * rc * eterm;
-                p1_11[k] += (-1.0 / nRates) * rc * eterm;
-                //p2_10[k] += (-4.0 / (3.0*nRates)) * rc*rc * eterm;
-                //p2_11[k] += ( 4.0 / (3.0*nRates)) * rc*rc * eterm;
+                p_10[k] = 0.25;
+                p_11[k] = 0.75;
+                p1_10[k] = 0.0;
+                p1_11[k] = 0.0;
+                }
+            else if (pwDists[k] >= TIME_MAX)
+                {
+                p_10[k] = 0.0;
+                p_11[k] = 1.0;
+                p1_10[k] = 0.0;
+                p1_11[k] = 0.0;
+                }
+            else 
+                {
+                for (l=0; l<nRates; l++)
+                    {
+                    rc =  baseRate * catRate[l];
+                    eterm = exp(-(4.0/3)*rc*pwDists[k]);
+                    p_10[k]  +=  (1.0/nRates) * ((3.0/4) - (3.0/4) * eterm);
+                    p_11[k]  +=  (1.0/nRates) * ((1.0/4) + (3.0/4) * eterm);
+                    p1_10[k] += ( 1.0 / nRates) * rc * eterm;
+                    p1_11[k] += (-1.0 / nRates) * rc * eterm;
+                    //p2_10[k] += (-4.0 / (3.0*nRates)) * rc*rc * eterm;
+                    //p2_11[k] += ( 4.0 / (3.0*nRates)) * rc*rc * eterm;
+                    }
                 }
             }
 
@@ -3017,8 +3048,16 @@ int CalcPairwiseWeights (int chain) {
             {
             for (k=0; k<nPairs; k++)
                 {
-                t1 = (p1_11[k] / p_11[k]);
-                t2 = (p1_10[k] / p_10[k]);
+
+                if (p_11[k] < ETA) 
+                    t1=0.0;
+                else 
+                    t1 = (p1_11[k] / p_11[k]);
+
+                if (p_10[k] < ETA)
+                    t2=0.0;
+                else 
+                    t2 = (p1_10[k] / p_10[k]);
 
                 for (d=0; d<nSplits; d++)
                     {
@@ -3027,7 +3066,9 @@ int CalcPairwiseWeights (int chain) {
                     if (PairBranch[i][k]==1) 
                         {
                         /*  fill in derivative arrays */
-                        D1L[d][i] += (n11[nidx] * t1 + n10[nidx] * t2);
+                        if (isnan((n11[nidx] * t1 + n10[nidx] * t2)))
+                            MrBayesPrint("NaN\n");
+                        D1L[d][i]     += (n11[nidx] * t1 + n10[nidx] * t2);
                         D1LP[d][index] = (n11[nidx] * t1 + n10[nidx] * t2);
                         }
                     }
@@ -3089,7 +3130,7 @@ int CalcPairwiseWeights (int chain) {
         MrBFlt eigsum2=0.0 ;
         MrBFlt em=0.0;
         MrBFlt v=0.0;
-        for (i=0; i<nPairs; i++) {
+        for (i=0; i<numBranches; i++) {
             MrBayesPrint("Eigen %d = %f \n", i, eigvals[i]);
             eigsum += eigvals[i];
             eigsum2 += eigvals[i] * eigvals[i];

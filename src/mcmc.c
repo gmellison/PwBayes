@@ -596,7 +596,7 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
 {
     int             d, tempX, reweightingChars, isSwapSuccessful, chI, chJ, runId;
     MrBFlt          tempA, tempB, lnLikeA, lnLikeB, lnPriorA, lnPriorB, lnR, r,
-                    lnLikeStateAonDataB=0.0, lnLikeStateBonDataA=0.0, lnL, lnLikePwA, lnLikePwB;
+                    lnLikeStateAonDataB=0.0, lnLikeStateBonDataA=0.0, lnL, lnLikeFullA, lnLikeFullB;
     ModelInfo       *m;
     Tree            *tree;
 #   if defined (MPI_ENABLED)
@@ -1200,12 +1200,12 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
 
     if (modelSettings->pwHotChains == YES) /*  We're using pairwise lkhd for hot and full for cold chains */
         {
-        /* if one is hot & one cold , compute the other full likelihood for fair comparison*/
+        /* if one is hot & one cold , compute the cold pw likelihood for fast, fair comparison*/
         if (chainId[swapA] % chainParams.numChains != 0 && chainId[swapB] % chainParams.numChains == 0)
-            { /*  B is the cold chain -- need to calc full likelihood for swapA */
-            lnLikePwA = lnLikeA;
-            TouchEverything(swapA);
-            lnLikeA = LogLike(swapA);
+            { /*  B is the cold chain -- need to calc pw likelihood for swapB */
+            lnLikeFullB = lnLikeB;
+            TouchEverything(swapB);
+            lnLikeB = LogLikePairwise(swapB);
             /*
             lnLikeA = 0.0;
             TouchEverything(swapA);
@@ -1221,9 +1221,9 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
             }
         if (chainId[swapA] % chainParams.numChains == 0 && chainId[swapB] % chainParams.numChains != 0)
             { /*  A is the cold chain  */
-            lnLikePwB = lnLikeB;
-            TouchEverything(swapB);
-            lnLikeB = LogLike(swapB);
+            lnLikeFullA = lnLikeA;
+            TouchEverything(swapA);
+            lnLikeA = LogLikePairwise(swapA);
             /*            lnLikeB = 0.0;
             TouchEverything(swapB);
             for (d=0; d<numCurrentDivisions; d++)
@@ -1278,12 +1278,12 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
     if (isSwapSuccessful && modelSettings->pwHotChains == YES) 
         {
         if (chainId[swapA] % chainParams.numChains == 0 && chainId[swapB] % chainParams.numChains != 0)
-            { /* cold chain: swap B->A -- B WAS the cold chain so set its curLnL to it's full lkhd and B to the pwlkhd */
+            { /* cold chain: swap B<->A -- B WAS the cold chain so set its curLnL to its pw lkhd and A to the full lkhd */
               /*  but indexes still point to pre-swap chains (only the indices swap...) */
-              /*  so, need to replace swapA with the pw likelihood & swapB with the full... */
-            lnLikePwB = LogLikePairwise(swapB);
-            curLnL[swapB] = lnLikePwB;
-            curLnL[swapA] = lnLikeA;
+              /*  so, need to replace swapB with the pw likelihood & swapA with the full... */
+            lnLikeFullA = LogLike(swapA); 
+            curLnL[swapB] = lnLikeB;
+            curLnL[swapA] = lnLikeFullA;
 
             if (curLnL[swapB] > 0 || curLnL[swapB] < -1000000000)
                     MrBayesPrint("Problem!\n");
@@ -1293,9 +1293,9 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
             }
         if (chainId[swapB] % chainParams.numChains == 0 && chainId[swapA] % chainParams.numChains != 0)
             {
-            lnLikePwA = LogLikePairwise(swapA);
-            curLnL[swapA] = lnLikePwA;
-            curLnL[swapB] = lnLikeB;
+            lnLikeFullB = LogLike(swapB);
+            curLnL[swapB] = lnLikeFullB;
+            curLnL[swapA] = lnLikeA;
 
             if (curLnL[swapB] > 0 || curLnL[swapB] < -1000000000)
                     MrBayesPrint("Problem!\n");
@@ -7754,6 +7754,8 @@ MrBFlt LogLike (int chain)
 
     return (chainLnLike);   
 }
+
+
 
 
 MrBFlt LogOmegaPrior (MrBFlt w1, MrBFlt w2, MrBFlt w3)
@@ -17246,9 +17248,10 @@ int RunChain (RandLong *seed)
 
         /*  if we're using pairwise weights, check if it's time to update the weight */
 
-        if (n == 1 && modelSettings->usePwWeights )  
+        if (n == 1 && modelSettings->pwWeight)  
             {
-            /* calculate pairwise adjustment weights based on cold chain alpha. (only do this once per run) */
+            /* calculate pairwise adjustment weights */
+            /*   */
             MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
             if (CalcPairwiseWeights(0) == ERROR) 
                 {
@@ -17256,7 +17259,6 @@ int RunChain (RandLong *seed)
                 return ERROR;
                 }
             
-
             /*  update current lnls with weighted lnls */
             //for (chn=0;chn<numLocalChains;chn++)
             //    curLnL[chn]=LogLikePairwise(chn);
@@ -18407,6 +18409,17 @@ int SetLikeFunctions (void)
                                 {
                                 m->PwTiProbs = &TiProbsPairwise_Gen;
                                 m->DoubletProbs = &DoubletProbs_Gen;
+                                }
+                            if (modelSettings->pwHotChains==YES)
+                                {
+                                m->CondLikeDown = &CondLikeDown_NUC4;
+                                m->CondLikeRoot = &CondLikeRoot_NUC4;
+                                m->CondLikeScaler = &CondLikeScaler_NUC4;
+                                m->Likelihood  = &Likelihood_NUC4;
+                                if (m->nst ==  1)
+                                    m->TiProbs = &TiProbs_Fels;
+                                else if (m->nst == 6)
+                                    m->TiProbs = &TiProbs_Gen;
                                 }
                             }
                         }     
