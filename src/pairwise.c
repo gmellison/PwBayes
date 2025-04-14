@@ -2496,8 +2496,7 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
                     return ERROR;
                     }
 
-                if (m->usePwWeights)
-                    like=like*m->pwWeight*(2.0/(numLocalTaxa * (numLocalTaxa-1)));
+                like=like*(2.0 / (numLocalTaxa * (numLocalTaxa-1)));
 
                 (*lnL)+=like;
 
