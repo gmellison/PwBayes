@@ -3497,10 +3497,9 @@ int DoLsetParm (char *parmName, char *tkn)
                             {
                             if (modelSettings[i].dataType == DNA)
                                 {
-                                if (tempInt == 1 || tempInt == 2)
+                                if (tempInt == 1 || tempInt == 2 || tempInt == 3)
                                     {
                                     modelSettings[i].usePwWeights=tempInt;
-                                    modelSettings->usePwWeights=YES;
                                     modelSettings[i].pwWeight=1.0;
                                     }
                                 else
@@ -3508,13 +3507,12 @@ int DoLsetParm (char *parmName, char *tkn)
                                     modelSettings[i].usePwWeights=NO;
                                     modelSettings[i].pwWeight=1.0;
                                     }
-                                MrBayesPrint ("%s   Setting pw weighting flag to %d\n", spacer, modelSettings[i].usePwWeights);
                                 if (nApplied == 0 && numCurrentDivisions == 1)
                                     MrBayesPrint ("%s   Setting pw weights flag to %d \n", 
-                                                    spacer, modelSettings[i].usePairwise);
+                                                    spacer, modelSettings[i].usePwWeights);
                                 else
                                     MrBayesPrint ("%s   Setting pw weights flag to %d for partition %d\n", 
-                                                    spacer, modelSettings[i].usePairwise, i+1);
+                                                    spacer, modelSettings[i].usePwWeights, i+1);
                                 }
                             else 
                                 {

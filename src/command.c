@@ -14820,7 +14820,7 @@ void SetUpParms (void)
     PARAM (286, "UsePairwise",    DoLsetParm,        "Yes|No|\0"); 
     PARAM (287, "PwAlphaLike",    DoLsetParm,        "None|Full|Triplet|\0"); 
     PARAM (288, "PwHotChain",     DoLsetParm,        "Yes|No|\0"); 
-    PARAM (289, "PwWeights",      DoLsetParm,        "0|1|2|\0"); 
+    PARAM (289, "PwWeights",      DoLsetParm,        "0|1|2|3|\0"); 
     PARAM (290, "Nsplits",        DoLsetParm,        "\0"); 
     PARAM (291, "Stepstilalpha", DoLsetParm,         "\0"); 
     /* NOTE: If a change is made to the parameter table, make certain you change

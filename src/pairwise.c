@@ -2496,7 +2496,8 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
                     return ERROR;
                     }
 
-                like=like*(2.0 / (numLocalTaxa * (numLocalTaxa-1)));
+                if (m->usePwWeights > 0)
+                    like=like*m->pwWeight;
 
                 (*lnL)+=like;
 
@@ -2718,7 +2719,13 @@ int CalcPairwiseWeights (int chain) {
         {
         m = &modelSettings[d];
         tree = GetTree(m->brlens, chain, state[chain]);
-
+        if (m->usePwWeights==3)
+            {
+            m->pwWeight = 2.0 / (numLocalTaxa * (numLocalTaxa - 1));
+            MrBayesPrint("%s pwWeight: %f \n", spacer, m->pwWeight);
+            continue;
+            }
+                
         nStates = m->numModelStates;
         nSplits = m->numDataSplits;
         nPairs = m->numPairs;
@@ -3138,14 +3145,12 @@ int CalcPairwiseWeights (int chain) {
         em = eigsum/(1.0*(numBranches)); 
         v = (eigsum * eigsum) / eigsum2;
 
-        m->pwWeight= 2.0 / (numPairs * (numPairs - 1));
-
         if (m->usePwWeights == 1)
             m->pwWeight=(1.0) / em;
         else if (m->usePwWeights == 2)  
             m->pwWeight=v / (1.0*numBranches+2.0*em);
 
-        MrBayesPrint("pw weight: %f", m->pwWeight);
+        MrBayesPrint("%s pw weight: %f \n", spacer, m->pwWeight);
 
         /*  free allocations   */
         /*  helper matrices */

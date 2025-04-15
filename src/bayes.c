@@ -917,6 +917,7 @@ int InitializeMrBayes (void)
 
     defaultModel.usePairwise=NO;
     defaultModel.pwWeight=1.0;
+
     /* Report format settings */
     strcpy(defaultModel.tratioFormat, "Ratio");         /* default format for tratio                  */
     strcpy(defaultModel.revmatFormat, "Dirichlet");     /* default format for revmat                  */
