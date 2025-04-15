@@ -2697,7 +2697,7 @@ int CalcPairwiseWeights (int chain) {
     MrBFlt *catRate;
     MrBFlt theRate;
     MrBFlt rc;
-    MrBFlt *p_10, *p_11, *p1_10, *p1_11, *p2_10, *p2_11; 
+    MrBFlt *p_10, *p_11, *p1_10, *p1_11; //, *p2_10, *p2_11; 
     int    nidx;
     MrBFlt **J, **H, **Hinv;
     MrBFlt **HiJ, *eigvals, *eigvalsc;
@@ -2735,12 +2735,6 @@ int CalcPairwiseWeights (int chain) {
             numBranches=numLocalTaxa*2 - 3;
         else 
             numBranches=numLocalTaxa*2 - 2;
-
-//        if (m->usePwWeights == 0)
-//            {
-//            m->pwWeight=(1.0) / (1.0*nPairs);
-//            return(0);
-//            }
 
         overallPwIdx = m->numDataSplits;
 
@@ -2797,8 +2791,8 @@ int CalcPairwiseWeights (int chain) {
         p_11 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
         p1_10 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
         p1_11 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
-        p2_10 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
-        p2_11 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
+        //p2_10 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
+        //p2_11 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
 
         for (k=0;k<nPairs;k++)
             {
@@ -3154,12 +3148,16 @@ int CalcPairwiseWeights (int chain) {
 
         /*  free allocations   */
         /*  helper matrices */
+
+        MrBayesPrint("%s 1st free \n", spacer);        
         FreeSquareDoubleMatrix(V);
         FreeSquareDoubleMatrix(Vinv);
         FreeSquareComplexMatrix(Vc);
         FreeSquareComplexMatrix(Vcinv);
+        free(tempPartitionPair);
 
         /*  counts */
+        MrBayesPrint("%s 2nd free \n", spacer);
         free(counts);
         for (i=0; i<(nSplits+1); i++)
             free(countIndex[i]);
@@ -3170,15 +3168,15 @@ int CalcPairwiseWeights (int chain) {
         free(n10);
         free(n11);
 
+        MrBayesPrint("%s 3nd free \n", spacer);
         /*  dists and probabilities */
         free(pwDists);
         free(p_10 );
         free(p_11 );
         free(p1_10); 
         free(p1_11);  
-        //free(p2_10); 
-        //free(p2_11);  
                       
+        MrBayesPrint("%s 4th free \n", spacer);
         /*  hessian and jacobian */
         for (i=0; i<numBranches; i++) 
             { 
@@ -3187,7 +3185,12 @@ int CalcPairwiseWeights (int chain) {
             free(HiJ[i]);
             free(Hinv[i]);
             }
+        free(H);
+        free(J);
+        free(Hinv);
+        free(HiJ);
 
+        MrBayesPrint("%s 5th free \n", spacer);
         for (i=0; i<nSplits; i++) 
             { 
             free(D1L[i]);
@@ -3195,14 +3198,14 @@ int CalcPairwiseWeights (int chain) {
             }
         free(D1L);
         free(D1LP);
-
-        free(H);
-        free(J);
-        free(Hinv);
-        free(HiJ);
-
         free(eigvals);
         free(eigvalsc);
+
+        MrBayesPrint("%s 6th free \n", spacer);
+        for (i=0; i<numBranches; i++)
+            free(PairBranch[i]);
+        free(PairBranch);
+
 
 
         } /* end loop over numCurrentDivisions */
