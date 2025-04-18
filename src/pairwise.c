@@ -2730,13 +2730,13 @@ int CalcPairwiseWeights (int chain) {
         nSplits = m->numDataSplits;
         nPairs = m->numPairs;
 
-
         if (!tree->isRooted)
             numBranches=numLocalTaxa*2 - 3;
         else 
             numBranches=numLocalTaxa*2 - 2;
 
         overallPwIdx = m->numDataSplits;
+        MrBayesPrint("Calc pw weight for %d branch lengths \n", numBranches);
 
         /*  * 
          *  Initialize necessary arrays:
@@ -2749,10 +2749,31 @@ int CalcPairwiseWeights (int chain) {
         Vc    = AllocateSquareComplexMatrix(numBranches); 
         Vcinv = AllocateSquareComplexMatrix(numBranches);
 
+        MrBayesPrint("Allocating counts and \n");
+        MrBayesPrint("pairs %d \n", nPairs);
+        MrBayesPrint("states %d \n", nStates);
+        MrBayesPrint("splits %d \n", nSplits);
+
+        int countLen = (nSplits+1) * nPairs * nStates * nStates;
+        MrBayesPrint("%s count array length: %d \n", spacer, countLen);
+
         counts = (int*) SafeMalloc( (nSplits+1) * nPairs * nStates * nStates * sizeof(int));
+        if (counts == NULL)
+            return(ERROR);
+
+        MrBayesPrint("%s Done alloc counts \n", spacer);
         countIndex=(int**) SafeMalloc( (nSplits+1) * sizeof(int*));
+        if (countIndex == NULL)
+            return(ERROR);        
+
         for (i=0; i<(nSplits+1); i++)
-                countIndex[i]=(int*) SafeMalloc( nPairs * sizeof(int));
+            {
+            countIndex[i]=(int*) SafeMalloc( nPairs * sizeof(int));
+            if (countIndex[i] == NULL)
+                return(ERROR);        
+            }
+
+        MrBayesPrint("%s Done alloc count index \n", spacer);
 
         index=0;
         indexStep=nStates*nStates;
@@ -2764,12 +2785,20 @@ int CalcPairwiseWeights (int chain) {
                 index+=indexStep;
                 }
             }
+        MrBayesPrint("%s Done setting up count index \n", spacer);
 
         /*  init array for pw distances */
         pwDists = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        if (pwDists == NULL) 
+            return (ERROR);
 
         n10 = (int*) SafeMalloc( (nSplits+1) * nPairs * sizeof(int));
+        if (n10 == NULL) 
+            return (ERROR);
+
         n11 = (int*) SafeMalloc( (nSplits+1) * nPairs * sizeof(int));
+        if (n11 == NULL) 
+            return (ERROR);
 
         niiIndex=(int**) SafeMalloc( (nSplits+1) * sizeof(int*));
         for (i=0; i<(nSplits+1); i++)
@@ -2788,20 +2817,24 @@ int CalcPairwiseWeights (int chain) {
 
         /* init arrays for derivatives  */
         p_10 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        if (p_10 == NULL)
+            return(ERROR);
         p_11 = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        if (p_11 == NULL)
+            return(ERROR);
         p1_10 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
+        if (p1_10 == NULL)
+            return(ERROR);
         p1_11 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
-        //p2_10 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
-        //p2_11 = (MrBFlt*) SafeMalloc(nPairs * sizeof(MrBFlt));
+        if (p1_11 == NULL)
+            return(ERROR);
 
         for (k=0;k<nPairs;k++)
             {
-            p_10[k] = 0.0;
-            p_11[k] = 0.0;
-            p1_10[k] =0.0;
-            p1_11[k] =0.0;
-            p2_10[k] =0.0;
-            p2_11[k] =0.0;            
+            p_10[k]  = 0.0;
+            p_11[k]  = 0.0;
+            p1_10[k] = 0.0;
+            p1_11[k] = 0.0;
             }
 
         /*  init arrays for first and second derivs */
@@ -2842,21 +2875,27 @@ int CalcPairwiseWeights (int chain) {
             }
 
         eigvals=(MrBFlt*) SafeMalloc( numBranches * sizeof(MrBFlt));
+        if (eigvals == NULL)
+                return (ERROR);
         eigvalsc=(MrBFlt*) SafeMalloc( numBranches * sizeof(MrBFlt));
+        if (eigvalsc == NULL)
+                return (ERROR);
 
         /* alloc helper vector for storing partition pairs   */
         tempPartitionPair=(int*)SafeMalloc(numLocalTaxa * sizeof(int));
+        MrBayesPrint("done with inits \n");
 
         /*  *
          *  Done initializing
          *  */
 
         /* first calculate the n_ii for the division */
-        for (k=0; k<numTaxa-1; k++) 
+        MrBayesPrint("calc n_ii \n");
+        for (k=0; k<numLocalTaxa-1; k++) 
             {
-            for (l=k+1; l<numTaxa; l++)
+            for (l=k+1; l<numLocalTaxa; l++)
                 {
-                pI=pairIdx(k,l,numTaxa); /*  just get the single pair idx */
+                pI=pairIdx(k,l,numLocalTaxa); /*  just get the single pair idx */
                 overallPwIdx=countIndex[nSplits][pI];
                 for (c=0; c<numChar; c++)
                     {
@@ -2866,17 +2905,25 @@ int CalcPairwiseWeights (int chain) {
                     splitI=(c*nSplits)/numChar;
                     cI=countIndex[splitI][pI];
 
-                    c1=matrix[pos(k,c,numChar)];
-                    c2=matrix[pos(l,c,numChar)];
+                    c1=toIdx(matrix[pos(k,c,numChar)]);
+                    c2=toIdx(matrix[pos(l,c,numChar)]);
 
-                    dI=dIdx(toIdx(c1),toIdx(c2),nStates);
+                    if (c1 < 0 || c2 < 0) 
+                        continue;
+                    dI=dIdx(c1,c2,nStates);
+
                     counts[cI+dI] += 1;
                     counts[overallPwIdx+dI] += 1;
+
+                    if (cI+dI < 0 || overallPwIdx+dI < 0)
+                            MrBayesPrint("possible oob? %d %d %d", cI, overallPwIdx, dI);
                     }
                 }
             }
+        MrBayesPrint("done with calc n_ii \n");
 
         /*  get the counts per data split  */
+        MrBayesPrint("counts per data split \n");
         for (k=0; k<nPairs; k++) 
             {   
             for (splitI=0; splitI<nSplits; splitI++) 
@@ -2904,6 +2951,7 @@ int CalcPairwiseWeights (int chain) {
                     }
                 }
             }
+        MrBayesPrint("done w counts per data split \n");
 
         /*  now just calculate the pw dists */
         MrBFlt al;
@@ -3088,12 +3136,18 @@ int CalcPairwiseWeights (int chain) {
 
                 for (d=0; d<nSplits; d++)
                     {
-                    nidx=niiIndex[d][k];
+                    //nidx=niiIndex[d][k];
                     J[i][j] += (1.0/nSplits) * D1L[d][i] * D1L[d][j] ;
                     for (k=0; k<nPairs; k++ )
                         {
-                        if (PairBranch[i][k] == 1 && PairBranch[j][k]==1)
+                        if (PairBranch[i][k]==1 && PairBranch[j][k]==1)
+                            {
+                            if (nPairs*i+k >= nPairs * numBranches || nPairs*j+k >= nPairs * numBranches)
+                                {
+                                    MrBayesPrint("possible index oob: %d , %d, %d ", nPairs*j+k, nPairs*i+k, nPairs * numBranches );
+                                }
                             H[i][j] += (1.0/nSplits) * D1LP[d][nPairs*i+k] * D1LP[d][nPairs*j+k] ;
+                            }
                         }
                     }
 
@@ -3107,22 +3161,23 @@ int CalcPairwiseWeights (int chain) {
             }
 
         /*  compute  H^-1 * J and the eigenvalues:  */
-        MrBFlt *dw= SafeMalloc((size_t)nPairs*(sizeof(MrBFlt)));
-        int    *iw= SafeMalloc((size_t)nPairs*(sizeof(int)));
+        MrBFlt* dw= (MrBFlt *)SafeMalloc((size_t)numBranches*(sizeof(MrBFlt)));
+        int*    iw= (int *)SafeMalloc((size_t)numBranches*(sizeof(int)));
 
         InvertMatrix(numBranches, H, dw,iw, Hinv);
         MultiplyMatrices(numBranches, Hinv, J, HiJ);
 
-        for (k=0; k<numBranches; k++)
-            {
-            MrBayesPrint("HiJ[%d][.] =",k);
-            for (l=0; l<numBranches; l++)
-                {
-                MrBayesPrint("  % .3f", HiJ[k][l]);
-                }
-                MrBayesPrint("\n");
-            }
+        //for (k=0; k<numBranches; k++)
+        //    {
+        //    MrBayesPrint("HiJ[%d][.] =",k);
+        //    for (l=0; l<numBranches; l++)
+        //        {
+        //        MrBayesPrint("  % .3f", HiJ[k][l]);
+        //        }
+        //        MrBayesPrint("\n");
+        //    }
 
+        MrBayesPrint("Is the problem here???? \n");
         int isComplex=GetEigens(numBranches,HiJ,eigvals,eigvalsc,V,Vinv,Vc,Vcinv);
         MrBayesPrint("isComplex: %d \n", isComplex);
 
@@ -3130,6 +3185,7 @@ int CalcPairwiseWeights (int chain) {
         MrBFlt eigsum2=0.0 ;
         MrBFlt em=0.0;
         MrBFlt v=0.0;
+
         for (i=0; i<numBranches; i++) {
             MrBayesPrint("Eigen %d = %f \n", i, eigvals[i]);
             eigsum += eigvals[i];
@@ -3149,34 +3205,45 @@ int CalcPairwiseWeights (int chain) {
         /*  free allocations   */
         /*  helper matrices */
 
-        MrBayesPrint("%s 1st free \n", spacer);        
+        MrBayesPrint("%s 1st chunk \n", spacer);        
         FreeSquareDoubleMatrix(V);
         FreeSquareDoubleMatrix(Vinv);
         FreeSquareComplexMatrix(Vc);
         FreeSquareComplexMatrix(Vcinv);
         free(tempPartitionPair);
 
+        free(dw);
+        free(iw);
+
         /*  counts */
-        MrBayesPrint("%s 2nd free \n", spacer);
+        MrBayesPrint("%s 2nd chunk \n", spacer);        
         free(counts);
+        MrBayesPrint("%s 2a \n", spacer);        
         for (i=0; i<(nSplits+1); i++)
             free(countIndex[i]);
+        MrBayesPrint("%s 2b \n", spacer);        
         free(countIndex);
         for (i=0; i<(nSplits+1); i++)
             free(niiIndex[i]);
+        MrBayesPrint("%s 2c \n", spacer);        
         free(niiIndex);
+        MrBayesPrint("%s 2d \n", spacer);        
         free(n10);
+        MrBayesPrint("%s 2e \n", spacer);        
         free(n11);
 
-        MrBayesPrint("%s 3nd free \n", spacer);
         /*  dists and probabilities */
+        MrBayesPrint("%s 1st free \n", spacer);        
         free(pwDists);
+        MrBayesPrint("%s 2nd free \n", spacer);
         free(p_10 );
+        MrBayesPrint("%s 3nd free \n", spacer);
         free(p_11 );
+        MrBayesPrint("%s 4th free \n", spacer);
         free(p1_10); 
+        MrBayesPrint("%s 5th free \n", spacer);
         free(p1_11);  
                       
-        MrBayesPrint("%s 4th free \n", spacer);
         /*  hessian and jacobian */
         for (i=0; i<numBranches; i++) 
             { 
@@ -3190,7 +3257,6 @@ int CalcPairwiseWeights (int chain) {
         free(Hinv);
         free(HiJ);
 
-        MrBayesPrint("%s 5th free \n", spacer);
         for (i=0; i<nSplits; i++) 
             { 
             free(D1L[i]);
