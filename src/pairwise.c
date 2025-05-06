@@ -1578,11 +1578,14 @@ int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
     TreeNode    *p;
     double      x;
     MrBFlt      *dists, **distsTemp;
+    //int         *distShare;
     ModelInfo   *m;
 
     m = &modelSettings[division];
 
     dists = m->pwDists[chain];
+    //distShare =m->pwDistsShare[chain];
+
     int numExtNodes = numLocalTaxa;
 
     /*  We'll calculate (in distsTemp) all node dists including internal nodes  */
@@ -1602,7 +1605,34 @@ int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
         p = t->allDownPass[i];
         a = p->anc->index;   
         d = p->index;
-        x = p->length;
+
+        /* find length */
+        if (m->cppEvents != NULL)
+            {
+            x = GetParamSubVals (m->cppEvents, chain, state[chain])[p->index];
+            }
+        else if (m->tk02BranchRates != NULL)
+            {
+            x = GetParamSubVals (m->tk02BranchRates, chain, state[chain])[p->index];
+            }
+        else if (m->wnBranchRates != NULL)
+            {
+            x = GetParamSubVals (m->wnBranchRates, chain, state[chain])[p->index];
+            }
+        else if (m->ilnBranchRates != NULL)
+            {
+            x = GetParamSubVals (m->ilnBranchRates, chain, state[chain])[p->index];
+            }
+        else if (m->igrBranchRates != NULL)
+            {
+            x = GetParamSubVals (m->igrBranchRates, chain, state[chain])[p->index];
+            }
+        else if (m->mixedBrchRates != NULL)
+            {
+            x = GetParamSubVals (m->mixedBrchRates, chain, state[chain])[p->index];
+            }
+        else
+            x = p->length;
 
         /*  start with distance from node to ancestor  */
         distsTemp[d][a] = x;
@@ -1629,6 +1659,27 @@ int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
             dists[pairIdx(i,j,numExtNodes)]=distsTemp[i][j];
         }
     }
+
+    ///* check which pairwise dists are same   */
+    //m->numUniqueDists[chain]=0;
+    //for (i=0;i<(numLocalTaxa*(numLocalTaxa-1)/2);i++)
+    //    {
+    //    distShare[i]=i;
+    //    for (j=0;j<i;j++) 
+    //        {
+    //        if (AreDoublesEqual(dists[i], dists[j], ETA))
+    //            {
+    //            distShare[i]=j;
+    //            break;
+    //            }
+    //        }
+    //    }
+    //for (i=0;i<(numLocalTaxa*(numLocalTaxa-1)/2);i++)
+    //    {
+    //    if (distShare[i] == i) 
+    //        m->numUniqueDists[chain]+=1;
+    //    }
+    ////MrBayesPrint("   uniquedists: %d \n", m->numUniqueDists[chain]);
 
     /*  free temp array and return pointer to taxa pairwise distances */
     for (k=0;k<t->nNodes;k++)
@@ -2064,8 +2115,15 @@ int TiProbsPairwise_JukesCantor (int division, int chain)
     for (p=0; p<m->numPairs; p++)
         {
 
-        tiP = m->tiProbsPw[m->pwIndex[chain][p]];
+        /* only calc tiprobs once -- points to prev calculated probs  */
+        //if (m->pwDistsShare[chain][p] < p) 
+        //    //continue;
+        //    {
+        //    m->tiProbsPw[m->pwIndex[chain][p]] = m->tiProbsPw[m->pwIndex[chain][m->pwDistsShare[chain][p]]];
+        //    continue;
+        //    }
 
+        tiP = m->tiProbsPw[m->pwIndex[chain][p]];
         length = dists[p];
 
         /* fill in values */
@@ -2255,6 +2313,10 @@ int DoubletProbs_JukesCantor(int division, int chain)
 
     for (p=0; p<m->numPairs; p++)
         {
+
+        /* only calc tiprobs once -- points to prev calculated probs  */
+        //if (m->pwDistsShare[chain][p] < p) 
+            //  continue;
 
         tiP = m->tiProbsPw[m->pwIndex[chain][p]];
         doubP = m->doubletProbs[m->pwIndex[chain][p]];
