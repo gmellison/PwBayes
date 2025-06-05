@@ -2486,6 +2486,8 @@ int DoMcmc (void)
     if (numTopologies > 1 && !strcmp(modelParams[0].topologyPr,"Speciestree"))
         AllocateBestChainVariables();
 
+   
+
     /* allocate SS memory for the chains if needed */
     if (chainParams.isSS == YES)
         {
@@ -6218,6 +6220,12 @@ int InitChainCondLikes (void)
                 m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
                 for (i=0; i<numLocalChains; i++)
                     m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
+
+                //m->pwDistsShare = (int**) SafeMalloc(numLocalChains * sizeof(int*));
+                //for (i=0; i<numLocalChains; i++)
+                //    m->pwDistsShare[i] = (int*) SafeMalloc(m->numPairs * sizeof(int));
+
+                //m->numUniqueDists = (int*) SafeMalloc(numLocalChains * sizeof(int*));
 
                 /*  allocate space for pw ti probs  */
                 m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
@@ -16555,6 +16563,7 @@ int RunChain (RandLong *seed)
     CPULilklihood = 0;
 #   endif
 
+
     /* initialize likelihoods and prior                  */
     /* touch everything and calculate initial cond likes */
     TouchAllPartitions ();
@@ -16570,11 +16579,7 @@ int RunChain (RandLong *seed)
         TouchAllTrees (chn);
         TouchAllCijks (chn);
 
-        /*  pairwise  */
-        if ((modelSettings->pwHotChains == NO || chn % chainParams.numChains != 0) )
-            curLnL[chn] = LogLike(chn);
-        else 
-            curLnL[chn] = LogLike(chn);
+        curLnL[chn] = LogLike(chn);
 
         curLnPr[chn] = LogPrior(chn);
         for (i=0; i<numCurrentDivisions; i++)
@@ -17247,16 +17252,26 @@ int RunChain (RandLong *seed)
             }
 
         /*  if we're using pairwise weights, check if it's time to update the weight */
-
         if (n == 1 && modelSettings->pwWeight)  
             {
             /* calculate pairwise adjustment weights */
             /*   */
             MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
-            if (CalcPairwiseWeights(0) == ERROR) 
+            if (modelSettings->nst==1)
                 {
-                MrBayesPrint("%s Error in CalcPairwiseWeights", spacer);
-                return ERROR;
+                if (CalcPairwiseWeights(0) == ERROR) 
+                    {
+                    MrBayesPrint("%s Error in CalcPairwiseWeights", spacer);
+                    return ERROR;
+                    }
+                }
+            else if (modelSettings->nst==6)
+                {
+                if (CalcPairwiseWeights_GTR(0) == ERROR) 
+                    {
+                    MrBayesPrint("%s Error in CalcPairwiseWeights", spacer);
+                    return ERROR;
+                    }
                 }
             
             /*  update current lnls with weighted lnls */

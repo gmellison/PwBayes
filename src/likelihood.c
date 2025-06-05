@@ -7875,7 +7875,7 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
         m->upDateAll = YES;
         }
   
-    if (m->usePairwise || (m->usePairwise && modelSettings->pwHotChains==YES && chain != 0)) 
+    if ((m->usePairwise && modelSettings->pwHotChains==NO )|| (modelSettings->pwHotChains==YES && (chainId[chain] % chainParams.numChains) != 0)) 
         {
         CalcPairwiseDists_ReverseDownpass(tree,d,chain);
         m->PwTiProbs(d,chain);

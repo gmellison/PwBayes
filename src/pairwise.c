@@ -1606,6 +1606,8 @@ int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
         a = p->anc->index;   
         d = p->index;
 
+        //MrBayesPrint("  Outer Loop: Node %d \n", i);
+
         /* find length */
         if (m->cppEvents != NULL)
             {
@@ -1641,6 +1643,7 @@ int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
         /* now revisit previously visited nodes, updating distances  */ 
         for (j=i+1; j<t->nNodes; j++)
             {
+                //MrBayesPrint("  Inner Loop: Node %d \n", j);
                 k=t->allDownPass[j]->index;
                 if (k==a) 
                     continue;
@@ -2604,92 +2607,6 @@ MrBFlt LogLikePairwise(int chain)
 
     return(chainLnLike);
 }
-
-MrBFlt EstPwDist_GTR(int k, int l) 
-{
-    int i,j,pid;
-    MrBFlt tau;
-
-    MrBFlt **V;
-    MrBFlt **Vinv;      
-    MrBFlt **LaLog;     
-                       
-    MrBComplex **Vc;    
-    MrBComplex **Vcinv; 
-    MrBFlt la[4]; 
-    MrBFlt laC[4];
-                       
-    MrBFlt **F;            
-    MrBFlt **Q;            
-    MrBFlt **Temp;         
-
-
-    // set up matrices 
-    V     = AllocateSquareDoubleMatrix(4);
-    Vinv  = AllocateSquareDoubleMatrix(4);
-    LaLog = AllocateSquareDoubleMatrix(4);
-
-    Vc    = AllocateSquareComplexMatrix(4); 
-    Vcinv = AllocateSquareComplexMatrix(4);
-
-    F = AllocateSquareDoubleMatrix(4);
-    Q = AllocateSquareDoubleMatrix(4);
-    Temp = AllocateSquareDoubleMatrix(4);
-    
-    tau=0.0;
-
-    pid = pairIdx(k,l,numTaxa);
-
-    // set up matrix of empirical transitions 
-    //   probabilities, 'Q' (will be modified in place)  
-    for (i=0;i<4;i++) {
-        for (j=0;j<4;j++){
-            F[i][j] = 1.0 * pairwiseCounts[tIdx(pid,i,j,I,J)] / (2*numChar*nucFreqs[j]);
-        }
-    }
-
-    // Symmetrize F:
-    for (i=0;i<4;i++) {
-        for (j=i;j<4;j++){
-            F[i][j] = (F[i][j]+F[j][i])/2.0;
-            if (i != j)
-                    F[j][i] = F[i][j];
-        }
-    }
-
-
-    int isComplex=GetEigens(4,F,la,laC,V,Vinv,Vc,Vcinv);
-    (void)isComplex;
-    
-    // diagonal matrix of log^{lambda_i}, lambdas are eigvals of Q
-    for (i=0;i<4;i++) {
-        LaLog[i][i] = log(la[i]);
-        for (j=0;j<i;j++) {
-            LaLog[i][j]=0.0;
-            LaLog[j][i]=0.0;
-        }
-    }
-    
-    // calculate the matrix log: log(e^Qt) = V log[La] V^-1) 
-    MultiplyMatrices(4,V,LaLog,Temp); 
-    MultiplyMatrices(4,Temp,Vinv,Q); // Q is ptr to resulting matrix
-    
-    // set diagonal so rowsums are 0, mult by inverse Dpi mat:
-    double rowsum;
-    for (i=0;i<4;i++) {
-        rowsum=0.0;
-        for (j=0;j<4;j++) {
-            if (j!=i) rowsum+=Q[i][j];
-        }
-        Q[i][i]=-1*rowsum;
-    }
-    
-    for (i=0;i<4;i++)
-        tau += -1.0 * Q[i][i] * nucFreqs[i];
-    
-    return(tau);
-}
-
 MrBFlt EstPwDist_JC(int p) 
 {
     MrBFlt tau;
@@ -3019,6 +2936,8 @@ int CalcPairwiseWeights (int chain) {
         MrBFlt al;
         if (m->shape != NULL)
             al=*GetParamVals(m->shape,chain,state[chain]);
+        else 
+            al=0.0;
 
         for (k=0; k<nPairs; k++) 
             {   
@@ -3229,19 +3148,8 @@ int CalcPairwiseWeights (int chain) {
         InvertMatrix(numBranches, H, dw,iw, Hinv);
         MultiplyMatrices(numBranches, Hinv, J, HiJ);
 
-        //for (k=0; k<numBranches; k++)
-        //    {
-        //    MrBayesPrint("HiJ[%d][.] =",k);
-        //    for (l=0; l<numBranches; l++)
-        //        {
-        //        MrBayesPrint("  % .3f", HiJ[k][l]);
-        //        }
-        //        MrBayesPrint("\n");
-        //    }
-
-        MrBayesPrint("Is the problem here???? \n");
         int isComplex=GetEigens(numBranches,HiJ,eigvals,eigvalsc,V,Vinv,Vc,Vcinv);
-        MrBayesPrint("isComplex: %d \n", isComplex);
+        //MrBayesPrint("isComplex: %d \n", isComplex);
 
         MrBFlt eigsum=0.0 ;
         MrBFlt eigsum2=0.0 ;
@@ -3341,5 +3249,857 @@ int CalcPairwiseWeights (int chain) {
     return(0);
 }
 
+MrBFlt EstPwDist_GTR(ModelInfo *m, int chain, int* counts, int countIdx, MrBFlt al)
+{
+    int i,j,pid;
+    MrBFlt tau;
+    MrBFlt *bs;
+
+    MrBFlt **V;
+    MrBFlt **Vinv;      
+    MrBFlt **LaLog;     
+                       
+    MrBComplex **Vc;    
+    MrBComplex **Vcinv; 
+    MrBFlt la[4]; 
+    MrBFlt laC[4];
+                       
+    MrBFlt **F;            
+    MrBFlt **Q;            
+    MrBFlt **Temp;         
+
+    // set up matrices 
+    V     = AllocateSquareDoubleMatrix(4);
+    Vinv  = AllocateSquareDoubleMatrix(4);
+    LaLog = AllocateSquareDoubleMatrix(4);
+
+    Vc    = AllocateSquareComplexMatrix(4); 
+    Vcinv = AllocateSquareComplexMatrix(4);
+
+    F = AllocateSquareDoubleMatrix(4);
+    Q = AllocateSquareDoubleMatrix(4);
+    Temp = AllocateSquareDoubleMatrix(4);
+    
+    tau=0.0;
+
+    bs = GetParamSubVals(m->stateFreq, chain, state[chain]);
+
+    // calc denom:
+    int tot=0;
+    for (i=0;i<4;i++) 
+        for (j=0;j<4;j++)
+            tot += counts[countIdx + dIdx(i,j,4)];
+
+    // set up matrix of empirical transitions 
+    //   probabilities, 'Q' (will be modified in place)  
+    for (i=0;i<4;i++) {
+        for (j=0;j<4;j++){
+            F[i][j] = 1.0 * counts[countIdx + dIdx(i,j,4)] / (tot); //TODO: double check
+        }
+    }
+
+    // Symmetrize F:
+    for (i=0;i<4;i++) {
+        for (j=i;j<4;j++){
+            F[i][j] = (F[i][j]+F[j][i])/2.0;
+            if (i != j)
+                    F[j][i] = F[i][j];
+        }
+    }
+
+    int isComplex=GetEigens(4,F,la,laC,V,Vinv,Vc,Vcinv);
+    (void)isComplex;
+    
+    // diagonal matrix of log^{lambda_i}, lambdas are eigvals of Q
+    for (i=0;i<4;i++) {
+        if (al > 0.0) 
+            LaLog[i][i]= al * (pow(1-la[i], -(1.0/al)));
+        else 
+            LaLog[i][i]=log(la[i]);
+
+        for (j=0;j<i;j++) {
+            LaLog[i][j]=0.0;
+            LaLog[j][i]=0.0;
+        }
+    }
+    
+    // calculate the matrix log: log(e^Qt) = V log[La] V^-1) 
+    MultiplyMatrices(4,V,LaLog,Temp); 
+    MultiplyMatrices(4,Temp,Vinv,Q); // Q is ptr to resulting matrix
+    
+    // set diagonal so rowsums are 0, mult by inverse Dpi mat:
+    double rowsum;
+    for (i=0;i<4;i++) {
+        rowsum=0.0;
+        for (j=0;j<4;j++) {
+            if (j!=i) rowsum+=Q[i][j];
+        }
+        Q[i][i]=-1*rowsum;
+    }
+    
+    for (i=0;i<4;i++)
+        tau += -1.0 * Q[i][i] * bs[i];
+
+    // set up matrices 
+    FreeSquareDoubleMatrix(V);
+    FreeSquareDoubleMatrix(Vinv);
+    FreeSquareDoubleMatrix(LaLog);
+
+    FreeSquareComplexMatrix(Vc); 
+    FreeSquareComplexMatrix(Vcinv);
+
+    FreeSquareDoubleMatrix(F);
+    FreeSquareDoubleMatrix(Q);
+    FreeSquareDoubleMatrix(Temp);
+   
+    return(tau);
+}
 
 
+int TranProbMatrix_GTR(ModelInfo *m, int chain, double dist, double al, double *transProbs)
+{
+    int i,j,k;
+
+    MrBFlt **V;
+    MrBFlt **Vinv;      
+    MrBFlt **LaLog;     
+                       
+    MrBComplex **Vc;    
+    MrBComplex **Vcinv; 
+    MrBFlt la[4]; 
+    MrBFlt laC[4];
+                       
+    MrBFlt **F;            
+    MrBFlt **Q;            
+    MrBFlt **Temp;         
+    MrBFlt **TransProbTemp;         
+
+    MrBFlt *bs;
+    MrBFlt *rateValues;
+    MrBFlt *catRate;
+
+    MrBFlt **LaExp;   
+    MrBFlt **TempMat;   
+    MrBFlt **Qtausr;   
+
+    // set up matrices 
+    V     = AllocateSquareDoubleMatrix(4);
+    Vinv  = AllocateSquareDoubleMatrix(4);
+    LaLog = AllocateSquareDoubleMatrix(4);
+
+    Vc    = AllocateSquareComplexMatrix(4); 
+    Vcinv = AllocateSquareComplexMatrix(4);
+
+    F = AllocateSquareDoubleMatrix(4);
+    Q = AllocateSquareDoubleMatrix(4);
+    Temp = AllocateSquareDoubleMatrix(4);
+    TransProbTemp = AllocateSquareDoubleMatrix(4);
+    
+    // compute gtr transition probabilities
+    // set up matrices for taking the matrix exponent
+    LaExp= AllocateSquareDoubleMatrix(4);
+    TempMat= AllocateSquareDoubleMatrix(4);
+    Qtausr= AllocateSquareDoubleMatrix(4);
+
+    // set up q matrix
+    rateValues = GetParamVals(m->revMat, chain, state[chain]);
+    bs = GetParamSubVals(m->stateFreq, chain, state[chain]);
+
+    if (al > 0.0)
+        catRate = GetParamSubVals (m->shape, chain, state[chain]);
+
+
+    /* reset input matrix*/
+    for (i=0;i<4;i++)
+       for (j=0;j<4;j++)
+           transProbs[dIdx(i,j,4)] = 0.0;
+
+
+    /* set diagonal of Q matrix to 0 */
+    for (i=0; i<4; i++)
+        Q[i][i] = 0.0;
+  
+    /* initialize Q matrix */
+    MrBFlt scaler, mult;
+    scaler = 0.0;
+    for (i=0; i<4; i++)
+        {
+        for (j=i+1; j<4; j++)
+            {
+            if (i == 0 && j == 1)
+                mult = rateValues[0];
+            else if (i == 0 && j == 2)
+                mult = rateValues[1];
+            else if (i == 0 && j == 3)
+                mult = rateValues[2];
+            else if (i == 1 && j == 2)
+                mult = rateValues[3];
+            else if (i == 1 && j == 3)
+                mult = rateValues[4];
+            else if (i == 2 && j == 3)
+                mult = rateValues[5];
+            Q[i][i] -= (Q[i][j] = bs[j] * mult);
+            Q[j][j] -= (Q[j][i] = bs[i] * mult);
+            scaler += bs[i] * Q[i][j];
+            scaler += bs[j] * Q[j][i];
+            }
+        }
+       
+    /* rescale Q matrix */
+    scaler = 1.0 / scaler;
+    for (i=0; i<4; i++)
+        for (j=0; j<4; j++)
+            Q[i][j] *= scaler;
+    
+    // now compute the transition probability matrix:
+    for (k=0; k<m->numRateCats; k++)
+        {
+        // probability transition matrix for site rate i:
+        if (al > 0.0)
+            MultiplyMatrixByScalar(4, Q, dist * catRate[k], Qtausr);  
+        else 
+            MultiplyMatrixByScalar(4, Q, dist, Qtausr);  
+
+        int isComplex=GetEigens(4,Qtausr,la,laC,V,Vinv,Vc,Vcinv);
+        if (isComplex) MrBayesPrint("Complex Eigens in Eidendecomp!! \n");
+           
+        // diagonal matrix of e^{lambda_i}, lambdas are eigvals of Q
+        for (i=0;i<4;i++) {
+            LaExp[i][i] = exp(la[i]);
+            for (j=0;j<i;j++) {
+                LaExp[i][j]=0.0;
+                LaExp[j][i]=0.0;
+            }
+        }
+           
+        // diagonal matrix of e^{lambda_i}, lambdas are eigvals of Q
+        MultiplyMatrices(4,V,LaExp,TempMat); 
+        MultiplyMatrices(4,TempMat,Vinv,TransProbTemp);
+
+        for (i=0;i<4;i++)
+            for (j=0;j<4;j++)
+                transProbs[dIdx(i,j,4)] +=  (1.0/m->numRateCats) * TransProbTemp[i][j];
+
+    }
+
+    // free matrices 
+    FreeSquareDoubleMatrix(V);
+    FreeSquareDoubleMatrix(Vinv);
+    FreeSquareDoubleMatrix(LaLog);
+
+    FreeSquareComplexMatrix(Vc); 
+    FreeSquareComplexMatrix(Vcinv);
+
+    FreeSquareDoubleMatrix(F);
+    FreeSquareDoubleMatrix(Q);
+    FreeSquareDoubleMatrix(Temp);
+    FreeSquareDoubleMatrix(TransProbTemp);
+    
+    // compute gtr transition probabilities
+    // set up matrices for taking the matrix exponent
+    FreeSquareDoubleMatrix(LaExp);
+    FreeSquareDoubleMatrix(TempMat);
+    FreeSquareDoubleMatrix(Qtausr);
+
+    return(1);
+}
+
+
+int CalcPairwiseWeights_GTR (int chain) {
+
+    /*  setup the arays for pairwise counts,
+     *  and populate the counts.
+     * 
+     *  this function will supercede the 'PairwiseCounts'
+     *  function, since that just uses a global variable and 
+     *  we want to be able to apply pw likelihood within partitions.
+     *
+     *  We'll also make and populate the counts for the data splits
+     *  for estimating jacobians for weighting the pw likelihood. 
+     *  */
+
+    ModelInfo* m;
+
+    int i,j,k,l,c,c1,c2,d;
+    int pI,cI,dI,splitI;
+    int nI;
+    int *counts;
+    int **countIndex;
+    int overallPwIdx;
+    int index, indexStep;
+    int nSplits, nPairs, nStates;
+    MrBFlt *pwDists;
+    MrBFlt baseRate;
+    MrBFlt *catRate;
+    MrBFlt theRate;
+    //MrBFlt rc;
+    MrBFlt **tp, **tp1; 
+    MrBFlt *tptemp;
+    MrBFlt t1;
+
+    int    nidx;
+    MrBFlt **J, **H, **Hinv;
+    MrBFlt **HiJ, *eigvals, *eigvalsc;
+    int **niiIndex ;
+    int numBranches;
+    Tree *tree;
+    int freeBitsets;
+    int *tempPartitionPair;
+
+    MrBFlt h=0.0000001;
+    MrBFlt *bs;
+
+    /*  first set up worker matrices for eigen computation */
+    // set up matrices 
+    MrBFlt **V, **Vinv;
+    MrBComplex **Vc, **Vcinv; 
+
+    // loop over the partitions:
+    for (d=0; d<numCurrentDivisions; d++)
+        {
+        m = &modelSettings[d];
+
+        bs = GetParamSubVals(m->stateFreq, chain, state[chain]);
+        tree = GetTree(m->brlens, chain, state[chain]);
+        if (m->usePwWeights==3)
+            {
+            m->pwWeight = 2.0 / (numLocalTaxa * (numLocalTaxa - 1));
+            MrBayesPrint("%s pwWeight: %f \n", spacer, m->pwWeight);
+            continue;
+            }
+                
+        nStates = m->numModelStates;
+        nSplits = m->numDataSplits;
+        nPairs = m->numPairs;
+
+        if (!tree->isRooted)
+            numBranches=numLocalTaxa*2 - 3;
+        else 
+            numBranches=numLocalTaxa*2 - 2;
+
+        overallPwIdx = m->numDataSplits;
+        MrBayesPrint("Calc pw weight for %d branch lengths \n", numBranches);
+
+        /*  * 
+         *  Initialize necessary arrays:
+         *  */
+        /* initialize counts & index array */
+
+        V     = AllocateSquareDoubleMatrix(numBranches);
+        Vinv  = AllocateSquareDoubleMatrix(numBranches);
+             
+        Vc    = AllocateSquareComplexMatrix(numBranches); 
+        Vcinv = AllocateSquareComplexMatrix(numBranches);
+
+        MrBayesPrint("Allocating counts and \n");
+        MrBayesPrint("pairs %d \n", nPairs);
+        MrBayesPrint("states %d \n", nStates);
+        MrBayesPrint("splits %d \n", nSplits);
+
+        int countLen = (nSplits+1) * nPairs * nStates * nStates;
+        MrBayesPrint("%s count array length: %d \n", spacer, countLen);
+
+        counts = (int*) SafeMalloc( (nSplits+1) * nPairs * nStates * nStates * sizeof(int));
+        if (counts == NULL)
+            return(ERROR);
+
+        MrBayesPrint("%s Done alloc counts \n", spacer);
+        countIndex=(int**) SafeMalloc( (nSplits+1) * sizeof(int*));
+        if (countIndex == NULL)
+            return(ERROR);        
+
+        for (i=0; i<(nSplits+1); i++)
+            {
+            countIndex[i]=(int*) SafeMalloc( nPairs * sizeof(int));
+            if (countIndex[i] == NULL)
+                return(ERROR);        
+            }
+
+        MrBayesPrint("%s Done alloc count index \n", spacer);
+
+        index=0;
+        indexStep=nStates*nStates;
+        for (i=0; i<(nSplits+1); i++)
+            {
+            for (j=0; j<nPairs; j++)
+                {
+                countIndex[i][j]=index;
+                index+=indexStep;
+                }
+            }
+        MrBayesPrint("%s Done setting up count index \n", spacer);
+
+        /*  init array for pw distances */
+        pwDists = (MrBFlt*) SafeMalloc( nPairs * sizeof(MrBFlt));
+        if (pwDists == NULL) 
+            return (ERROR);
+
+        index=0;
+        indexStep=1;
+
+        /* init arrays for derivatives  */
+        /*  TODO: each deriv will be 4x4 matrix (Q * exp(tau * Q)) */
+        /*  p is transition probabilities, p1 is 1st derive of transition probs */
+        tp = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
+        if (tp == NULL)
+            return(ERROR);
+
+        tp1 = (MrBFlt**) SafeMalloc( nPairs * sizeof(MrBFlt*));
+        if (tp1 == NULL)
+            return(ERROR);
+
+        for (k=0;k<nPairs;k++)
+            {
+            tp[k] = (MrBFlt*) SafeMalloc(16 * sizeof(MrBFlt));
+            if (tp[k] == NULL)
+                return(ERROR);
+
+            tp1[k] = (MrBFlt*) SafeMalloc(16 * sizeof(MrBFlt));
+            if (tp1[k] == NULL)
+                return(ERROR);
+            }
+
+        tptemp = (MrBFlt*) SafeMalloc( 16 * sizeof(MrBFlt));
+        if (tptemp == NULL)
+            return(ERROR);
+
+
+        /*  init arrays for first and second derivs */
+        MrBFlt  **D1L, **D1LP;
+        D1L =  (MrBFlt**) SafeMalloc( nSplits * sizeof(MrBFlt*));
+        if (!D1L)
+            return (ERROR);
+
+        for (i=0; i<nSplits; i++) 
+            { 
+            D1L[i]=(MrBFlt*) SafeMalloc( numBranches * sizeof(MrBFlt));
+            if (!D1L[i])
+                return (ERROR);
+            }
+
+        D1LP =  (MrBFlt**) SafeMalloc( nSplits * sizeof(MrBFlt*));
+        if (!D1LP)
+            return (ERROR);
+
+        for (i=0; i<nSplits; i++) 
+            { 
+            D1LP[i]=(MrBFlt*) SafeMalloc( numBranches * nPairs * sizeof(MrBFlt));
+            if (D1LP[i] == NULL)
+                return (ERROR);
+            }
+
+        /*  init arrays for hessian and jacobian */
+        H =    (MrBFlt**) SafeMalloc( numBranches * sizeof(MrBFlt*));
+        J =    (MrBFlt**) SafeMalloc( numBranches * sizeof(MrBFlt*));
+        Hinv = (MrBFlt**) SafeMalloc( numBranches * sizeof(MrBFlt*));
+        HiJ =  (MrBFlt**) SafeMalloc( numBranches * sizeof(MrBFlt*));
+        for (i=0; i<numBranches; i++) 
+            { 
+            H[i]=(MrBFlt*) SafeMalloc(   numBranches * sizeof(MrBFlt));
+            J[i]=(MrBFlt*) SafeMalloc(   numBranches * sizeof(MrBFlt));
+            Hinv[i]=(MrBFlt*) SafeMalloc(numBranches * sizeof(MrBFlt));
+            HiJ[i]=(MrBFlt*) SafeMalloc( numBranches * sizeof(MrBFlt));
+            }
+
+        eigvals=(MrBFlt*) SafeMalloc( numBranches * sizeof(MrBFlt));
+        if (eigvals == NULL)
+                return (ERROR);
+        eigvalsc=(MrBFlt*) SafeMalloc( numBranches * sizeof(MrBFlt));
+        if (eigvalsc == NULL)
+                return (ERROR);
+
+        /* alloc helper vector for storing partition pairs   */
+        tempPartitionPair=(int*)SafeMalloc(numLocalTaxa * sizeof(int));
+        MrBayesPrint("done with inits \n");
+
+        /*  *
+         *  Done initializing
+         *  */
+
+        /* first calculate the nucleotide pair counts for the division */
+        MrBayesPrint("calc n_ii \n");
+        for (k=0; k<numLocalTaxa-1; k++) 
+            {
+            for (l=k+1; l<numLocalTaxa; l++)
+                {
+                pI=pairIdx(k,l,numLocalTaxa); /*  just get the single pair idx */
+                overallPwIdx=countIndex[nSplits][pI];
+                for (c=0; c<numChar; c++)
+                    {
+                    if (partitionId[c][partitionNum] != d+1) /* only count within partition */
+                        continue; 
+
+                    splitI=(c*nSplits)/numChar;
+                    cI=countIndex[splitI][pI];
+
+                    c1=toIdx(matrix[pos(k,c,numChar)]);
+                    c2=toIdx(matrix[pos(l,c,numChar)]);
+
+                    if (c1 < 0 || c2 < 0) 
+                        continue;
+                    dI=dIdx(c1,c2,nStates);
+
+                    counts[cI+dI] += 1;
+                    counts[overallPwIdx+dI] += 1;
+
+                    if (cI+dI < 0 || overallPwIdx+dI < 0)
+                        MrBayesPrint("possible oob? %d %d %d", cI, overallPwIdx, dI);
+                    }
+                }
+            }
+        // MrBayesPrint("done with calc n_ii \n");
+
+        /*  get the counts per data split  */
+        //MrBayesPrint("counts per data split \n");
+        //for (k=0; k<nPairs; k++) 
+        //    {   
+        //    for (splitI=0; splitI<nSplits; splitI++) 
+        //        {
+        //        cI=countIndex[splitI][k];
+        //        nI=niiIndex[splitI][k];
+        //        nIOverall=niiIndex[nSplits][k];
+        //        for (i=0;i<nStates;i++) 
+        //            {
+        //            for (j=0;j<nStates;j++) 
+        //                {
+        //                dI = dIdx(i,j,nStates);
+        //                count=counts[cI+dI];
+        //                }
+        //            }
+        //        }
+        //    }
+        //MrBayesPrint("done w counts per data split \n");
+
+        /*  now just calculate the pw dists */
+        MrBFlt al;
+        if (m->shape != NULL)
+            al=*GetParamVals(m->shape,chain,state[chain]);
+        else 
+            al=0.0;
+
+
+        /*  can use EstPwDist_GTR function */
+        for (k=0; k<nPairs; k++) 
+            {   
+            nI=countIndex[nSplits][k];
+            pwDists[k] = EstPwDist_GTR(m, chain, counts, nI, al);
+            if (isnan(pwDists[k])) 
+                MrBayesPrint("nan dist\n");
+            }
+
+        /* get base rate */
+        baseRate = GetRate (d, chain);
+    
+        /* compensate for invariable sites if appropriate */
+        if (m->pInvar != NULL)
+            baseRate /= (1.0 - (*GetParamVals(m->pInvar, chain, state[chain])));
+       
+        /* get category rates */
+        theRate = 1.0;
+        if (m->shape != NULL)
+            catRate = GetParamSubVals (m->shape, chain, state[chain]);
+        else if (m->mixtureRates != NULL)
+            catRate = GetParamSubVals (m->mixtureRates, chain, state[chain]);
+        else
+            catRate = &theRate;
+
+        /*  set up pair/branch indicator matrix:  */
+        int nLongsNeeded=((numLocalTaxa-1)/nBitsInALong)+1;
+
+        int **PairBranch;
+        PairBranch = SafeMalloc( numBranches * sizeof(int*)) ;
+        if (!PairBranch) 
+            return(ERROR);
+
+        for (i=0; i<numBranches; i++) 
+            {
+            PairBranch[i] = SafeMalloc(nPairs * sizeof(int));
+            if(!PairBranch[i])
+                return(ERROR);
+            }
+
+        int l1;
+        int l2;
+        TreeNode *p;
+
+        // Make sure we have bitfields allocated and set
+        if (tree->bitsets == NULL)
+            {
+            AllocateTreePartitions(tree);
+            freeBitsets = YES;
+            }
+        else
+            {
+            ResetTreePartitions(tree);   // just in case
+            freeBitsets = NO;
+            }
+
+        for (i=index=0;i<tree->nNodes;i++)
+            {
+            p=&(tree->nodes[i]);
+            if (AreDoublesEqual(p->length,0.0,ETA)) continue;
+
+            for (j=0;j<numLocalTaxa;j++) /*  reset helper array */
+                tempPartitionPair[j]=1;
+
+            for (l1=FirstTaxonInPartition(p->partition, nLongsNeeded); 
+                 l1<numLocalTaxa; 
+                 l1=NextTaxonInPartition(l1, p->partition, nLongsNeeded))
+                 tempPartitionPair[l1]=0; /*  now temp array has 1s for taxa not in partition */
+
+            /*  now loop again and fill in 1s for pairs with a taxa in this partition and one not in partition */
+            for (l2=FirstTaxonInPartition(p->partition, nLongsNeeded); 
+                 l2<numLocalTaxa; 
+                 l2=NextTaxonInPartition(l2, p->partition, nLongsNeeded))
+                { 
+                for (j=0;j<numLocalTaxa;j++)
+                    {
+                    if (j == l2) continue;
+                    if (tempPartitionPair[j] == 1) 
+                        {
+                        k=pairIdx(l2,j,numLocalTaxa);
+                        PairBranch[index][k]=1; /*  both taxa below node, so node not in pair path  */
+                        }
+                    }
+                }
+            index++; 
+            }
+
+        /*  calculate derivatives needed for J/H */
+        /*  This needs to change for GTR model -- compute transition probability matrix 
+         *  derivatives numerically...  */
+
+        for (k=0; k<nPairs; k++) 
+            {
+            int nRates=m->numRateCats; 
+            if (pwDists[k] == 0.0) 
+                {
+                for (i=0; i<4; i++)
+                    {
+                    for (j=0; j<4; j++)
+                        {
+                        d=dIdx(i,j,4);
+                        if (i == j)
+                            tp[k][d] = 1;
+                        else 
+                            tp[k][d] = 0;
+                        tp1[k][d] = 0;
+                        }
+                    }
+                }
+            else if (pwDists[k] >= TIME_MAX)
+                {
+                for (i=0; i<4; i++)
+                    {
+                    for (j=0; j<4; j++)
+                        {
+                        d=dIdx(i,j,4);
+                        tp[k][d] = bs[i];
+                        tp1[k][d] = 0;
+                        }
+                    }
+                }
+            else 
+                {
+                for (l=0; l<nRates; l++)
+                    { 
+                    /*  compute transition probabilities and numerical deriv  */
+                    TranProbMatrix_GTR(m, chain, dist, al, tp[k]);
+
+                    // numerical derivative
+                    TranProbMatrix_GTR(m, chain, dist+h, al, tptemp);
+                    for (i=0;i<4;i++)
+                        for (j=0;j<4;j++)
+                            tp1[k][dIdx(i,j,4)] = (tp[k][dIdx(i,j,4)] - tptemp[dIdx(i,j,4)])/h  ;
+                    }
+                }
+            }
+
+        /*  Now compute first derivs of composite ll   */
+        for (i=index=0; i<numBranches; i++)
+            {
+            for (k=0; k<nPairs; k++)
+                {
+                for (j=0;j<16;j++)
+                    {
+                    if (tp[k][j] < ETA) 
+                        continue;
+                    else 
+                        t1 = (tp1[k][j] / tp1[k][j]);
+
+                    for (d=0; d<nSplits; d++)
+                        {
+                        nidx=countIndex[d][k];
+                        if (PairBranch[i][k]==1) 
+                            {
+                            /*  fill in derivative arrays */
+                            if (isnan(counts[nidx] * t1)) continue;
+                                //MrBayesPrint("NaN\n");
+
+                            D1L[d][i]     += (counts[nidx+j] * t1);
+                            D1LP[d][index] = (counts[nidx+j] * t1);
+                            }
+                        }
+                    }
+                index++;
+                }
+            }
+
+
+        /*  fill in J and H  */
+        for (i=0; i<numBranches; i++)
+            {
+            for (j=i; j<numBranches; j++)
+                {
+                         
+                H[i][j]=0.0;
+                J[i][j]=0.0;
+
+                for (d=0; d<nSplits; d++)
+                    {
+                    //nidx=niiIndex[d][k];
+                    J[i][j] += (1.0/nSplits) * D1L[d][i] * D1L[d][j] ;
+                    for (k=0; k<nPairs; k++ )
+                        {
+                        if (PairBranch[i][k]==1 && PairBranch[j][k]==1)
+                            {
+                            if (nPairs*i+k >= nPairs * numBranches || nPairs*j+k >= nPairs * numBranches)
+                                {
+                                    MrBayesPrint("possible index oob: %d , %d, %d ", nPairs*j+k, nPairs*i+k, nPairs * numBranches );
+                                }
+                            H[i][j] += (1.0/nSplits) * D1LP[d][nPairs*i+k] * D1LP[d][nPairs*j+k] ;
+                            }
+                        }
+                    }
+
+                if (i != j) 
+                    {
+                    J[j][i]=J[i][j];
+                    H[j][i]=H[i][j];
+                    }
+
+                }
+            }
+
+        /*  compute  H^-1 * J and the eigenvalues:  */
+        MrBFlt* dw= (MrBFlt *)SafeMalloc((size_t)numBranches*(sizeof(MrBFlt)));
+        int*    iw= (int *)SafeMalloc((size_t)numBranches*(sizeof(int)));
+
+        InvertMatrix(numBranches, H, dw,iw, Hinv);
+        MultiplyMatrices(numBranches, Hinv, J, HiJ);
+
+        //for (k=0; k<numBranches; k++)
+        //    {
+        //    MrBayesPrint("HiJ[%d][.] =",k);
+        //    for (l=0; l<numBranches; l++)
+        //        {
+        //        MrBayesPrint("  % .3f", HiJ[k][l]);
+        //        }
+        //        MrBayesPrint("\n");
+        //    }
+
+        MrBayesPrint("Is the problem here???? \n");
+        int isComplex=GetEigens(numBranches,HiJ,eigvals,eigvalsc,V,Vinv,Vc,Vcinv);
+        MrBayesPrint("isComplex: %d \n", isComplex);
+
+        MrBFlt eigsum=0.0 ;
+        MrBFlt eigsum2=0.0 ;
+        MrBFlt em=0.0;
+        MrBFlt v=0.0;
+
+        for (i=0; i<numBranches; i++) {
+            MrBayesPrint("Eigen %d = %f \n", i, eigvals[i]);
+            eigsum += eigvals[i];
+            eigsum2 += eigvals[i] * eigvals[i];
+        }
+
+        em = eigsum/(1.0*(numBranches)); 
+        v = (eigsum * eigsum) / eigsum2;
+
+        if (m->usePwWeights == 1)
+            m->pwWeight=(1.0) / em;
+        else if (m->usePwWeights == 2)  
+            m->pwWeight=v / (1.0*numBranches+2.0*em);
+
+        MrBayesPrint("%s pw weight: %f \n", spacer, m->pwWeight);
+
+        /*  free allocations   */
+        /*  helper matrices */
+
+        MrBayesPrint("%s 1st chunk \n", spacer);        
+        FreeSquareDoubleMatrix(V);
+        FreeSquareDoubleMatrix(Vinv);
+        FreeSquareComplexMatrix(Vc);
+        FreeSquareComplexMatrix(Vcinv);
+        free(tempPartitionPair);
+
+        free(dw);
+        free(iw);
+
+        /*  counts */
+        MrBayesPrint("%s 2nd chunk \n", spacer);        
+        free(counts);
+        MrBayesPrint("%s 2a \n", spacer);        
+        for (i=0; i<(nSplits+1); i++)
+            free(countIndex[i]);
+        MrBayesPrint("%s 2b \n", spacer);        
+        free(countIndex);
+        MrBayesPrint("%s 2c \n", spacer);        
+        MrBayesPrint("%s 2d \n", spacer);        
+        //free(n10);
+        MrBayesPrint("%s 2e \n", spacer);        
+        //free(n11);
+        //
+        for (i=0; i<nPairs; i++) 
+            free(tp1[i]);
+
+        for (i=0; i<nPairs; i++) 
+            free(tp[i]);
+
+        free(tptemp);
+
+        /*  dists and probabilities */
+        MrBayesPrint("%s 1st free \n", spacer);        
+        free(pwDists);
+        //MrBayesPrint("%s 2nd free \n", spacer);
+        //free(p_10 );
+        //MrBayesPrint("%s 3nd free \n", spacer);
+        //free(p_11 );
+        //MrBayesPrint("%s 4th free \n", spacer);
+        //free(p1_10); 
+        //MrBayesPrint("%s 5th free \n", spacer);
+        //free(p1_11);  
+                      
+        /*  hessian and jacobian */
+        for (i=0; i<numBranches; i++) 
+            { 
+            free(H[i]);
+            free(J[i]);
+            free(HiJ[i]);
+            free(Hinv[i]);
+            }
+        free(H);
+        free(J);
+        free(Hinv);
+        free(HiJ);
+
+        for (i=0; i<nSplits; i++) 
+            { 
+            free(D1L[i]);
+            free(D1LP[i]);
+            }
+        free(D1L);
+        free(D1LP);
+        free(eigvals);
+        free(eigvalsc);
+
+        MrBayesPrint("%s 6th free \n", spacer);
+        for (i=0; i<numBranches; i++)
+            free(PairBranch[i]);
+        free(PairBranch);
+
+
+        } /* end loop over numCurrentDivisions */
+
+    return(0);
+}

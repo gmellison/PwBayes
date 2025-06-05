@@ -76,6 +76,7 @@ int DoubletProbs_Gen(int division, int chain);
 int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain);
 int CountPairwise(int division);
 int CalcPairwiseWeights(int chain);
+int CalcPairwiseWeights_GTR(int chain);
 int Likelihood_Pairwise(int division, int chain, MrBFlt *lnL);
 
 int CountTriplets(void);
