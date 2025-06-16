@@ -3911,7 +3911,7 @@ int CalcPairwiseWeights_GTR (int chain) {
                     TranProbMatrix_GTR(m, chain, dist+h, al, tptemp);
                     for (i=0;i<4;i++)
                         for (j=0;j<4;j++)
-                            tp1[k][dIdx(i,j,4)] = (tp[k][dIdx(i,j,4)] - tptemp[dIdx(i,j,4)]) /   ;
+                            tp1[k][dIdx(i,j,4)] = (tp[k][dIdx(i,j,4)] - tptemp[dIdx(i,j,4)]) / h  ;
                     }
                 }
             }
