@@ -3504,7 +3504,6 @@ int TranProbMatrix_GTR(ModelInfo *m, int chain, double dist, double al, double *
     return(1);
 }
 
-
 int CalcPairwiseWeights_GTR (int chain) {
 
     /*  setup the arays for pairwise counts,
@@ -3546,7 +3545,9 @@ int CalcPairwiseWeights_GTR (int chain) {
     int freeBitsets;
     int *tempPartitionPair;
 
-    MrBFlt h=0.0000001;
+    //MrBFlt h=MRBFLT_MIN;
+    MrBFlt h=ETA;
+
     MrBFlt *bs;
 
     /*  first set up worker matrices for eigen computation */
@@ -3910,7 +3911,7 @@ int CalcPairwiseWeights_GTR (int chain) {
                     TranProbMatrix_GTR(m, chain, dist+h, al, tptemp);
                     for (i=0;i<4;i++)
                         for (j=0;j<4;j++)
-                            tp1[k][dIdx(i,j,4)] = (tp[k][dIdx(i,j,4)] - tptemp[dIdx(i,j,4)])/h  ;
+                            tp1[k][dIdx(i,j,4)] = (tp[k][dIdx(i,j,4)] - tptemp[dIdx(i,j,4)]) /   ;
                     }
                 }
             }
