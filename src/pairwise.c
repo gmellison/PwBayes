@@ -3365,7 +3365,7 @@ MrBFlt EstPwDist_GTR(ModelInfo *m, int chain, int* counts, int countIdx, MrBFlt 
     // diagonal matrix of log^{lambda_i}, lambdas are eigvals of Q
     for (i=0;i<4;i++) {
         if (al > 0.0) 
-            LaLog[i][i]= al * (pow(1-la[i], -(1.0/al)));
+            LaLog[i][i]= al * (1- pow(la[i], -(1.0/al)));
         else 
             LaLog[i][i]=log(la[i]);
 
@@ -3374,7 +3374,10 @@ MrBFlt EstPwDist_GTR(ModelInfo *m, int chain, int* counts, int countIdx, MrBFlt 
             LaLog[j][i]=0.0;
         }
     }
-    
+
+    for (i=0;i<4;i++) 
+        MrBayesPrint("lalog: %f \n", LaLog[i][i]);
+   
     // calculate the matrix log: log(e^Qt) = V log[La] V^-1) 
     MultiplyMatrices(4,V,LaLog,Temp); 
     MultiplyMatrices(4,Temp,Vinv,Q); // Q is ptr to resulting matrix
@@ -3505,8 +3508,9 @@ int TranProbMatrix_GTR(ModelInfo *m, int chain, double dist, double al, double *
     for (k=0; k<m->numRateCats; k++)
         {
         // probability transition matrix for site rate i:
-        if (al > 0.0)
+        if (al > 0.0) {
             MultiplyMatrixByScalar(4, Q, dist * catRate[k], Qtausr);  
+        }
         else 
             MultiplyMatrixByScalar(4, Q, dist, Qtausr);  
 
@@ -3528,7 +3532,7 @@ int TranProbMatrix_GTR(ModelInfo *m, int chain, double dist, double al, double *
 
         for (i=0;i<4;i++)
             for (j=0;j<4;j++)
-                transProbs[dIdx(i,j,4)] +=  (1.0/m->numRateCats) * TransProbTemp[i][j];
+                transProbs[dIdx(i,j,4)] += (1.0/m->numRateCats) * TransProbTemp[i][j];
 
     }
 
