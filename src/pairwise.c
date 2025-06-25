@@ -3140,21 +3140,21 @@ int CalcPairwiseWeights (int chain) {
                 }
             }
 
-        MrBayesPrint("D1L\n");
-        for (i=0;i<4;i++) {
-            for (j=0;j<4;j++) {
-                MrBayesPrint(" %f ", D1L[i][j]);
-            }
-            MrBayesPrint("\n");
-        }
-
-        MrBayesPrint("D1LP\n");
-        for (i=0;i<4;i++) {
-            for (j=0;j<4;j++) {
-                MrBayesPrint(" %f ", D1LP[i][j]);
-            }
-            MrBayesPrint("\n");
-        }
+//        MrBayesPrint("D1L\n");
+//        for (i=0;i<4;i++) {
+//            for (j=0;j<4;j++) {
+//                MrBayesPrint(" %f ", D1L[i][j]);
+//            }
+//            MrBayesPrint("\n");
+//        }
+//
+//        MrBayesPrint("D1LP\n");
+//        for (i=0;i<4;i++) {
+//            for (j=0;j<4;j++) {
+//                MrBayesPrint(" %f ", D1LP[i][j]);
+//            }
+//            MrBayesPrint("\n");
+//        }
         
 //        MrBayesPrint(" %d ", n11[niiIndex[0][0]]);
 //        MrBayesPrint(" %d \n", n10[niiIndex[0][0]]);
