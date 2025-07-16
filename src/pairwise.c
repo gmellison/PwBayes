@@ -47,7 +47,7 @@ MrBFlt nucFreqs[4];
 MrBFlt doubletFreqs[4][4];
 
 MrBFlt relRates[6];
-int    tempNumStates;
+int    tempNumStatesPw;
 int    numTriples;
 int I=4;
 int J=4;
@@ -1965,7 +1965,7 @@ int DoPwSetParm (char *parmName, char *tkn)
                     }
 
                 expecting  = Expecting(NUMBER);
-                tempNumStates = 0;
+                tempNumStatesPw = 0;
                 }
 
             else if (expecting == Expecting(NUMBER))
@@ -1973,11 +1973,11 @@ int DoPwSetParm (char *parmName, char *tkn)
                 /* find out what type of prior is being set */
                 /* find and store the number */
                 sscanf (tkn, "%lf", &tempD);
-                tempNum[tempNumStates++] = tempD;
+                tempNum[tempNumStatesPw ++] = tempD;
 
-                if (tempNumStates == 1)
+                if (tempNumStatesPw == 1)
                     expecting = Expecting(COMMA) | Expecting(RIGHTPAR);
-                else if (tempNumStates < 6)
+                else if (tempNumStatesPw < 6)
                     expecting  = Expecting(COMMA);
                 else
                     expecting = Expecting(RIGHTPAR);
@@ -1992,7 +1992,7 @@ int DoPwSetParm (char *parmName, char *tkn)
                 {
                 for (j=0; j<6; j++)
                     {
-                    if (tempNumStates == 1)
+                    if (tempNumStatesPw == 1)
                         relRates[j] = tempNum[0] / (MrBFlt) 6.0;
                     else
                         relRates[j] = tempNum[j];
