@@ -959,6 +959,8 @@ typedef struct
     MrBFlt      *targetRate;        /* target acceptance rate for autotuning        */
     MrBFlt      *lastAcceptanceRate;/* acceptance rate in last complete batch       */
     MrBFlt      **tuningParam;      /* tuning parameters for the move               */
+    int         initRun;
+    int         mainRun;
     } MCMCMove;
 
 typedef int (*LikeDownFxn)(TreeNode *, int, int);
@@ -1267,6 +1269,12 @@ typedef struct chain
     int         append;                /* order taxa before printing tree to file?      */
     int         autotune;              /* autotune tuning parameters of proposals ?     */
     int         tuneFreq;              /* autotuning frequency                          */
+
+    int         initSubMod;             /*  */
+    int         initNumGen;             /*  */
+    int         initBurnIn;             /*  */
+    int         initSampleFreq;         /*  */
+    char        initFilename[100];           /*  */
 
     } Chain;
 
