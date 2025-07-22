@@ -17659,7 +17659,7 @@ int RunChain (RandLong *seed)
             }
 
         /*  if we're using pairwise weights, check if it's time to update the weight */
-        if (n == 1 && modelSettings->pwWeight)  
+        if (n == 1 && modelSettings->pwWeight && chainParams.inInitRun == NO)  
             {
             /* calculate pairwise adjustment weights */
             /*   */
