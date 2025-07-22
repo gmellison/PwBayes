@@ -987,7 +987,7 @@ typedef struct cmdtyp
     int         specialCmd;
     CmdFxn      cmdFxnPtr;
     short       numParms;
-    short       parmList[50];
+    short       parmList[51];
     int         expect;
     char        *cmdDescription;
     int         cmdUse;
@@ -1275,6 +1275,7 @@ typedef struct chain
     int         initBurnIn;             /*  */
     int         initSampleFreq;         /*  */
     char        initFilename[100];           /*  */
+    int         inInitRun;
 
     } Chain;
 
@@ -1596,6 +1597,8 @@ typedef struct sump
     {
     char        sumpFileName[100];     /* name of input file                            */
     char        sumpOutfile[120];      /* name of output file                           */
+    char        sumpFileNameInit[100]; /* name of input file                            */
+    char        sumpOutfileInit[120];  /* name of output file                           */
     //int       plot;                  /* output plot (y/n)?                            */
     int         table;                 /* output table (y/n)?                           */
     int         margLike;              /* output marginal likelihood (y/n)?             */

@@ -322,10 +322,12 @@ CmdType     commands[] =
                                                                                                                                              287,288,289,290,291},        4,                "Sets the parameters of the likelihood model",  IN_CMD, SHOW },
             { 25,          "Manual",  NO,          DoManual,  1,                                                                                            {126},       36,                  "Prints a command reference to a text file",  IN_CMD, SHOW },
             { 26,          "Matrix", YES,          DoMatrix,  1,                                                                                             {11},649252640,                 "Defines matrix of characters in data block", IN_FILE, SHOW },
+
             { 27,            "Mcmc",  NO,            DoMcmc, 51,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
-                                                                  153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,292,293,294,295,296},   36,                   "Starts Markov chain Monte Carlo analysis",  IN_CMD, SHOW },
+                                                                 153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,292,293,294,295,296},      36,                   "Starts Markov chain Monte Carlo analysis",  IN_CMD, SHOW },
             { 28,           "Mcmcp",  NO,           DoMcmcp, 51,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
-                                                                  153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,292,293,294,295,296},    4,     "Sets parameters of a chain (without starting analysis)",  IN_CMD, SHOW },
+                                                                 153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,292,293,294,295,296},       4,     "Sets parameters of a chain (without starting analysis)",  IN_CMD, SHOW },
+
             { 29,        "Outgroup", YES,        DoOutgroup,  1,                                                                                             {78},    49152,                                     "Changes outgroup taxon",  IN_CMD, SHOW },
             { 30,           "Pairs", YES,           DoPairs,  1,                                                                                             {92},    32768,        "Defines nucleotide pairs (doublets) for stem models",  IN_CMD, SHOW },
             { 31,       "Partition",  NO,       DoPartition,  1,                                                                                             {16},        4,                              "Assigns a character partition",  IN_CMD, SHOW },

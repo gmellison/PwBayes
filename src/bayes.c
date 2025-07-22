@@ -1069,6 +1069,13 @@ int ReinitializeMrBayes (void)
     chainParams.checkFreq = 1000;                    /* check-pointing frequency                      */
     chainParams.diagnStat = AVGSTDDEV;               /* mcmc diagnostic to use                        */
 
+    /*  init run for substitution model params  */ 
+    chainParams.initSampleFreq=500;
+    chainParams.initBurnIn=5000;
+    chainParams.initNumGen=10000;
+    chainParams.initSubMod=0;
+    strcpy(chainParams.initFilename,"init");
+
     /* sumt parameters */
     strcpy(sumtParams.sumtFileName, "temp");         /* input name for sumt command                   */
     strcpy(sumtParams.sumtConType, "Halfcompat");    /* type of consensus tree output                 */
@@ -1112,7 +1119,8 @@ int ReinitializeMrBayes (void)
     strcpy(plotParams.plotFileName, "temp.p");       /* input name for plot command                   */
     strcpy(plotParams.parameter, "lnL");             /* plotted parameter plot command                */
     strcpy(plotParams.match, "Perfect");             /* matching for plot command                     */
-    
+   
+
     return (NO_ERROR);
 }
 

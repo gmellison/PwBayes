@@ -337,6 +337,8 @@ BitsLong        **partition;                 /* matrix holding partitions       
 MrBFlt          *maxLnL0 = NULL;             /* maximum likelihood                           */
 FILE            *fpMcmc = NULL;              /* pointer to .mcmc file                        */
 FILE            **fpParm = NULL;             /* pointer to .p file(s)                        */
+FILE            **fpParmInit = NULL;         /* pointer to .p file(s)                        */
+FILE            **fpParmMain = NULL;         /* pointer to .p file(s)                        */
 FILE            ***fpTree = NULL;            /* pointer to .t file(s)                        */
 FILE            *fpSS = NULL;                /* pointer to .ss file                          */
 static int      requestAbortRun;             /* flag for aborting mcmc analysis              */
@@ -348,6 +350,8 @@ long long       numPreviousGen;              /* number of generations in run to 
 int             lowestLocalRunId;            /* lowest local run Id                          */
 int             highestLocalRunId;           /* highest local run Id                         */
 #endif
+
+int inInitRun;
 
 #if defined (PRINT_DUMP)
 FILE            **fpDump = NULL;             /* pointer to .dump file(s)                     */
@@ -4232,34 +4236,6 @@ int DoMcmcParm (char *parmName, char *tkn)
                 return (ERROR);
                 }
             }
-        /* set Filename (chainFileName) *******************************************************/
-        else if (!strcmp(parmName, "Initrunfname"))
-            {
-            if (expecting == Expecting(EQUALSIGN))
-                {
-                expecting = Expecting(ALPHA);
-                readWord = YES;
-                }
-            else if (expecting == Expecting(ALPHA))
-                {
-                sscanf (tkn, "%s", tempStr);
-                if (strlen(tempStr)>99)
-                    {
-                    MrBayesPrint ("%s   Maximum allowed length of initial chain file name is 99 characters. The given name:\n", spacer);
-                    MrBayesPrint ("%s      '%s'\n", spacer,tempStr);
-                    MrBayesPrint ("%s   has %d characters.\n", spacer,strlen(tempStr));
-                    return (ERROR);
-                    }
-                strcpy (chainParams.initFilename, tempStr);
-                fileNameChanged = YES;
-                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
-                }
-            else
-                {
-                free(tempStr);
-                return (ERROR);
-                }
-            }
         /* set PwInitSubMod (pwInitSubMod) ********************************************************/
         else if (!strcmp(parmName, "Initsubmod"))
             {
@@ -4280,7 +4256,7 @@ int DoMcmcParm (char *parmName, char *tkn)
                     free(tempStr);
                     return (ERROR);
                     }
-                if (chainParams.checkPoint == YES)
+                if (chainParams.initSubMod == YES)
                     MrBayesPrint ("%s   Setting initial run to fix submodel params('InitSubMod') to yes\n", spacer);
                 else
                     MrBayesPrint ("%s   Setting initial run ('InitSubMod') to no\n", spacer);
@@ -4919,7 +4895,13 @@ void FreeChainMemory (void)
         }
     if (memAllocs[ALLOC_USEDMOVES] == YES) /*alloc in setUsedMoves()*/
         {
-        free (usedMoves);
+        if (!(usedMovesInit==NULL))
+            free (usedMovesInit);
+        if (!(usedMovesMain==NULL))
+            free (usedMovesMain);
+        if (!chainParams.initSubMod)
+            if (!(usedMoves==NULL)) {
+                free (usedMoves); }
         memAllocs[ALLOC_USEDMOVES] = NO;
         }
     if (memAllocs[ALLOC_TERMSTATE] == YES) /*alloc in SetUpTermState()*/
@@ -4990,8 +4972,13 @@ void FreeChainMemory (void)
             free (fpTree[0]);
             free (fpTree);
             }
-        if (fpParm != NULL)
-            free (fpParm);
+        if (fpParmInit != NULL)
+            free (fpParmInit);
+        if (fpParmMain != NULL)
+            free (fpParmMain);
+        if (!chainParams.initSubMod)
+            if (fpParm != NULL)
+                free (fpParm);
         fpParm = NULL;
         fpTree = NULL;
         fpMcmc = NULL;
@@ -10886,12 +10873,34 @@ int PreparePrintFiles (void)
     fpMcmc = NULL;
     fpSS = NULL;
     fpParm = NULL;
+    fpParmInit = NULL;
+    fpParmMain = NULL;
     fpTree = NULL;  
-    fpParm = (FILE **) SafeCalloc (chainParams.numRuns, sizeof (FILE *));
-    if (fpParm == NULL)
+
+    if (chainParams.initSubMod) 
         {
-        MrBayesPrint ("%s   Could not allocate fpParm in PreparePrintFiles\n", spacer);
-        return ERROR;
+        fpParmInit = (FILE **) SafeCalloc (chainParams.numRuns, sizeof (FILE *));
+        if (fpParmInit == NULL)
+            {
+            MrBayesPrint ("%s   Could not allocate fpParmInit in PreparePrintFiles\n", spacer);
+            return ERROR;
+            }
+
+        fpParmMain = (FILE **) SafeCalloc (chainParams.numRuns, sizeof (FILE *));
+        if (fpParmMain == NULL)
+            {
+            MrBayesPrint ("%s   Could not allocate fpParmMain in PreparePrintFiles\n", spacer);
+            return ERROR;
+            }
+        }
+    else 
+        {
+        fpParm = (FILE **) SafeCalloc (chainParams.numRuns, sizeof (FILE *));
+        if (fpParm == NULL)
+            {
+            MrBayesPrint ("%s   Could not allocate fpParm in PreparePrintFiles\n", spacer);
+            return ERROR;
+            }
         }
     memAllocs[ALLOC_FILEPOINTERS] = YES;
     fpTree = (FILE ***) SafeCalloc (chainParams.numRuns, sizeof (FILE **));
@@ -10990,15 +10999,44 @@ int PreparePrintFiles (void)
     /* Prepare the .p and .t files */
     for (n=0; n<chainParams.numRuns; n++)
         {
-        if (chainParams.numRuns == 1)
-            sprintf (fileName, "%s.p", localFileName);
-        else
-            sprintf (fileName, "%s.run%d.p", localFileName, n+1);
-        if ((fpParm[n] = OpenNewMBPrintFile (fileName)) == NULL)
+        if (chainParams.initSubMod)   
             {
-            noWarn = oldNoWarn;
-            autoOverwrite = oldAutoOverwrite;
-            return (ERROR);
+            // Init
+            if (chainParams.numRuns == 1)
+                sprintf (fileName, "%s.init.p", localFileName);
+            else
+                sprintf (fileName, "%s.run%d.init.p", localFileName, n+1);
+            if ((fpParmInit[n] = OpenNewMBPrintFile (fileName)) == NULL)
+                {
+                noWarn = oldNoWarn;
+                autoOverwrite = oldAutoOverwrite;
+                return (ERROR);
+                }
+
+            // Main
+            if (chainParams.numRuns == 1)
+                sprintf (fileName, "%s.p", localFileName);
+            else
+                sprintf (fileName, "%s.run%d.p", localFileName, n+1);
+            if ((fpParmMain[n] = OpenNewMBPrintFile (fileName)) == NULL)
+                {
+                noWarn = oldNoWarn;
+                autoOverwrite = oldAutoOverwrite;
+                return (ERROR);
+                }
+            }
+        else 
+            {
+            if (chainParams.numRuns == 1)
+                sprintf (fileName, "%s.p", localFileName);
+            else
+                sprintf (fileName, "%s.run%d.p", localFileName, n+1);
+            if ((fpParm[n] = OpenNewMBPrintFile (fileName)) == NULL)
+                {
+                noWarn = oldNoWarn;
+                autoOverwrite = oldAutoOverwrite;
+                return (ERROR);
+                }
             }
 
         for (i=0; i<numTrees; i++)
@@ -17048,6 +17086,20 @@ int RunChain (RandLong *seed)
     CPUTime = 0.0;
     previousCPUTime = clock();
 
+
+    // are we running an initial short chain to estimate and fix substitution model params?
+    // if so, set the moves to only the initial chain moves
+    // also set the param output file to the initial run file 
+    if (chainParams.initSubMod && numPreviousGen+1 < chainParams.initNumGen)
+        {
+        MrBayesPrint("%s   Setting up initial run\n", spacer);
+        chainParams.inInitRun = YES;
+        usedMoves=usedMovesInit;
+        numUsedMoves=numUsedMovesInit;
+        fpParm=fpParmInit;
+        MrBayesPrint("%s   Done setting up initial run\n\n", spacer);
+        }
+
     /* print headers and starting states */
     if (numPreviousGen==0)
         {
@@ -17146,9 +17198,196 @@ int RunChain (RandLong *seed)
             }
         }
 
-
     for (n=numPreviousGen+1; n<=chainParams.numGen; n++) /* begin run chain */
         {
+
+        // if done with initial run, calc and fix estimated submodel params
+        // no need to set priors to fixed; we'll just set the parms and d isable the 
+        // updating moves
+        if (chainParams.initSubMod && chainParams.inInitRun == YES && n == chainParams.initNumGen+1)
+            {
+            MrBayesPrint("%s   Done with initial run, setting up main run\n", spacer);
+            chainParams.inInitRun = NO;
+            usedMoves = usedMovesMain;
+            numUsedMoves = numUsedMovesMain;
+
+            // Do short version of sump with the init run output
+            int             nHeaders, numRows, numColumns, numRuns, len, longestHeader;
+            SumpFileInfo    fileInfo, firstFileInfo;
+            ParameterSample *parameterSamples=NULL;
+            char            temp[130];
+            firstFileInfo.numRows = 0;
+            firstFileInfo.numColumns = 0;
+            char            **headerNames=NULL;
+
+            /* examine input file(s) */
+            for (i=0; i<sumpParams.numRuns; i++)
+                {
+                if (sumpParams.numRuns == 1)
+                    sprintf (temp, "%s.init.p", chainParams.chainFileName);
+                else
+                    sprintf (temp, "%s.run%d.init.p", chainParams.chainFileName, i+1);
+        
+                if (ExamineSumpFile (temp, &fileInfo, &headerNames, &nHeaders) == ERROR)
+                    MrBayesPrint("%s    Error examining init sump file\n", spacer);
+        
+                if (i==0)
+                    {
+                    if (fileInfo.numRows == 0 || fileInfo.numColumns == 0)
+                        {
+                        MrBayesPrint ("%s   The number of rows or columns in file %d is equal to zero\n", spacer, temp);
+                        }
+                    firstFileInfo = fileInfo;
+                    }
+                else
+                    {
+                    if (firstFileInfo.numRows != fileInfo.numRows || firstFileInfo.numColumns != fileInfo.numColumns)
+                        {
+                        MrBayesPrint ("%s   First file had %d rows and %d columns while file %s had %d rows and %d columns\n",
+                            spacer, firstFileInfo.numRows, firstFileInfo.numColumns, temp, fileInfo.numRows, fileInfo.numColumns);
+                        MrBayesPrint ("%s   MrBayes expects the same number of rows and columns in all files\n", spacer);
+                        }
+                    }
+                }
+
+            numRows = fileInfo.numRows;
+            numColumns = fileInfo.numColumns;
+            numRuns = sumpParams.numRuns;
+
+            /* get length of longest header */
+            longestHeader = 9; /* 9 is the length of the word "parameter" (for printing table) */
+            for (i=0; i<nHeaders; i++)
+                {
+                len = (int) strlen(headerNames[i]);
+                if (len > longestHeader)
+                    longestHeader = len;
+                }
+    
+            /* allocate space to hold parameter information */
+            if (AllocateParameterSamples (&parameterSamples, numRuns, numRows, numColumns) == ERROR)
+                return ERROR;
+        
+            /* read samples */
+            for (i=0; i<sumpParams.numRuns; i++)
+                {
+                /* derive file name */
+                if (sumpParams.numRuns == 1)
+                    sprintf (temp, "%s.init.p", sumpParams.sumpFileName);
+                else
+                    sprintf (temp, "%s.run%d.init.p", sumpParams.sumpFileName, i+1);
+               
+                MrBayesPrint("%s  %s \n", spacer, temp);
+                /* read samples */    
+                if (ReadParamSamples (temp, &fileInfo, parameterSamples, i) == ERROR)
+                    MrBayesPrint("%s  ERROR in ReadParamSamples when ending init run! \n", spacer);
+                }
+
+            // Now do the mini version of 'PrintParamStats'
+            // but not printing stats, just get the param means 
+            /* allocate and set nSamples */
+            int *sampleCounts=NULL;
+            static char *temp2=NULL;
+            Stat    theStats;
+
+            sampleCounts = (int *) SafeCalloc (numRuns, sizeof(int));
+            for (i=0; i<numRuns; i++)
+                sampleCounts[i] = numRows;
+
+            /* allocate a separate matrix for parameters that need NAs removed */
+            ModelInfo *m;
+            int d;
+            MrBFlt *bs, *rs, *al;
+
+            for (d=0;d<numCurrentDivisions;d++)
+                {
+                m=&modelSettings[d];
+                for (int chain=0; chain<numLocalChains; chain++)
+                    {
+                    if (m->stateFreq != NULL)
+                        bs = GetParamSubVals(m->stateFreq, chain, state[chain]);
+                    if (m->revMat != NULL)
+                        rs = GetParamVals(m->revMat, chain, state[chain]);
+                    if (m->shape != NULL)
+                        al = GetParamVals(m->shape, chain, state[chain]);
+
+                    for (i=0; i<nHeaders; i++)
+                        {
+
+                        SafeStrcpy(&temp2, headerNames[i]);
+                        for (j=0; modelIndicatorParams[j][0]!='\0'; j++)
+                            if (IsSame (temp2,modelIndicatorParams[j]) != DIFFERENT)
+                                break;
+                        if (modelIndicatorParams[j][0]!='\0')
+                            continue;
+                        if (!strcmp (temp2, "Gen") || !strcmp (temp2, "lnLike") || !strcmp (temp2, "lnPrior"))
+                            continue;
+
+                        GetSummary (parameterSamples[i].values, numRuns, sampleCounts, &theStats, sumpParams.HPD);
+                
+                        if (!strcmp(headerNames[i], "r(A<->C)")) 
+                            rs[0]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(A<->G)"))
+                            rs[1]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(A<->T)"))
+                            rs[2]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(C<->G)"))
+                            rs[3]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(C<->T)"))
+                            rs[4]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(G<->T)"))
+                            rs[5]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "pi(A)"))
+                            bs[0]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "pi(C)"))
+                            bs[1]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "pi(G)"))
+                            bs[2]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "pi(T)"))
+                            bs[3]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "alpha"))
+                            al[0]=theStats.mean;
+
+                        // reset prior
+                        curLnPr[chain] = LogPrior(chain);
+                        curLnL[chain] = LogLike(chain);
+                        }
+                    }
+                }
+
+            /* free memory */
+            FreeParameterSamples(parameterSamples);
+            for (i=0; i<nHeaders; i++)
+                free (headerNames[i]);
+            free (headerNames);
+            free (sampleCounts);
+
+            fpParm=fpParmMain;
+            if (numPreviousGen==0) 
+                {
+                if (PrintStatesToFiles (0) == ERROR)
+                    {
+                    MrBayesPrint ("%s   Error in printing headers to files\n");
+#   if defined (MPI_ENABLED)
+                    nErrors++;
+#   else
+                    return ERROR;
+#   endif
+                    }
+#   if defined (MPI_ENABLED)
+                MPI_Allreduce (&nErrors, &sumErrors, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+                if (sumErrors > 0)
+                    {
+                    MrBayesPrint ("%s   Aborting run.\n");
+                    return ERROR;
+                    }
+#   endif
+                }
+
+            // reset generations for start of main run
+            n = numPreviousGen+1;
+            MrBayesPrint("%s   Done setting up main run\n\n", spacer); 
+            }
+
         currentCPUTime = clock();
         if (currentCPUTime - previousCPUTime > 10 * CLOCKS_PER_SEC)
             {
@@ -17159,7 +17398,6 @@ int RunChain (RandLong *seed)
         /*! requestAbortRun is set by the signal handler when it receives a CTRL-C (serial version only) */
         if (requestAbortRun == YES && ConfirmAbortRun() == 1)
             return ABORT;
-
 
         // RandLong oldSeed = *seed;  /* record the old seed for debugging */
         for (chn=0; chn<numLocalChains; chn++)
@@ -17188,6 +17426,7 @@ int RunChain (RandLong *seed)
             whichMove = PickProposal(seed, chainId[chn]);
             theMove = usedMoves[whichMove];
 
+            /*  PW likelihood stuff */
             /*  skip alpha proposals when using pairwise likelihood in the hot chains */
             if (modelSettings->pwHotChains && (chainId[chn] % chainParams.numChains != 0)) 
                 {
@@ -17866,6 +18105,9 @@ int RunChain (RandLong *seed)
             ERROR_TEST2("Error in printing checkpoint",return(ERROR),);
             }
 
+
+ 
+
         } /* end run chain */
 
 
@@ -18406,11 +18648,19 @@ void SetFileNames (void)
     strcpy (sumtParams.sumtOutfile, chainParams.chainFileName);
     strcpy (sumpParams.sumpFileName, chainParams.chainFileName);
     strcpy (sumpParams.sumpOutfile, chainParams.chainFileName);
+
+    //if (chainParams.initSubMod) 
+    //    {
+    //    //strcpy (sumpParams.sumpFileNameInit, chainParams.initFilename);
+    //    strcpy (sumpParams.sumpOutfileInit, chainParams.initFilename);
+    //    }
+
     if (chainParams.numRuns == 1)
         {
         sprintf (comptreeParams.comptFileName1, "%s.t", chainParams.chainFileName);
         sprintf (comptreeParams.comptFileName2, "%s.t", chainParams.chainFileName);
         sprintf (plotParams.plotFileName, "%s.p", chainParams.chainFileName);
+
         MrBayesPrint ("%s   Setting chain output file names to \"%s.<p/t>\"\n", spacer, chainParams.chainFileName);
         }
     else /* if (chainParams.numRuns > 1) */
