@@ -340,6 +340,8 @@ FILE            **fpParm = NULL;             /* pointer to .p file(s)           
 FILE            **fpParmInit = NULL;         /* pointer to .p file(s)                        */
 FILE            **fpParmMain = NULL;         /* pointer to .p file(s)                        */
 FILE            ***fpTree = NULL;            /* pointer to .t file(s)                        */
+//FILE            ***fpTreeInit = NULL;            /* pointer to .t file(s)                        */
+//FILE            ***fpTreeMain = NULL;            /* pointer to .t file(s)                        */
 FILE            *fpSS = NULL;                /* pointer to .ss file                          */
 static int      requestAbortRun;             /* flag for aborting mcmc analysis              */
 int             *topologyPrintIndex;         /* print file index of each topology            */
@@ -4900,8 +4902,8 @@ void FreeChainMemory (void)
         if (!(usedMovesMain==NULL))
             free (usedMovesMain);
         if (!chainParams.initSubMod)
-            if (!(usedMoves==NULL)) {
-                free (usedMoves); }
+            if (!(usedMoves==NULL)) 
+                free (usedMoves); 
         memAllocs[ALLOC_USEDMOVES] = NO;
         }
     if (memAllocs[ALLOC_TERMSTATE] == YES) /*alloc in SetUpTermState()*/
@@ -4967,10 +4969,23 @@ void FreeChainMemory (void)
     if (memAllocs[ALLOC_FILEPOINTERS] == YES) /* alloc in (PreparePrintFiles(), ReusePreviousResults()) <- RunChain() */
         {
         CloseMBPrintFiles ();
-        if (fpTree != NULL)
+//        if (fpTreeInit != NULL)
+//            {
+//            free (fpTreeInit[0]);
+//            free (fpTreeInit);
+//            }
+//        if (fpTreeMain != NULL)
+//            {
+//            free (fpTreeMain[0]);
+//            free (fpTreeMain);
+//            }
+//        if (!chainParams.initSubMod)
             {
-            free (fpTree[0]);
-            free (fpTree);
+            if (fpTree != NULL)
+                {
+                free (fpTree[0]);
+                free (fpTree);
+                }
             }
         if (fpParmInit != NULL)
             free (fpParmInit);
@@ -4980,7 +4995,11 @@ void FreeChainMemory (void)
             if (fpParm != NULL)
                 free (fpParm);
         fpParm = NULL;
+        fpParmInit = NULL;
+        fpParmMain = NULL;
         fpTree = NULL;
+        //fpTreeInit = NULL;
+        //fpTreeMain = NULL;
         fpMcmc = NULL;
         fpSS = NULL;
         memAllocs[ALLOC_FILEPOINTERS] = NO;
@@ -10915,7 +10934,7 @@ int PreparePrintFiles (void)
         MrBayesPrint ("%s   Could not allocate fpTree[0] in PreparePrintFiles\n", spacer);
         return ERROR;
         }
-    for (i=1; i<chainParams.numRuns; i++)
+    for (i=0; i<chainParams.numRuns; i++)
         fpTree[i] = fpTree[0] + i*numTrees;
 
     /* Get root of local file name */
@@ -13688,7 +13707,7 @@ int PrintStatesToFiles (long long curGen)
             fflush (fpParm[runId]);
             free(printString);
 
-            /* print trees */
+            ///* print trees */
             for (i=0; i<numPrintTreeParams; i++)
                 {
                 param = printTreeParam[i];
@@ -17220,7 +17239,7 @@ int RunChain (RandLong *seed)
             firstFileInfo.numColumns = 0;
             char            **headerNames=NULL;
 
-            /* examine input file(s) */
+            ///* examine input file(s) */
             for (i=0; i<sumpParams.numRuns; i++)
                 {
                 if (sumpParams.numRuns == 1)
@@ -17252,7 +17271,7 @@ int RunChain (RandLong *seed)
 
             numRows = fileInfo.numRows;
             numColumns = fileInfo.numColumns;
-            numRuns = sumpParams.numRuns;
+            numRuns = chainParams.numRuns;
 
             /* get length of longest header */
             longestHeader = 9; /* 9 is the length of the word "parameter" (for printing table) */
@@ -17271,7 +17290,7 @@ int RunChain (RandLong *seed)
             for (i=0; i<sumpParams.numRuns; i++)
                 {
                 /* derive file name */
-                if (sumpParams.numRuns == 1)
+                if (numRuns == 1)
                     sprintf (temp, "%s.init.p", sumpParams.sumpFileName);
                 else
                     sprintf (temp, "%s.run%d.init.p", sumpParams.sumpFileName, i+1);
@@ -17284,7 +17303,7 @@ int RunChain (RandLong *seed)
 
             // Now do the mini version of 'PrintParamStats'
             // but not printing stats, just get the param means 
-            /* allocate and set nSamples */
+            // allocate and set nSamples */
             int *sampleCounts=NULL;
             static char *temp2=NULL;
             Stat    theStats;
@@ -17293,7 +17312,6 @@ int RunChain (RandLong *seed)
             for (i=0; i<numRuns; i++)
                 sampleCounts[i] = numRows;
 
-            /* allocate a separate matrix for parameters that need NAs removed */
             ModelInfo *m;
             int d;
             MrBFlt *bs, *rs, *al;
@@ -17362,31 +17380,34 @@ int RunChain (RandLong *seed)
             free (sampleCounts);
 
             fpParm=fpParmMain;
-            if (numPreviousGen==0) 
-                {
-                if (PrintStatesToFiles (0) == ERROR)
-                    {
-                    MrBayesPrint ("%s   Error in printing headers to files\n");
-#   if defined (MPI_ENABLED)
-                    nErrors++;
-#   else
-                    return ERROR;
-#   endif
-                    }
-#   if defined (MPI_ENABLED)
-                MPI_Allreduce (&nErrors, &sumErrors, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
-                if (sumErrors > 0)
-                    {
-                    MrBayesPrint ("%s   Aborting run.\n");
-                    return ERROR;
-                    }
-#   endif
-                }
 
+
+            /*  PROBLEM IS IN THIS BLOCK!!!!! */
+            /*  re-print headers and starting states  */
+    if (numPreviousGen==0)
+        {
+        if (PrintStatesToFiles (0) == ERROR)
+            {
+            MrBayesPrint ("%s   Error in printing headers to files\n");
+#   if defined (MPI_ENABLED)
+            nErrors++;
+#   else
+            return ERROR;
+#   endif
+            }
+#   if defined (MPI_ENABLED)
+        MPI_Allreduce (&nErrors, &sumErrors, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        if (sumErrors > 0)
+            {
+            MrBayesPrint ("%s   Aborting run.\n");
+            return ERROR;
+            }
+#   endif
+        }
             // reset generations for start of main run
             n = numPreviousGen+1;
             MrBayesPrint("%s   Done setting up main run\n\n", spacer); 
-            }
+            } /* end prep for main run   */
 
         currentCPUTime = clock();
         if (currentCPUTime - previousCPUTime > 10 * CLOCKS_PER_SEC)
@@ -17748,6 +17769,8 @@ int RunChain (RandLong *seed)
                 }
 #   endif
             }
+
+        if (chainParams.inInitRun) continue;
 
         /* print mcmc diagnostics. Blocking for MPI */
         if (chainParams.mcmcDiagn == YES && (n % chainParams.diagnFreq == 0
@@ -19239,6 +19262,7 @@ int ShowMoveSummary (void)
 
             if (chainParams.initSubMod == YES) 
                 {
+
                     MrBayesPrint ("%s   The MCMC chain will run a short initial chain with the Full likelihood \n", spacer);
                     MrBayesPrint ("%s   and a main run with the pairwise likelihood.  \n", spacer);
                 if (areRunsSame == YES && areChainsSame == YES) 
