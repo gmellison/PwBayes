@@ -17341,7 +17341,7 @@ int RunChain (RandLong *seed)
                             continue;
 
                         GetSummary (parameterSamples[i].values, numRuns, sampleCounts, &theStats, sumpParams.HPD);
-                
+               
                         if (!strcmp(headerNames[i], "r(A<->C)")) 
                             rs[0]=theStats.mean;
                         else if (!strcmp(headerNames[i], "r(A<->G)"))
@@ -17741,7 +17741,8 @@ int RunChain (RandLong *seed)
 
         /* print information to files */
         /* this will also add tree samples to topological convergence diagnostic counters */
-        if (n == chainParams.numGen || n % chainParams.sampleFreq == 0)
+        if (n == chainParams.numGen || ((chainParams.inInitRun == NO && n % chainParams.sampleFreq == 0) 
+                    || (chainParams.inInitRun == YES && n % chainParams.initSampleFreq == 0)) )
             {
 #   if defined (MPI_ENABLED)
             MPI_Allreduce (&nErrors, &sumErrors, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
