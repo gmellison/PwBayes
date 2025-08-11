@@ -4210,34 +4210,6 @@ int DoMcmcParm (char *parmName, char *tkn)
                 return (ERROR);
                 }
             }
-        /* set Filename (chainFileName) *******************************************************/
-        else if (!strcmp(parmName, "Initrunfname"))
-            {
-            if (expecting == Expecting(EQUALSIGN))
-                {
-                expecting = Expecting(ALPHA);
-                readWord = YES;
-                }
-            else if (expecting == Expecting(ALPHA))
-                {
-                sscanf (tkn, "%s", tempStr);
-                if (strlen(tempStr)>99)
-                    {
-                    MrBayesPrint ("%s   Maximum allowed length of initial chain file name is 99 characters. The given name:\n", spacer);
-                    MrBayesPrint ("%s      '%s'\n", spacer,tempStr);
-                    MrBayesPrint ("%s   has %d characters.\n", spacer,strlen(tempStr));
-                    return (ERROR);
-                    }
-                strcpy (chainParams.initFilename, tempStr);
-                fileNameChanged = YES;
-                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
-                }
-            else
-                {
-                free(tempStr);
-                return (ERROR);
-                }
-            }
         /* set PwInitSubMod (pwInitSubMod) ********************************************************/
         else if (!strcmp(parmName, "Initsubmod"))
             {
@@ -4969,23 +4941,10 @@ void FreeChainMemory (void)
     if (memAllocs[ALLOC_FILEPOINTERS] == YES) /* alloc in (PreparePrintFiles(), ReusePreviousResults()) <- RunChain() */
         {
         CloseMBPrintFiles ();
-//        if (fpTreeInit != NULL)
-//            {
-//            free (fpTreeInit[0]);
-//            free (fpTreeInit);
-//            }
-//        if (fpTreeMain != NULL)
-//            {
-//            free (fpTreeMain[0]);
-//            free (fpTreeMain);
-//            }
-//        if (!chainParams.initSubMod)
+        if (fpTree != NULL)
             {
-            if (fpTree != NULL)
-                {
-                free (fpTree[0]);
-                free (fpTree);
-                }
+            free (fpTree[0]);
+            free (fpTree);
             }
         if (fpParmInit != NULL)
             free (fpParmInit);
@@ -4998,8 +4957,6 @@ void FreeChainMemory (void)
         fpParmInit = NULL;
         fpParmMain = NULL;
         fpTree = NULL;
-        //fpTreeInit = NULL;
-        //fpTreeMain = NULL;
         fpMcmc = NULL;
         fpSS = NULL;
         memAllocs[ALLOC_FILEPOINTERS] = NO;
@@ -17217,9 +17174,8 @@ int RunChain (RandLong *seed)
             }
         }
 
-    for (n=numPreviousGen+1; n<=chainParams.numGen; n++) /* begin run chain */
+     for (n=numPreviousGen+1; n<=chainParams.numGen; n++) /* begin run chain */
         {
-
         // if done with initial run, calc and fix estimated submodel params
         // no need to set priors to fixed; we'll just set the parms and d isable the 
         // updating moves
@@ -18673,12 +18629,6 @@ void SetFileNames (void)
     strcpy (sumpParams.sumpFileName, chainParams.chainFileName);
     strcpy (sumpParams.sumpOutfile, chainParams.chainFileName);
 
-    //if (chainParams.initSubMod) 
-    //    {
-    //    //strcpy (sumpParams.sumpFileNameInit, chainParams.initFilename);
-    //    strcpy (sumpParams.sumpOutfileInit, chainParams.initFilename);
-    //    }
-
     if (chainParams.numRuns == 1)
         {
         sprintf (comptreeParams.comptFileName1, "%s.t", chainParams.chainFileName);
@@ -19263,7 +19213,6 @@ int ShowMoveSummary (void)
 
             if (chainParams.initSubMod == YES) 
                 {
-
                     MrBayesPrint ("%s   The MCMC chain will run a short initial chain with the Full likelihood \n", spacer);
                     MrBayesPrint ("%s   and a main run with the pairwise likelihood.  \n", spacer);
                 if (areRunsSame == YES && areChainsSame == YES) 
@@ -19275,7 +19224,6 @@ int ShowMoveSummary (void)
                 else if (areRunsSame == NO && areChainsSame == NO)
                     MrBayesPrint ("%s   The MCMC sampler will use the following moves for run %d, chain %d:\n", spacer, run+1, chain+1);
 
-                
                 chainIndex = run*chainParams.numChains + chain;
                 MrBayesPrint ("%s      With prob.  Chain will use move\n", spacer);
 
@@ -19543,7 +19491,7 @@ int SetUpTermState (void)
 -----------------------------------------------------------------------------*/
 int SetUsedMoves (void)
 {
-    int         i, j, k, moveIndex, numGlobalChains;
+    int         i, j, moveIndex, numGlobalChains;
     MrBFlt      prob, sum, cumSum;
     MrBFlt      initSum, mainSum;
     MrBFlt      initCumSum, mainCumSum;
@@ -19566,20 +19514,23 @@ int SetUsedMoves (void)
         if (prob > 0.000001)
             {
             numUsedMoves++;
-            if (moves[i]->moveType->applicableTo[0] == SHAPE_UNI ||
-                moves[i]->moveType->applicableTo[0] == REVMAT_DIR ||
-                moves[i]->moveType->applicableTo[0] == REVMAT_MIX ||
-                moves[i]->moveType->applicableTo[0] == PI_DIR)
+            if (chainParams.initSubMod == YES)
                 {
-                numUsedMovesInit++;
-                moves[i]->initRun=YES;
-                moves[i]->mainRun=NO;
-                }
-            else 
-                {
-                numUsedMovesMain++;
-                moves[i]->mainRun=YES;
-                moves[i]->initRun=NO;
+                if (moves[i]->moveType->applicableTo[0] == SHAPE_UNI ||
+                    moves[i]->moveType->applicableTo[0] == REVMAT_DIR ||
+                    moves[i]->moveType->applicableTo[0] == REVMAT_MIX ||
+                    moves[i]->moveType->applicableTo[0] == PI_DIR)
+                    {
+                    numUsedMovesInit++;
+                    moves[i]->initRun=YES;
+                    moves[i]->mainRun=NO;
+                    }
+                else 
+                    {
+                    numUsedMovesMain++;
+                    moves[i]->mainRun=YES;
+                    moves[i]->initRun=NO;
+                    }
                 }
             }
         }
@@ -19591,22 +19542,25 @@ int SetUsedMoves (void)
         return (ERROR);
         }
     usedMoves = (MCMCMove **) SafeMalloc (numUsedMoves * sizeof (MCMCMove *));
-    usedMovesInit = (MCMCMove **) SafeMalloc (numUsedMovesInit * sizeof (MCMCMove *));
-    usedMovesMain = (MCMCMove **) SafeMalloc (numUsedMovesMain * sizeof (MCMCMove *));
     if (!usedMoves)
         {
         MrBayesPrint ("%s   Problem allocating usedMoves\n", spacer);
         return (ERROR);
         }
-    if (!usedMovesInit)
+    if (chainParams.initSubMod == YES)
         {
-        MrBayesPrint ("%s   Problem allocating usedMovesInit\n", spacer);
-        return (ERROR);
-        }
-    if (!usedMovesMain)
-        {
-        MrBayesPrint ("%s   Problem allocating usedMovesMain\n", spacer);
-        return (ERROR);
+        usedMovesInit = (MCMCMove **) SafeMalloc (numUsedMovesInit * sizeof (MCMCMove *));
+        usedMovesMain = (MCMCMove **) SafeMalloc (numUsedMovesMain * sizeof (MCMCMove *));
+        if (!usedMovesInit)
+            {
+            MrBayesPrint ("%s   Problem allocating usedMovesInit\n", spacer);
+            return (ERROR);
+            }
+        if (!usedMovesMain)
+            {
+            MrBayesPrint ("%s   Problem allocating usedMovesMain\n", spacer);
+            return (ERROR);
+            }
         }
     memAllocs[ALLOC_USEDMOVES] = YES;
         
@@ -19626,7 +19580,7 @@ int SetUsedMoves (void)
             {
             if (moves[i]->initRun)
                 usedMovesInit[initMoveIndex++]=moves[i];
-            else if (moves[i]->mainRun)
+            if (moves[i]->mainRun)
                 usedMovesMain[mainMoveIndex++]=moves[i];
             usedMoves[moveIndex++] = moves[i];
             }
@@ -19638,21 +19592,30 @@ int SetUsedMoves (void)
         return (ERROR);
         }
 
-    /* set parsimony flag if applicable */
-    for (i=0; i<numCurrentDivisions; i++)
-        modelSettings[i].parsimonyBasedMove = NO;
-    for (i=0; i<numUsedMoves; i++)
-        {
-        if (usedMoves[i]->moveType->parsimonyBased == YES)
-            {
-            for (j=0; j<usedMoves[i]->parm->nRelParts; j++)
-                modelSettings[usedMoves[i]->parm->relParts[j]].parsimonyBasedMove = YES;
-            }       
-        }
-
     /* set cumulative proposal probabilities */
     if (chainParams.initSubMod == YES)
         {
+        /* set parsimony flag if applicable */
+        for (i=0; i<numCurrentDivisions; i++)
+            modelSettings[i].parsimonyBasedMove = NO;
+
+        for (i=0; i<numUsedMovesInit; i++)
+            {
+            if (usedMovesInit[i]->moveType->parsimonyBased == YES)
+                {
+                for (j=0; j<usedMovesInit[i]->parm->nRelParts; j++)
+                    modelSettings[usedMovesInit[i]->parm->relParts[j]].parsimonyBasedMove = YES;
+                }       
+            }
+        for (i=0; i<numUsedMovesMain; i++)
+            {
+            if (usedMovesMain[i]->moveType->parsimonyBased == YES)
+                {
+                for (j=0; j<usedMovesMain[i]->parm->nRelParts; j++)
+                    modelSettings[usedMovesMain[i]->parm->relParts[j]].parsimonyBasedMove = YES;
+                }       
+            }
+
         for (j=0; j<numGlobalChains; j++)
             {
             initSum=0.0;
@@ -19674,10 +19637,42 @@ int SetUsedMoves (void)
                 usedMovesMain[i]->cumProposalProb[j] = mainCumSum / mainSum;
                 }
             }
-        }
+        for (i=0; i<numUsedMovesInit; i++)
+            {
+            for (j=0; j<numGlobalChains; j++)
+                {
+                usedMovesInit[i]->nAccepted[j] = 0;
+                usedMovesInit[i]->nTried[j] = 0;
+                usedMovesInit[i]->nTotAccepted[j] = 0;
+                usedMovesInit[i]->nTotTried[j] = 0;
+                }
+            }
 
+        for (i=0; i<numUsedMovesMain; i++)
+            {
+            for (j=0; j<numGlobalChains; j++)
+                {
+                usedMovesMain[i]->nAccepted[j] = 0;
+                usedMovesMain[i]->nTried[j] = 0;
+                usedMovesMain[i]->nTotAccepted[j] = 0;
+                usedMovesMain[i]->nTotTried[j] = 0;
+                }
+            }
+        } /*  end init sub mod move setup */
     else 
         {
+        /* set parsimony flag if applicable */
+        for (i=0; i<numCurrentDivisions; i++)
+            modelSettings[i].parsimonyBasedMove = NO;
+        for (i=0; i<numUsedMoves; i++)
+            {
+            if (usedMoves[i]->moveType->parsimonyBased == YES)
+                {
+                for (j=0; j<usedMoves[i]->parm->nRelParts; j++)
+                    modelSettings[usedMoves[i]->parm->relParts[j]].parsimonyBasedMove = YES;
+                }       
+            }
+
         for (j=0; j<numGlobalChains; j++)
             {
             sum = 0.0;
@@ -19692,42 +19687,19 @@ int SetUsedMoves (void)
                 usedMoves[i]->cumProposalProb[j] = cumSum / sum;
                 }
             }
-        }
 
-    /* reset acceptance probability values */
-    for (i=0; i<numUsedMoves; i++)
-        {
-        for (j=0; j<numGlobalChains; j++)
+        /* reset acceptance probability values */
+        for (i=0; i<numUsedMoves; i++)
             {
-            usedMoves[i]->nAccepted[j] = 0;
-            usedMoves[i]->nTried[j] = 0;
-            usedMoves[i]->nTotAccepted[j] = 0;
-            usedMoves[i]->nTotTried[j] = 0;
+            for (j=0; j<numGlobalChains; j++)
+                {
+                usedMoves[i]->nAccepted[j] = 0;
+                usedMoves[i]->nTried[j] = 0;
+                usedMoves[i]->nTotAccepted[j] = 0;
+                usedMoves[i]->nTotTried[j] = 0;
+                }
             }
-        }
-
-    for (i=0; i<numUsedMovesInit; i++)
-        {
-        for (j=0; j<numGlobalChains; j++)
-            {
-            usedMovesInit[i]->nAccepted[j] = 0;
-            usedMovesInit[i]->nTried[j] = 0;
-            usedMovesInit[i]->nTotAccepted[j] = 0;
-            usedMovesInit[i]->nTotTried[j] = 0;
-            }
-        }
-
-    for (i=0; i<numUsedMovesMain; i++)
-        {
-        for (j=0; j<numGlobalChains; j++)
-            {
-            usedMovesMain[i]->nAccepted[j] = 0;
-            usedMovesMain[i]->nTried[j] = 0;
-            usedMovesMain[i]->nTotAccepted[j] = 0;
-            usedMovesMain[i]->nTotTried[j] = 0;
-            }
-        }
-
+        } /*  end non-initsubmod version */
     return (NO_ERROR);
 }
 

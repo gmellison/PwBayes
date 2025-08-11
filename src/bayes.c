@@ -1073,8 +1073,9 @@ int ReinitializeMrBayes (void)
     chainParams.initSampleFreq=500;
     chainParams.initBurnIn=5000;
     chainParams.initNumGen=10000;
-    chainParams.initSubMod=0;
-    strcpy(chainParams.initFilename,"init");
+    chainParams.initSubMod=NO;
+    chainParams.inInitRun=NO;
+    //strcpy(chainParams.initFilename,"init");
 
     /* sumt parameters */
     strcpy(sumtParams.sumtFileName, "temp");         /* input name for sumt command                   */
