@@ -2303,8 +2303,6 @@ int TiProbsPairwise_Gen (int division, int chain)
 
 int DoubletProbs_JukesCantor(int division, int chain)
 {
-
-    
     int         i, j, k, p, index, dpIdx;
     CLFlt       *tiP, *doubP;   
     ModelInfo   *m;
@@ -2336,7 +2334,7 @@ int DoubletProbs_JukesCantor(int division, int chain)
             dpIdx=0;
             for (i=0; i<4; i++)
                 for (j=0; j<4; j++)
-                    doubP[dpIdx++] += bs[i] * tiP[index++]/((MrBFlt)m->numRateCats);
+                    doubP[dpIdx++] += 0.25 * tiP[index++]/((MrBFlt)m->numRateCats);
             }
         }
     return(NO_ERROR);
@@ -2607,6 +2605,7 @@ MrBFlt LogLikePairwise(int chain)
 
     return(chainLnLike);
 }
+
 MrBFlt EstPwDist_JC(int p) 
 {
     MrBFlt tau;
