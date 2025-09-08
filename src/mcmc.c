@@ -279,6 +279,8 @@ extern CLFlt     *preLikeL;                  /* precalculated cond likes for lef
 extern CLFlt     *preLikeR;                  /* precalculated cond likes for right descendant*/
 extern CLFlt     *preLikeA;                  /* precalculated cond likes for ancestor        */
 
+MrBFlt *pwWeight;
+
 /* local (to this file) variables */
 int             numLocalChains;              /* number of Markov chains                      */
 int             *chainId = NULL;             /* information on the id (0 ...) of the chain   */
@@ -17642,6 +17644,9 @@ int RunChain (RandLong *seed)
 #   endif
                 )  
             {
+
+            pwWeight = SafeMalloc(numCurrentDivisions * sizeof(MrBFlt));
+
             /* calculate pairwise adjustment weights */
             /*   */
             MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
@@ -17663,7 +17668,7 @@ int RunChain (RandLong *seed)
                 }
            
 #   if defined (MPI_ENABLED)
-            MPI_Bcast (&modelSettings[0]->pwWeight, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Bcast (pwWeight, numCurrentDivisions, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #   endif
 
             /*  update current lnls with weighted lnls */

@@ -40,6 +40,7 @@
 #define LIKEPW_EPSILON        1.0e-300
 #define LIKEPW_EPSILON        1.0e-300
 
+extern MrBFlt *pwWeight ;
 
 // global variables for pairwise likelihoods:
 // global variables for pw likelihoods:
@@ -2560,7 +2561,7 @@ int Likelihood_Pairwise (int division, int chain, MrBFlt *lnL)
                     }
 
                 if (m->usePwWeights > 0)
-                    like=like*m->pwWeight;
+                    like=like*pwWeight[division];
 
                 (*lnL)+=like;
 
@@ -2716,8 +2717,8 @@ int CalcPairwiseWeights (int chain) {
         tree = GetTree(m->brlens, chain, state[chain]);
         if (m->usePwWeights==3)
             {
-            m->pwWeight = 2.0 / (numLocalTaxa * (numLocalTaxa - 1));
-            MrBayesPrint("%s pwWeight: %f \n", spacer, m->pwWeight);
+            pwWeight[d] = 2.0 / (numLocalTaxa * (numLocalTaxa - 1));
+            MrBayesPrint("%s pwWeight: %f \n", spacer, pwWeight[d]);
             continue;
             }
                 
@@ -3221,11 +3222,11 @@ int CalcPairwiseWeights (int chain) {
         v = (eigsum * eigsum) / eigsum2;
 
         if (m->usePwWeights == 1)
-            m->pwWeight=(1.0) / em;
+            pwWeight[d]=(1.0) / em;
         else if (m->usePwWeights == 2)  
-            m->pwWeight=v / (1.0*numBranches+2.0*em);
+            pwWeight[d]=v / (1.0*numBranches+2.0*em);
 
-        MrBayesPrint("%s pw weight: %f \n", spacer, m->pwWeight);
+        MrBayesPrint("%s pw weight: %f \n", spacer, pwWeight[d]);
 
         /*  free allocations   */
         /*  helper matrices */
@@ -3631,7 +3632,7 @@ int CalcPairwiseWeights_GTR (int chain) {
         tree = GetTree(m->brlens, chain, state[chain]);
         if (m->usePwWeights==3)
             {
-            m->pwWeight = 2.0 / (numLocalTaxa * (numLocalTaxa - 1));
+            pwWeight[d] = 2.0 / (numLocalTaxa * (numLocalTaxa - 1));
             MrBayesPrint("%s pwWeight: %f \n", spacer, m->pwWeight);
             continue;
             }
@@ -4084,11 +4085,11 @@ int CalcPairwiseWeights_GTR (int chain) {
         v = (eigsum * eigsum) / eigsum2;
 
         if (m->usePwWeights == 1)
-            m->pwWeight=(1.0) / em;
+            pwWeight[d]=(1.0) / em;
         else if (m->usePwWeights == 2)  
-            m->pwWeight=v / (1.0*numBranches+2.0*em);
+            pwWeight[d]=v / (1.0*numBranches+2.0*em);
 
-        MrBayesPrint("%s pw weight: %f \n", spacer, m->pwWeight);
+        MrBayesPrint("%s pw weight: %f \n", spacer, pwWeight[d]);
 
         /*  free allocations   */
         /*  helper matrices */
