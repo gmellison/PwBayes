@@ -17636,7 +17636,11 @@ int RunChain (RandLong *seed)
             }
 
         /*  if we're using pairwise weights, check if it's time to update the weight */
-        if (n == 1 && modelSettings->pwWeight && chainParams.inInitRun == NO)  
+        if (n == 1 && modelSettings->pwWeight && chainParams.inInitRun == NO
+#   if defined (MPI_ENABLED)
+                        && proc_id==0  
+#   endif
+                )  
             {
             /* calculate pairwise adjustment weights */
             /*   */
@@ -17657,7 +17661,11 @@ int RunChain (RandLong *seed)
                     return ERROR;
                     }
                 }
-            
+           
+#   if defined (MPI_ENABLED)
+            MPI_Bcast (m->pwWeight, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+#   endif
+
             /*  update current lnls with weighted lnls */
             //for (chn=0;chn<numLocalChains;chn++)
             //    curLnL[chn]=LogLikePairwise(chn);
