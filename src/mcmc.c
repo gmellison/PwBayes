@@ -17663,7 +17663,7 @@ int RunChain (RandLong *seed)
                 }
            
 #   if defined (MPI_ENABLED)
-            MPI_Bcast (modelSettings[0]->pwWeight, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+            MPI_Bcast (&modelSettings[0]->pwWeight, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 #   endif
 
             /*  update current lnls with weighted lnls */
