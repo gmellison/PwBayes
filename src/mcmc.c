@@ -16763,6 +16763,10 @@ int RunChain (RandLong *seed)
         TouchAllTrees (chn);
         TouchAllCijks (chn);
 
+        pwWeight = (MrBFlt*)SafeMalloc(numCurrentDivisions * sizeof(MrBFlt));
+        for (i=0;i<numCurrentDivisions;i++) 
+            pwWeight[i] = 1.0;
+
         curLnL[chn] = LogLike(chn);
 
         curLnPr[chn] = LogPrior(chn);
@@ -17638,15 +17642,12 @@ int RunChain (RandLong *seed)
             }
 
         /*  if we're using pairwise weights, check if it's time to update the weight */
-        if (n == 1 && modelSettings->pwWeight && chainParams.inInitRun == NO
-#   if defined (MPI_ENABLED)
-                        && proc_id==0  
-#   endif
-                )  
+        if (n == 1 && modelSettings->pwWeight && chainParams.inInitRun == NO)
+//#   if defined (MPI_ENABLED)
+//                        && proc_id==0  
+//#   endif
+//                )  
             {
-
-            pwWeight = SafeMalloc(numCurrentDivisions * sizeof(MrBFlt));
-
             /* calculate pairwise adjustment weights */
             /*   */
             MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
@@ -17666,16 +17667,17 @@ int RunChain (RandLong *seed)
                     return ERROR;
                     }
                 }
-           
+          
 #   if defined (MPI_ENABLED)
-            MPI_Bcast (pwWeight, numCurrentDivisions, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+           ierror=MPI_Bcast (pwWeight, numCurrentDivisions, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+           if (ierror != MPI_SUCCESS) 
+               MrBayesPrint("%s error mpi bcasting pwWeight \n", spacer);
 #   endif
 
             /*  update current lnls with weighted lnls */
             //for (chn=0;chn<numLocalChains;chn++)
             //    curLnL[chn]=LogLikePairwise(chn);
             }
-
 
         /* attempt swap(s) Non-blocking for MPI if no swap with external process. */
         if (chainParams.numChains > 1 && n % chainParams.swapFreq == 0)

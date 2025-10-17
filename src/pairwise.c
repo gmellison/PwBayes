@@ -3219,12 +3219,12 @@ int CalcPairwiseWeights (int chain) {
         }
 
         em = eigsum/(1.0*(numBranches)); 
-        v = (eigsum * eigsum) / eigsum2;
+        v = (eigsum) / eigsum2;
 
         if (m->usePwWeights == 1)
             pwWeight[d]=(1.0) / em;
         else if (m->usePwWeights == 2)  
-            pwWeight[d]=v / (1.0*numBranches+2.0*em);
+            pwWeight[d]=v;
 
         MrBayesPrint("%s pw weight: %f \n", spacer, pwWeight[d]);
 
@@ -4082,12 +4082,12 @@ int CalcPairwiseWeights_GTR (int chain) {
         }
 
         em = eigsum/(1.0*(numBranches)); 
-        v = (eigsum * eigsum) / eigsum2;
+        v = eigsum / eigsum2;
 
         if (m->usePwWeights == 1)
             pwWeight[d]=(1.0) / em;
         else if (m->usePwWeights == 2)  
-            pwWeight[d]=v / (1.0*numBranches+2.0*em);
+            pwWeight[d]=v;
 
         MrBayesPrint("%s pw weight: %f \n", spacer, pwWeight[d]);
 
