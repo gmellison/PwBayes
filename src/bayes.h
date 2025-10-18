@@ -352,7 +352,7 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define INDRVAR_MAX             10000.0f
 #define OMEGA_MIN               0.001f
 #define OMEGA_MAX               1000.0f
-#define MAX_DATA_SPLITS         100 
+#define MAX_DATA_SPLITS         1000
 
 
 #define POS_MIN                 1E-25f

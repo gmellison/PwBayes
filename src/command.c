@@ -14823,672 +14823,672 @@ void SetUpParms (void)
     PARAM (287, "PwAlphaLike",    DoLsetParm,        "None|Full|Triplet|\0"); 
     PARAM (288, "PwHotChain",     DoLsetParm,        "Yes|No|\0"); 
     PARAM (289, "PwWeights",      DoLsetParm,        "0|1|2|3|\0"); 
-    PARAM (290, "Nsplits",        DoLsetParm,        "\0"); 
-    PARAM (291, "Stepstilalpha",  DoLsetParm,        "\0"); 
-    PARAM (292, "Initsubmod",     DoMcmcParm,        "Yes|No|\0");
-    PARAM (293, "Initrunngen",    DoMcmcParm,        "\0");
-    PARAM (294, "Initrunburnin",  DoMcmcParm,        "\0");
-    PARAM (295, "Initsamplefreq", DoMcmcParm,        "\0");
+            PARAM (290, "Nsplits",        DoLsetParm,        "\0"); 
+            PARAM (291, "Stepstilalpha",  DoLsetParm,        "\0"); 
+            PARAM (292, "Initsubmod",     DoMcmcParm,        "Yes|No|\0");
+            PARAM (293, "Initrunngen",    DoMcmcParm,        "\0");
+            PARAM (294, "Initrunburnin",  DoMcmcParm,        "\0");
+            PARAM (295, "Initsamplefreq", DoMcmcParm,        "\0");
 
-    /* NOTE: If a change is made to the parameter table, make certain you change
-            NUMPARAMS (now 283; one more than last index) at the top of this file. */
-    /* CmdType commands[] */
-}
+            /* NOTE: If a change is made to the parameter table, make certain you change
+                    NUMPARAMS (now 283; one more than last index) at the top of this file. */
+            /* CmdType commands[] */
+        }
 
 
-void ShowNodes (TreeNode *p, int indent, int isThisTreeRooted)
-{
-    if (p != NULL)
+        void ShowNodes (TreeNode *p, int indent, int isThisTreeRooted)
         {
-        printf ("   ");
-        if (p->left == NULL && p->right == NULL && p->anc != NULL)
-            {
-            printf ("%*cN %d (l=%d r=%d a=%d) %1.15lf (%s) isDated=%d ",
-            indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc), p->length, p->label, p->isDated);
-            }
-        else if (p->left != NULL && p->right == NULL && p->anc == NULL)
-            {
-            if (isThisTreeRooted == NO)
+            if (p != NULL)
                 {
-                if (p->label[0] == '\0' || p->label[0] == '\n' || p->label[0] == ' ')
-                    printf ("%*cN %d (l=%d r=%d a=%d) (---) ",
-                    indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc));
+                printf ("   ");
+                if (p->left == NULL && p->right == NULL && p->anc != NULL)
+                    {
+                    printf ("%*cN %d (l=%d r=%d a=%d) %1.15lf (%s) isDated=%d ",
+                    indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc), p->length, p->label, p->isDated);
+                    }
+                else if (p->left != NULL && p->right == NULL && p->anc == NULL)
+                    {
+                    if (isThisTreeRooted == NO)
+                        {
+                        if (p->label[0] == '\0' || p->label[0] == '\n' || p->label[0] == ' ')
+                            printf ("%*cN %d (l=%d r=%d a=%d) (---) ",
+                            indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc));
+                        else
+                            printf ("%*cN %d (l=%d r=%d a=%d) (%s) ",
+                            indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc), p->label);
+                        }
+                    else
+                        {
+                        printf ("%*cN %d (l=%d r=%d a=%d) X.XXXXXX ",
+                        indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc));
+                        }
+                    }
                 else
-                    printf ("%*cN %d (l=%d r=%d a=%d) (%s) ",
-                    indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc), p->label);
+                    {
+                    if (p->anc != NULL)
+                        {
+                        if (p->anc->anc == NULL && isThisTreeRooted == YES)
+                            printf ("%*cN %d (l=%d r=%d a=%d) X.XXXXXX ",
+                            indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc));
+                        else    
+                            printf ("%*cN %d (l=%d r=%d a=%d) %1.15lf ",
+                            indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc), p->length);
+                        }
+                    }
+                if (isThisTreeRooted == YES)
+                    printf ("depth=%1.15lf\n", p->nodeDepth);
+                else
+                    printf ("\n");
+                ShowNodes (p->left,  indent + 2, isThisTreeRooted);
+                ShowNodes (p->right, indent + 2, isThisTreeRooted);
+                }
+        }
+
+
+        int StandID (char nuc)
+        {
+            /* Note that if you change how many states are recognized, you need
+               to look at IsMissing */
+            char n = nuc;
+
+            if (n == '0')
+                {
+                return 1;
+                }
+            else if (n == '1')
+                {
+                return 2;
+                }
+            else if (n == '2')
+                {
+                return 4;
+                }
+            else if (n == '3')
+                {
+                return 8;
+                }
+            else if (n == '4')
+                {
+                return 16;
+                }
+            else if (n == '5')
+                {
+                return 32;
+                }
+            else if (n == '6')
+                {
+                return 64;
+                }
+            else if (n == '7')
+                {
+                return 128;
+                }
+            else if (n == '8')
+                {
+                return 256;
+                }
+            else if (n == '9')
+                {
+                return 512;
+                }
+            else if (n == 'A' || n == 'a')
+                {
+                return 1024;
+                }
+            else if (n == 'B' || n == 'b')
+                {
+                return 2048;
+                }
+            else if (n == 'C' || n == 'c')
+                {
+                return 4096;
+                }
+            else if (n == 'D' || n == 'd')
+                {
+                return 8192;
+                }
+            else if (n == 'E' || n == 'e')
+                {
+                return 16384;
+                }
+            else if (n == 'F' || n == 'f')
+                {
+                return 32768;
+                }
+            else if (n == 'G' || n == 'g')
+                {
+                return 65536;
+                }
+            else if (n == 'H' || n == 'h')
+                {
+                return 131072;
+                }
+            else if (n == 'I' || n == 'i')
+                {
+                return 262144;
+                }
+            else if (n == 'J' || n == 'j')
+                {
+                return 524288;
+                }
+            else if (n == 'K' || n == 'k')
+                {
+                return 1048576;
+                }
+            else if (n == 'L' || n == 'l')
+                {
+                return 2097152;
+                }
+            else if (n == 'M' || n == 'm')
+                {
+                return 4194304;
+                }
+            else if (n == 'N' || n == 'n')
+                {
+                return 8388608;
+                }
+            else if (n == missingId)
+                {
+                return MISSING;
+                }
+            else if (n == gapId)
+                {
+                return GAP;
                 }
             else
+                return -1;
+        }
+
+
+        void State_CODON (char *state, int code, int division)
+        {
+            state[0] = StateCode_NUC4(modelParams[division].codonNucs[code][0]);
+            state[1] = StateCode_NUC4(modelParams[division].codonNucs[code][1]);
+            state[2] = StateCode_NUC4(modelParams[division].codonNucs[code][2]);
+            state[3] = '\0';
+        }
+
+
+        void State_DOUBLET (char *state, int code)
+        {
+            state[0] = code/4 + 'A';
+            state[1] = code%4 + 'A';
+            state[2] = '\0';
+        }
+
+
+        int StateCode_AA (int n)
+        {
+            if (n == 0)
+                return 'A';      /* Ala */
+            else if (n == 1)
+                return 'R';      /* Arg */
+            else if (n == 2)
+                return 'N';      /* Asn */
+            else if (n == 3)
+                return 'D';      /* Asp */
+            else if (n == 4)
+                return 'C';      /* Cys */
+            else if (n == 5)
+                return 'Q';      /* Gln */
+            else if (n == 6)
+                return 'E';      /* Glu */
+            else if (n == 7)
+                return 'G';      /* Gly */
+            else if (n == 8)
+                return 'H';      /* His */
+            else if (n == 9)
+                return 'I';      /* Ile */
+            else if (n == 10)
+                return 'L';      /* Leu */
+            else if (n == 11)
+                return 'K';      /* Lys */
+            else if (n == 12)
+                return 'M';      /* Met */
+            else if (n == 13)
+                return 'F';      /* Phe */
+            else if (n == 14)
+                return 'P';      /* Pro */
+            else if (n == 15)
+                return 'S';      /* Ser */
+            else if (n == 16)
+                return 'T';      /* Thr */
+            else if (n == 17)
+                return 'W';      /* Trp */
+            else if (n == 18)
+                return 'Y';      /* Tyr */
+            else if (n == 19)
+                return 'V';      /* Val */
+            else
+                return '?';
+        }
+
+
+        int StateCode_NUC4 (int n)
+        {
+            if (n == 0)
+                return 'A';
+            else if (n == 1)
+                return 'C';
+            else if (n == 2)
+                return 'G';
+            else if (n == 3)
+                return 'T';
+            else return '?';
+        }
+
+
+        int StateCode_Std (int n)
+        {
+            /* max 24 states: 0-9 A-N */
+            if (n <= 9 && n >= 0)
+                return '0' + n;
+            else if (n == 10)
+                return 'A';
+            else if (n == 11)
+                return 'B';
+            else if (n == 12)
+                return 'C';
+            else if (n == 13)
+                return 'D';
+            else if (n == 14)
+                return 'E';
+            else if (n == 15)
+                return 'F';
+            else if (n == 16)
+                return 'G';
+            else if (n == 17)
+                return 'H';
+            else if (n == 18)
+                return 'I';
+            else if (n == 19)
+                return 'J';
+            else if (n == 20)
+                return 'K';
+            else if (n == 21)
+                return 'L';
+            else if (n == 22)
+                return 'M';
+            else if (n == 23)
+                return 'N';
+            else return '?';
+        }
+
+
+        void WhatVariableExp (BitsLong exp, char *st)
+        {
+            int         n;
+            
+            strcpy (st, "");
+            n = 0;
+            if (exp == 0)
+                strcat(st, " nothing");
+            else
                 {
-                printf ("%*cN %d (l=%d r=%d a=%d) X.XXXXXX ",
-                indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc));
+                if ((exp & Expecting(COMMAND)) == Expecting(COMMAND))
+                    {
+                    strcat(st, " command");
+                    n++;
+                    }
+                if ((exp & Expecting(PARAMETER)) == Expecting(PARAMETER))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " parameter");
+                    n++;
+                    }
+                if ((exp & Expecting(EQUALSIGN)) == Expecting(EQUALSIGN))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " =");
+                    n++;
+                    }
+                if ((exp & Expecting(COLON)) == Expecting(COLON))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " :");
+                    n++;
+                    }
+                if ((exp & Expecting(SEMICOLON)) == Expecting(SEMICOLON))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " ;");
+                    n++;
+                    }
+                if ((exp & Expecting(COMMA)) == Expecting(COMMA))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " ,");
+                    n++;
+                    }
+                if ((exp & Expecting(POUNDSIGN)) == Expecting(POUNDSIGN))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " #");
+                    n++;
+                    }
+                if ((exp & Expecting(QUESTIONMARK)) == Expecting(QUESTIONMARK))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " ?");
+                    n++;
+                    }
+                if ((exp & Expecting(DASH)) == Expecting(DASH))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " -");
+                    n++;
+                    }
+                if ((exp & Expecting(LEFTPAR)) == Expecting(LEFTPAR))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " (");
+                    n++;
+                    }
+                if ((exp & Expecting(RIGHTPAR)) == Expecting(RIGHTPAR))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " )");
+                    n++;
+                    }
+                if ((exp & Expecting(LEFTCOMMENT)) == Expecting(LEFTCOMMENT))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " [");
+                    n++;
+                    }
+                if ((exp & Expecting(RIGHTCOMMENT)) == Expecting(RIGHTCOMMENT))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " ]");
+                    n++;
+                    }
+                if ((exp & Expecting(ALPHA)) == Expecting(ALPHA))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " <name>");
+                    n++;
+                    }
+                if ((exp & Expecting(NUMBER)) == Expecting(NUMBER))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " <number>");
+                    n++;
+                    }
+                if ((exp & Expecting(RETURNSYMBOL)) == Expecting(RETURNSYMBOL))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " return");
+                    n++;
+                    }
+                if ((exp & Expecting(ASTERISK)) == Expecting(ASTERISK))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " *");
+                    n++;
+                    }
+                if ((exp & Expecting(BACKSLASH)) == Expecting(BACKSLASH))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " /");
+                    n++;
+                    }
+                if ((exp & Expecting(BACKSLASH)) == Expecting(BACKSLASH))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " \\");
+                    n++;
+                    }
+                if ((exp & Expecting(EXCLAMATIONMARK)) == Expecting(EXCLAMATIONMARK))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " !");
+                    n++;
+                    }
+                if ((exp & Expecting(PERCENT)) == Expecting(PERCENT))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " %");
+                    n++;
+                    }
+                if ((exp & Expecting(LEFTCURL)) == Expecting(LEFTCURL))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " {");
+                    n++;
+                    }
+                if ((exp & Expecting(RIGHTCURL)) == Expecting(RIGHTCURL))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " }");
+                    n++;
+                    }
+                if ((exp & Expecting(WEIRD)) == Expecting(WEIRD))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " <whatever>");
+                    n++;
+                    }
+                if ((exp & Expecting(VERTICALBAR)) == Expecting(VERTICALBAR))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " |");
+                    n++;
+                    }
+                if ((exp & Expecting(UNKNOWN_TOKEN_TYPE)) == Expecting(UNKNOWN_TOKEN_TYPE))
+                    {
+                    if (n > 0)
+                        strcat(st, " or");
+                    strcat(st, " no clue");
+                    n++;
+                    }
                 }
-            }
-        else
-            {
-            if (p->anc != NULL)
-                {
-                if (p->anc->anc == NULL && isThisTreeRooted == YES)
-                    printf ("%*cN %d (l=%d r=%d a=%d) X.XXXXXX ",
-                    indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc));
-                else    
-                    printf ("%*cN %d (l=%d r=%d a=%d) %1.15lf ",
-                    indent, ' ', Dex(p), Dex(p->left), Dex(p->right), Dex(p->anc), p->length);
-                }
-            }
-        if (isThisTreeRooted == YES)
-            printf ("depth=%1.15lf\n", p->nodeDepth);
-        else
-            printf ("\n");
-        ShowNodes (p->left,  indent + 2, isThisTreeRooted);
-        ShowNodes (p->right, indent + 2, isThisTreeRooted);
         }
-}
 
 
-int StandID (char nuc)
-{
-    /* Note that if you change how many states are recognized, you need
-       to look at IsMissing */
-    char n = nuc;
-
-    if (n == '0')
+        char WhichAA (int x)
         {
-        return 1;
+            if (x == 1)
+                return ('A');
+            else if (x == 2)
+                return ('R');
+            else if (x == 4)
+                return ('N');
+            else if (x == 8)
+                return ('D');
+            else if (x == 16)
+                return ('C');
+            else if (x == 32)
+                return ('Q');
+            else if (x == 64)
+                return ('E');
+            else if (x == 128)
+                return ('G');
+            else if (x == 256)
+                return ('H');
+            else if (x == 512)
+                return ('I');
+            else if (x == 1024)
+                return ('L');
+            else if (x == 2048)
+                return ('K');
+            else if (x == 4096)
+                return ('M');
+            else if (x == 8192)
+                return ('F');
+            else if (x == 16384)
+                return ('P');
+            else if (x == 32768)
+                return ('S');
+            else if (x == 65536)
+                return ('T');
+            else if (x == 131072)
+                return ('W');
+            else if (x == 262144)
+                return ('Y');
+            else if (x == 524288)
+                return ('V');
+            else if (x > 0 && x < 524288)
+                return ('*');
+            else if (x == MISSING)
+                return ('?');
+            else if (x == GAP)
+                return ('-');
+            else 
+                return (' ');
         }
-    else if (n == '1')
-        {
-        return 2;
-        }
-    else if (n == '2')
-        {
-        return 4;
-        }
-    else if (n == '3')
-        {
-        return 8;
-        }
-    else if (n == '4')
-        {
-        return 16;
-        }
-    else if (n == '5')
-        {
-        return 32;
-        }
-    else if (n == '6')
-        {
-        return 64;
-        }
-    else if (n == '7')
-        {
-        return 128;
-        }
-    else if (n == '8')
-        {
-        return 256;
-        }
-    else if (n == '9')
-        {
-        return 512;
-        }
-    else if (n == 'A' || n == 'a')
-        {
-        return 1024;
-        }
-    else if (n == 'B' || n == 'b')
-        {
-        return 2048;
-        }
-    else if (n == 'C' || n == 'c')
-        {
-        return 4096;
-        }
-    else if (n == 'D' || n == 'd')
-        {
-        return 8192;
-        }
-    else if (n == 'E' || n == 'e')
-        {
-        return 16384;
-        }
-    else if (n == 'F' || n == 'f')
-        {
-        return 32768;
-        }
-    else if (n == 'G' || n == 'g')
-        {
-        return 65536;
-        }
-    else if (n == 'H' || n == 'h')
-        {
-        return 131072;
-        }
-    else if (n == 'I' || n == 'i')
-        {
-        return 262144;
-        }
-    else if (n == 'J' || n == 'j')
-        {
-        return 524288;
-        }
-    else if (n == 'K' || n == 'k')
-        {
-        return 1048576;
-        }
-    else if (n == 'L' || n == 'l')
-        {
-        return 2097152;
-        }
-    else if (n == 'M' || n == 'm')
-        {
-        return 4194304;
-        }
-    else if (n == 'N' || n == 'n')
-        {
-        return 8388608;
-        }
-    else if (n == missingId)
-        {
-        return MISSING;
-        }
-    else if (n == gapId)
-        {
-        return GAP;
-        }
-    else
-        return -1;
-}
 
 
-void State_CODON (char *state, int code, int division)
-{
-    state[0] = StateCode_NUC4(modelParams[division].codonNucs[code][0]);
-    state[1] = StateCode_NUC4(modelParams[division].codonNucs[code][1]);
-    state[2] = StateCode_NUC4(modelParams[division].codonNucs[code][2]);
-    state[3] = '\0';
-}
-
-
-void State_DOUBLET (char *state, int code)
-{
-    state[0] = code/4 + 'A';
-    state[1] = code%4 + 'A';
-    state[2] = '\0';
-}
-
-
-int StateCode_AA (int n)
-{
-    if (n == 0)
-        return 'A';      /* Ala */
-    else if (n == 1)
-        return 'R';      /* Arg */
-    else if (n == 2)
-        return 'N';      /* Asn */
-    else if (n == 3)
-        return 'D';      /* Asp */
-    else if (n == 4)
-        return 'C';      /* Cys */
-    else if (n == 5)
-        return 'Q';      /* Gln */
-    else if (n == 6)
-        return 'E';      /* Glu */
-    else if (n == 7)
-        return 'G';      /* Gly */
-    else if (n == 8)
-        return 'H';      /* His */
-    else if (n == 9)
-        return 'I';      /* Ile */
-    else if (n == 10)
-        return 'L';      /* Leu */
-    else if (n == 11)
-        return 'K';      /* Lys */
-    else if (n == 12)
-        return 'M';      /* Met */
-    else if (n == 13)
-        return 'F';      /* Phe */
-    else if (n == 14)
-        return 'P';      /* Pro */
-    else if (n == 15)
-        return 'S';      /* Ser */
-    else if (n == 16)
-        return 'T';      /* Thr */
-    else if (n == 17)
-        return 'W';      /* Trp */
-    else if (n == 18)
-        return 'Y';      /* Tyr */
-    else if (n == 19)
-        return 'V';      /* Val */
-    else
-        return '?';
-}
-
-
-int StateCode_NUC4 (int n)
-{
-    if (n == 0)
-        return 'A';
-    else if (n == 1)
-        return 'C';
-    else if (n == 2)
-        return 'G';
-    else if (n == 3)
-        return 'T';
-    else return '?';
-}
-
-
-int StateCode_Std (int n)
-{
-    /* max 24 states: 0-9 A-N */
-    if (n <= 9 && n >= 0)
-        return '0' + n;
-    else if (n == 10)
-        return 'A';
-    else if (n == 11)
-        return 'B';
-    else if (n == 12)
-        return 'C';
-    else if (n == 13)
-        return 'D';
-    else if (n == 14)
-        return 'E';
-    else if (n == 15)
-        return 'F';
-    else if (n == 16)
-        return 'G';
-    else if (n == 17)
-        return 'H';
-    else if (n == 18)
-        return 'I';
-    else if (n == 19)
-        return 'J';
-    else if (n == 20)
-        return 'K';
-    else if (n == 21)
-        return 'L';
-    else if (n == 22)
-        return 'M';
-    else if (n == 23)
-        return 'N';
-    else return '?';
-}
-
-
-void WhatVariableExp (BitsLong exp, char *st)
-{
-    int         n;
-    
-    strcpy (st, "");
-    n = 0;
-    if (exp == 0)
-        strcat(st, " nothing");
-    else
+        MrBFlt WhichCont (int x)
         {
-        if ((exp & Expecting(COMMAND)) == Expecting(COMMAND))
-            {
-            strcat(st, " command");
-            n++;
-            }
-        if ((exp & Expecting(PARAMETER)) == Expecting(PARAMETER))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " parameter");
-            n++;
-            }
-        if ((exp & Expecting(EQUALSIGN)) == Expecting(EQUALSIGN))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " =");
-            n++;
-            }
-        if ((exp & Expecting(COLON)) == Expecting(COLON))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " :");
-            n++;
-            }
-        if ((exp & Expecting(SEMICOLON)) == Expecting(SEMICOLON))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " ;");
-            n++;
-            }
-        if ((exp & Expecting(COMMA)) == Expecting(COMMA))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " ,");
-            n++;
-            }
-        if ((exp & Expecting(POUNDSIGN)) == Expecting(POUNDSIGN))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " #");
-            n++;
-            }
-        if ((exp & Expecting(QUESTIONMARK)) == Expecting(QUESTIONMARK))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " ?");
-            n++;
-            }
-        if ((exp & Expecting(DASH)) == Expecting(DASH))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " -");
-            n++;
-            }
-        if ((exp & Expecting(LEFTPAR)) == Expecting(LEFTPAR))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " (");
-            n++;
-            }
-        if ((exp & Expecting(RIGHTPAR)) == Expecting(RIGHTPAR))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " )");
-            n++;
-            }
-        if ((exp & Expecting(LEFTCOMMENT)) == Expecting(LEFTCOMMENT))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " [");
-            n++;
-            }
-        if ((exp & Expecting(RIGHTCOMMENT)) == Expecting(RIGHTCOMMENT))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " ]");
-            n++;
-            }
-        if ((exp & Expecting(ALPHA)) == Expecting(ALPHA))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " <name>");
-            n++;
-            }
-        if ((exp & Expecting(NUMBER)) == Expecting(NUMBER))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " <number>");
-            n++;
-            }
-        if ((exp & Expecting(RETURNSYMBOL)) == Expecting(RETURNSYMBOL))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " return");
-            n++;
-            }
-        if ((exp & Expecting(ASTERISK)) == Expecting(ASTERISK))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " *");
-            n++;
-            }
-        if ((exp & Expecting(BACKSLASH)) == Expecting(BACKSLASH))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " /");
-            n++;
-            }
-        if ((exp & Expecting(BACKSLASH)) == Expecting(BACKSLASH))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " \\");
-            n++;
-            }
-        if ((exp & Expecting(EXCLAMATIONMARK)) == Expecting(EXCLAMATIONMARK))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " !");
-            n++;
-            }
-        if ((exp & Expecting(PERCENT)) == Expecting(PERCENT))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " %");
-            n++;
-            }
-        if ((exp & Expecting(LEFTCURL)) == Expecting(LEFTCURL))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " {");
-            n++;
-            }
-        if ((exp & Expecting(RIGHTCURL)) == Expecting(RIGHTCURL))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " }");
-            n++;
-            }
-        if ((exp & Expecting(WEIRD)) == Expecting(WEIRD))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " <whatever>");
-            n++;
-            }
-        if ((exp & Expecting(VERTICALBAR)) == Expecting(VERTICALBAR))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " |");
-            n++;
-            }
-        if ((exp & Expecting(UNKNOWN_TOKEN_TYPE)) == Expecting(UNKNOWN_TOKEN_TYPE))
-            {
-            if (n > 0)
-                strcat(st, " or");
-            strcat(st, " no clue");
-            n++;
-            }
+            return ((MrBFlt)(x / 1000.0));
         }
-}
 
 
-char WhichAA (int x)
-{
-    if (x == 1)
-        return ('A');
-    else if (x == 2)
-        return ('R');
-    else if (x == 4)
-        return ('N');
-    else if (x == 8)
-        return ('D');
-    else if (x == 16)
-        return ('C');
-    else if (x == 32)
-        return ('Q');
-    else if (x == 64)
-        return ('E');
-    else if (x == 128)
-        return ('G');
-    else if (x == 256)
-        return ('H');
-    else if (x == 512)
-        return ('I');
-    else if (x == 1024)
-        return ('L');
-    else if (x == 2048)
-        return ('K');
-    else if (x == 4096)
-        return ('M');
-    else if (x == 8192)
-        return ('F');
-    else if (x == 16384)
-        return ('P');
-    else if (x == 32768)
-        return ('S');
-    else if (x == 65536)
-        return ('T');
-    else if (x == 131072)
-        return ('W');
-    else if (x == 262144)
-        return ('Y');
-    else if (x == 524288)
-        return ('V');
-    else if (x > 0 && x < 524288)
-        return ('*');
-    else if (x == MISSING)
-        return ('?');
-    else if (x == GAP)
-        return ('-');
-    else 
-        return (' ');
-}
+        char WhichNuc (int x)
+        {
+            if (x == 1)
+                return ('A');
+            else if (x == 2)
+                return ('C');
+            else if (x == 3)
+                return ('M');
+            else if (x == 4)
+                return ('G');
+            else if (x == 5)
+                return ('R');
+            else if (x == 6)
+                return ('S');
+            else if (x == 7)
+                return ('V');
+            else if (x == 8)
+                return ('T');
+            else if (x == 9)
+                return ('W');
+            else if (x == 10)
+                return ('Y');
+            else if (x == 11)
+                return ('H');
+            else if (x == 12)
+                return ('K');
+            else if (x == 13)
+                return ('D');
+            else if (x == 14)
+                return ('B');
+            else if (x == 15)
+                return ('N');
+            else if (x == 16)
+                return ('U');
+            else if (x == MISSING)
+                return ('?');
+            else if (x == GAP)
+                return ('-');
+            else 
+                return (' ');
+        }
 
-
-MrBFlt WhichCont (int x)
-{
-    return ((MrBFlt)(x / 1000.0));
-}
-
-
-char WhichNuc (int x)
-{
-    if (x == 1)
-        return ('A');
-    else if (x == 2)
-        return ('C');
-    else if (x == 3)
-        return ('M');
-    else if (x == 4)
-        return ('G');
-    else if (x == 5)
-        return ('R');
-    else if (x == 6)
-        return ('S');
-    else if (x == 7)
-        return ('V');
-    else if (x == 8)
-        return ('T');
-    else if (x == 9)
-        return ('W');
-    else if (x == 10)
-        return ('Y');
-    else if (x == 11)
-        return ('H');
-    else if (x == 12)
-        return ('K');
-    else if (x == 13)
-        return ('D');
-    else if (x == 14)
-        return ('B');
-    else if (x == 15)
-        return ('N');
-    else if (x == 16)
-        return ('U');
-    else if (x == MISSING)
-        return ('?');
-    else if (x == GAP)
-        return ('-');
-    else 
-        return (' ');
-}
-
-// Greg Checkpoint (for vim file navigating)
+        // Greg Checkpoint (for vim file navigating)
 
 
 
 
-char WhichRes (int x)
-{
-    if (x == 1)
-        return ('0');
-    else if (x == 2)
-        return ('1');
-    else if (x == 3)
-        return ('*');
-    else if (x == MISSING)
-        return ('N');
-    else if (x == GAP)
-        return ('-');
-    else 
-        return (' ');
-}
+        char WhichRes (int x)
+        {
+            if (x == 1)
+                return ('0');
+            else if (x == 2)
+                return ('1');
+            else if (x == 3)
+                return ('*');
+            else if (x == MISSING)
+                return ('N');
+            else if (x == GAP)
+                return ('-');
+            else 
+                return (' ');
+        }
 
 
-char WhichStand (int x)
-{
-    if (x == 1)
-        return ('0');
-    else if (x == 2)
-        return ('1');
-    else if (x == 4)
-        return ('2');
-    else if (x == 8)
-        return ('3');
-    else if (x == 16)
-        return ('4');
-    else if (x == 32)
-        return ('5');
-    else if (x == 64)
-        return ('6');
-    else if (x == 128)
-        return ('7');
-    else if (x == 256)
-        return ('8');
-    else if (x == 512)
-        return ('9');
-    else if (x == 1024)
-        return ('a');
-    else if (x == 2048)
-        return ('b');
-    else if (x == 4096)
-        return ('c');
-    else if (x == 8192)
-        return ('d');
-    else if (x == 16384)
-        return ('e');
-    else if (x == 32768)
-        return ('f');
-    else if (x == 65536)
-        return ('g');
-    else if (x == 131072)
-        return ('h');
-    else if (x == 262144)
-        return ('i');
-    else if (x == 524288)
-        return ('j');
-    else if (x == 1048576)
-        return ('k');
-    else if (x == 2097152)
-        return ('l');
-    else if (x == 4194304)
-        return ('m');
-    else if (x == 8388608)
-        return ('n');
-    else if (x > 0 && x < 8388608)
-        return ('*');
-    else if (x == MISSING)
-        return ('?');
-    else if (x == GAP)
-        return ('-');
-    else 
-        return (' ');
-}
+        char WhichStand (int x)
+        {
+            if (x == 1)
+                return ('0');
+            else if (x == 2)
+                return ('1');
+            else if (x == 4)
+                return ('2');
+            else if (x == 8)
+                return ('3');
+            else if (x == 16)
+                return ('4');
+            else if (x == 32)
+                return ('5');
+            else if (x == 64)
+                return ('6');
+            else if (x == 128)
+                return ('7');
+            else if (x == 256)
+                return ('8');
+            else if (x == 512)
+                return ('9');
+            else if (x == 1024)
+                return ('a');
+            else if (x == 2048)
+                return ('b');
+            else if (x == 4096)
+                return ('c');
+            else if (x == 8192)
+                return ('d');
+            else if (x == 16384)
+                return ('e');
+            else if (x == 32768)
+                return ('f');
+            else if (x == 65536)
+                return ('g');
+            else if (x == 131072)
+                return ('h');
+            else if (x == 262144)
+                return ('i');
+            else if (x == 524288)
+                return ('j');
+            else if (x == 1048576)
+                return ('k');
+            else if (x == 2097152)
+                return ('l');
+            else if (x == 4194304)
+                return ('m');
+            else if (x == 8388608)
+                return ('n');
+            else if (x > 0 && x < 8388608)
+                return ('*');
+            else if (x == MISSING)
+                return ('?');
+            else if (x == GAP)
+                return ('-');
+            else 
+                return (' ');
+        }
 

@@ -1686,56 +1686,10 @@ int CalcPairwiseDists_ReverseDownpass(Tree *t, int division, int chain)
     ////MrBayesPrint("   uniquedists: %d \n", m->numUniqueDists[chain]);
 
 
-    ShowTree(t);
-
-
     /*  free temp array and return pointer to taxa pairwise distances */
     for (k=0;k<t->nNodes;k++)
         free(distsTemp[k]);
     free(distsTemp);
-
-    for (i=0; i<t->nNodes; i++)
-        {
-        p = t->allDownPass[i];
-
-        /* find length */
-        if (m->cppEvents != NULL)
-            {
-            x = GetParamSubVals (m->cppEvents, chain, state[chain])[p->index];
-            }
-        else if (m->tk02BranchRates != NULL)
-            {
-            x = GetParamSubVals (m->tk02BranchRates, chain, state[chain])[p->index];
-            }
-        else if (m->wnBranchRates != NULL)
-            {
-            x = GetParamSubVals (m->wnBranchRates, chain, state[chain])[p->index];
-            }
-        else if (m->ilnBranchRates != NULL)
-            {
-            x = GetParamSubVals (m->ilnBranchRates, chain, state[chain])[p->index];
-            }
-        else if (m->igrBranchRates != NULL)
-            {
-            x = GetParamSubVals (m->igrBranchRates, chain, state[chain])[p->index];
-            }
-        else if (m->mixedBrchRates != NULL)
-            {
-            x = GetParamSubVals (m->mixedBrchRates, chain, state[chain])[p->index];
-            }
-        else
-            x = p->length;
-        MrBayesPrint("%s bl %d: %f \n", spacer, i , x);
-        }
-
-    for (i=0; i<(numExtNodes-1); i++) {
-        for (j=i+1; j<numExtNodes; j++) {
-            MrBayesPrint("%s pw dist %d: %f \n", spacer, pairIdx(i,j,numExtNodes), dists[pairIdx(i,j,numExtNodes)]);
-        }
-    }
-
-
-
 
     return(NO_ERROR);
 }
@@ -3248,10 +3202,13 @@ int CalcPairwiseWeights (int chain) {
         dw= (MrBFlt *)SafeMalloc((size_t)numBranches*(sizeof(MrBFlt)));
         iw= (int *)SafeMalloc((size_t)numBranches*(sizeof(int)));
 
+ 
         InvertMatrix(numBranches, H, dw,iw, Hinv);
         MultiplyMatrices(numBranches, Hinv, J, HiJ);
 
+
         isComplex=GetEigens(numBranches,HiJ,eigvals,eigvalsc,V,Vinv,Vc,Vcinv);
+
         //MrBayesPrint("isComplex: %d \n", isComplex);
 
         eigsum=0.0;
@@ -3849,10 +3806,11 @@ int CalcPairwiseWeights_GTR (int chain) {
                         continue;
 
                     dI=dIdx(c1,c2,nStates);
-                    counts[cI+dI] += 1;
-                    counts[overallPwIdx+dI] += 1;
-                    splitI+=1;
-                    splitI = splitI%nSplits;
+                    counts[cI + dI] += 1;
+                    counts[overallPwIdx + dI] += 1;
+                    if (c > splitI * (numChar / nSplits)) splitI += 1;
+                    // splitI+=1;
+                    splitI = splitI % nSplits;
 
                     if (cI+dI < 0 || overallPwIdx+dI < 0)
                         MrBayesPrint("possible oob? %d %d %d", cI, overallPwIdx, dI);
@@ -3860,6 +3818,7 @@ int CalcPairwiseWeights_GTR (int chain) {
                 }
             }
 
+        MrBayesPrint("done w/ counts \n");
         /*  now just calculate the pw dists */
         MrBFlt al;
         if (m->shape != NULL)
@@ -3924,7 +3883,7 @@ int CalcPairwiseWeights_GTR (int chain) {
             freeBitsets = NO;
             }
 
-        for (i=index=0;i<tree->nNodes;i++)
+        for (i=index=0;i<tree->nNodes;i++) // set for each node in tree
             {
             p=&(tree->nodes[i]);
             if (AreDoublesEqual(p->length,0.0,ETA)) continue;
@@ -3948,7 +3907,7 @@ int CalcPairwiseWeights_GTR (int chain) {
                     if (tempPartitionPair[j] == 1) 
                         {
                         k=pairIdx(l2,j,numLocalTaxa);
-                        PairBranch[index][k]=1; /*  both taxa below node, so node not in pair path  */
+                        PairBranch[index][k]=1;     /*  l1 in and l2 not in partition, so path btw l1,lw split by node  */
                         }
                     }
                 }
@@ -4033,13 +3992,12 @@ int CalcPairwiseWeights_GTR (int chain) {
                             {
                             nidx=countIndex[z][k];
 
-
                             /*  fill in derivative arrays */
                             //if (isnan(counts[nidx+j] * t1)) {
                             //    continue;
                             //}
 
-                            D1L[z][i]     += (counts[nidx+j] * t1);
+                            D1L[z][i]      += (counts[nidx+j] * t1);
                             D1LP[z][index] += (counts[nidx+j] * t1);
 
                             }
@@ -4065,27 +4023,32 @@ int CalcPairwiseWeights_GTR (int chain) {
         //    MrBayesPrint("\n");
         //} 
         /*  fill in J and H  */
-        for (i=0; i<numBranches; i++)
-            {
-            for (j=i; j<numBranches; j++)
-                {
-                         
-                H[i][j]=0.0;
-                J[i][j]=0.0;
 
-                for (z=0; z<nSplits; z++)
-                    {
-                    J[i][j] += (1.0/nSplits) * D1L[z][i] * D1L[z][j] ;
-                    for (k=0; k<nPairs; k++ )
-                        {
-                        if (PairBranch[i][k]==1 && PairBranch[j][k]==1)
-                            {
-                            if (nPairs*i+k >= nPairs * numBranches || nPairs*j+k >= nPairs * numBranches)
-                                    MrBayesPrint("possible index oob: %d , %d, %d ", nPairs*j+k, nPairs*i+k, nPairs * numBranches );
-                            H[i][j] += (1.0/nSplits) * D1LP[z][nPairs*i+k] * D1LP[z][nPairs*j+k] ;
-                            }
-                        }
-                    }
+         for (i=0; i<numBranches; i++)
+             {
+             for (j=i; j<numBranches; j++)
+                 {
+//       for (i=0; i<tree->nNodes; i++)     
+//           {
+//           for (j=i; j<tree->nNodes; j++)
+//               {
+
+               H[i][j]=0.0;
+               J[i][j]=0.0;
+
+               for (z=0; z<nSplits; z++)
+                   {
+                   J[i][j] += (1.0/nSplits) * D1L[z][i] * D1L[z][j] ;
+                   for (k=0; k<nPairs; k++ )
+                       {
+                       if (PairBranch[i][k]==1 && PairBranch[j][k]==1)
+                           {
+                           if (nPairs*i+k >= nPairs * numBranches || nPairs*j+k >= nPairs * numBranches)
+                                 MrBayesPrint("possible index oob: %d , %d, %d ", nPairs*j+k, nPairs*i+k, nPairs * numBranches );
+                           H[i][j] += (1.0/nSplits) * D1LP[z][nPairs*i + k] * D1LP[z][nPairs*j + k] ;
+                           }
+                       }
+                   }
 
                 if (i != j) 
                     {
@@ -4103,6 +4066,7 @@ int CalcPairwiseWeights_GTR (int chain) {
         InvertMatrix(numBranches, H, dw,iw, Hinv);
         MultiplyMatrices(numBranches, Hinv, J, HiJ);
 
+        int isComplex=GetEigens(numBranches,HiJ,eigvals,eigvalsc,V,Vinv,Vc,Vcinv);
         //for (k=0; k<numBranches; k++)
         //    {
         //    MrBayesPrint("HiJ[%d][.] =",k);
@@ -4113,10 +4077,6 @@ int CalcPairwiseWeights_GTR (int chain) {
         //        MrBayesPrint("\n");
         //    }
 
-        //MrBayesPrint("Is the problem here???? \n");
-        int isComplex=GetEigens(numBranches,HiJ,eigvals,eigvalsc,V,Vinv,Vc,Vcinv);
-        //MrBayesPrint("isComplex: %d \n", isComplex);
-
         MrBFlt eigsum=0.0 ;
         MrBFlt eigsum2=0.0 ;
         MrBFlt em=0.0;
@@ -4124,7 +4084,7 @@ int CalcPairwiseWeights_GTR (int chain) {
 
         for (i=0; i<numBranches; i++) {
             //MrBayesPrint("Eigen %d = %f \n", i, eigvals[i]);
-            eigsum += eigvals[i];
+            eigsum += abs(eigvals[i]);
             eigsum2 += eigvals[i] * eigvals[i];
         }
 
