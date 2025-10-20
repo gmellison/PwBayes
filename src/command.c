@@ -49,8 +49,8 @@
 #endif
 
 
-#define NUMCOMMANDS                     62 + 3    /* The total number of commands in the program  */
-#define NUMPARAMS                       296   /* The total number of parameters  */
+#define NUMCOMMANDS                     62    /* The total number of commands in the program  */
+#define NUMPARAMS                       293   /* The total number of parameters  */
 #define PARAM(i, s, f, l)               p->string = s;    \
                                         p->fp = f;        \
                                         p->valueList = l; \
@@ -299,7 +299,7 @@ CmdType     commands[] =
             {  3,           "Begin",  NO,              NULL,  6,                                                                              {1,2,3,201,226,227},        4,                         "Denotes beginning of block in file", IN_FILE, SHOW },
             {  4,       "Calibrate",  NO,       DoCalibrate,  1,                                                                                            {119},        4,               "Assigns dates to terminals or interior nodes",  IN_CMD, SHOW },
             {  5,         "Charset",  NO,         DoCharset,  1,                                                                                             {15},        4,                          "Assigns a group of sites to a set",  IN_CMD, SHOW },
-            {  6,        "Charstat",  NO,        DoCharStat,  0,                                                                                             {-1},       32,                                 "Shows status of characters",  IN_CMD, SHOW },
+            {  7,        "Charstat",  NO,        DoCharStat,  0,                                                                                             {-1},       32,                                 "Shows status of characters",  IN_CMD, SHOW },
             {  7,       "Citations",  NO,       DoCitations,  0,                                                                                             {-1},       32,                   "Citation of program, models, and methods",  IN_CMD, SHOW },
             {  8,     "Comparetree",  NO,     DoCompareTree,  7,                                                                    {127,128,129,130,221,222,223},       36,                     "Compares the trees from two tree files",  IN_CMD, SHOW },
             {  9,      "Constraint",  NO,      DoConstraint,  1,                                                                                             {66},        4,                      "Defines a constraint on tree topology",  IN_CMD, SHOW },
@@ -318,15 +318,15 @@ CmdType     commands[] =
             { 22,            "Link",  NO,            DoLink, 30,  {55,56,57,58,59,60,61,62,63,72,73,74,75,76,105,118,193,194,195,196,197,242,243,252,253,255,256,
                                                                                                                                                      270,273,274},        4,               "Links parameters across character partitions",  IN_CMD, SHOW },
             { 23,             "Log",  NO,             DoLog,  5,                                                                                 {85,86,87,88,89},        4,                               "Logs screen output to a file",  IN_CMD, SHOW },
-            { 24,            "Lset",  NO,            DoLset, 26,                          {28,29,30,31,32,33,34,40,51,52,53,90,91,131,188,189,276,277,280,282,286,
-                                                                                                                                             287,288,289,290,291},        4,                "Sets the parameters of the likelihood model",  IN_CMD, SHOW },
+            { 24,            "Lset",  NO,            DoLset, 26,                          {28,29,30,31,32,33,34,40,51,52,53,90,91,131,188,189,276,277,280,282,283,
+                                                                                                                                             284,285,286,287,288},        4,                "Sets the parameters of the likelihood model",  IN_CMD, SHOW },
             { 25,          "Manual",  NO,          DoManual,  1,                                                                                            {126},       36,                  "Prints a command reference to a text file",  IN_CMD, SHOW },
             { 26,          "Matrix", YES,          DoMatrix,  1,                                                                                             {11},649252640,                 "Defines matrix of characters in data block", IN_FILE, SHOW },
 
             { 27,            "Mcmc",  NO,            DoMcmc, 50,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
-                                                                 153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,292,293,294,295},          36,                   "Starts Markov chain Monte Carlo analysis",  IN_CMD, SHOW },
+                                                                 153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,289,290,291,292},          36,                   "Starts Markov chain Monte Carlo analysis",  IN_CMD, SHOW },
             { 28,           "Mcmcp",  NO,           DoMcmcp, 50,  {17,18,19,20,21,22,23,24,25,26,27,84,98,112,113,114,115,116,132,142,143,144,148,149,150,151,152,
-                                                                 153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,292,293,294,295},           4,     "Sets parameters of a chain (without starting analysis)",  IN_CMD, SHOW },
+                                                                 153,154,155,156,157,158,159,160,166,169,190,191,198,199,200,202,213,214,215,289,290,291,292},           4,     "Sets parameters of a chain (without starting analysis)",  IN_CMD, SHOW },
 
             { 29,        "Outgroup", YES,        DoOutgroup,  1,                                                                                             {78},    49152,                                     "Changes outgroup taxon",  IN_CMD, SHOW },
             { 30,           "Pairs", YES,           DoPairs,  1,                                                                                             {92},    32768,        "Defines nucleotide pairs (doublets) for stem models",  IN_CMD, SHOW },
@@ -365,9 +365,6 @@ CmdType     commands[] =
             { 59,        "Usertree", YES,        DoUserTree,  1,                                                                                            {203},        8,                                 "Defines a single user tree",  IN_CMD, HIDE },
             { 60,         "Version",  NO,         DoVersion,  0,                                                                                             {-1},       32,                                      "Shows program version",  IN_CMD, SHOW },
             { 61,      "Compareref",  NO,     DoCompRefTree,  7,                                                                    {127,128,129,130,221,222,223},       36,                   "Compares the tree to the reference trees",  IN_CMD, HIDE },
-            { 62,    "EstQPairwise",  NO,    DoEstQPairwise,  0,                                                                                             {-1},       32,                      "Computes pairwise gtr param estimates",  IN_CMD, HIDE },
-            { 63, "PairwiseLogLike",  NO, DoPairwiseLogLike,  3,                                                                                        {284,285,286},       36,                                     "Computes pairwise nqll",  IN_CMD, HIDE },
-            { 63,  "TripletLogLike",  NO,  DoTripletLogLike,  3,                                                                                        {284,285,286},       36,                                "Computes triplet-based nqll",  IN_CMD, HIDE },
  
             /* NOTE: If you add a command here, make certain to change NUMCOMMANDS (above, in this file) appropriately! */
             { 999,             NULL,  NO,              NULL,  0,                                                                                             {-1},       32,                                                           "",  IN_CMD, HIDE }  
@@ -14816,19 +14813,16 @@ void SetUpParms (void)
     PARAM (280, "Statefreqmodel", DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
     PARAM (281, "Rootfreqpr",     DoPrsetParm,       "Dirichlet|Fixed|\0"); //SK
     PARAM (282, "Statefrmod",     DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
-    PARAM (283, "Dist",           DoPwSetParm,       "\0"); 
-    PARAM (284, "Alpha",          DoPwSetParm,       "\0"); 
-    PARAM (285, "Relrates",       DoPwSetParm,       "\0"); 
-    PARAM (286, "UsePairwise",    DoLsetParm,        "Yes|No|\0"); 
-    PARAM (287, "PwAlphaLike",    DoLsetParm,        "None|Full|Triplet|\0"); 
-    PARAM (288, "PwHotChain",     DoLsetParm,        "Yes|No|\0"); 
-    PARAM (289, "PwWeights",      DoLsetParm,        "0|1|2|3|\0"); 
-            PARAM (290, "Nsplits",        DoLsetParm,        "\0"); 
-            PARAM (291, "Stepstilalpha",  DoLsetParm,        "\0"); 
-            PARAM (292, "Initsubmod",     DoMcmcParm,        "Yes|No|\0");
-            PARAM (293, "Initrunngen",    DoMcmcParm,        "\0");
-            PARAM (294, "Initrunburnin",  DoMcmcParm,        "\0");
-            PARAM (295, "Initsamplefreq", DoMcmcParm,        "\0");
+    PARAM (283, "UsePairwise",    DoLsetParm,        "Yes|No|\0"); 
+    PARAM (284, "PwAlphaLike",    DoLsetParm,        "None|Full|Triplet|\0"); 
+    PARAM (285, "PwHotChain",     DoLsetParm,        "Yes|No|\0"); 
+    PARAM (286, "PwWeights",      DoLsetParm,        "0|1|2|3|\0"); 
+    PARAM (287, "Nsplits",        DoLsetParm,        "\0"); 
+    PARAM (288, "Stepstilalpha",  DoLsetParm,        "\0"); 
+    PARAM (289, "Initsubmod",     DoMcmcParm,        "Yes|No|\0");
+    PARAM (290, "Initrunngen",    DoMcmcParm,        "\0");
+    PARAM (291, "Initrunburnin",  DoMcmcParm,        "\0");
+    PARAM (292, "Initsamplefreq", DoMcmcParm,        "\0");
 
             /* NOTE: If a change is made to the parameter table, make certain you change
                     NUMPARAMS (now 283; one more than last index) at the top of this file. */
@@ -15005,7 +14999,7 @@ void SetUpParms (void)
             state[0] = StateCode_NUC4(modelParams[division].codonNucs[code][0]);
             state[1] = StateCode_NUC4(modelParams[division].codonNucs[code][1]);
             state[2] = StateCode_NUC4(modelParams[division].codonNucs[code][2]);
-            state[3] = '\0';
+            state[5] = '\0';
         }
 
 

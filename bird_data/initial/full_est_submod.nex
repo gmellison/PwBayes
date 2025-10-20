@@ -1,0 +1,50 @@
+
+begin mrbayes;
+log start filename=full_est_submod.log;
+
+execute ../bird_matrix.nex;
+execute ../bird.tree;
+execute ../calibrations/calibrations_strict_ln.nex;
+
+prset brlenspr=clock:birthdeath;
+prset topologypr=constraints(
+    alligator,
+    paleo,
+    fossil3 ,
+    fossil4 ,
+    fossil5 ,
+    fossil6 ,
+    fossil7 ,
+    fossil8 ,
+    fossil9 ,
+    fossil10 ,
+    fossil11,
+    fossil12 ,
+    fossil13 ,
+    fossil14 ,
+    fossil15 ,
+    fossilA,
+    fossilB ,
+    fossilC ,
+    fossilD ,
+    fossil20 
+);
+
+
+lset nst=6;
+lset rates=gamma;
+prset clockvarpr=iln;
+prset nodeagepr=calibrated;
+prset clockratepr=normal(0.001, 0.01);
+propset ParsSPRClock(Tau,V)$prob=0 ExtSPRClock(Tau,V)$prob=0 NNIClock(Tau,V)$prob=0;
+[propset NodesliderClock(V)$prob=0 TreeStretch(V)$prob=0 Multiplier(IlnBrlens)$prob=0 Multiplier(ILNvar)$prob=0 Multiplier(Clockrate)$prob=0 ;]
+propset Dirichlet(Revmat)$prob=5 Slider(Revmat)$prob=5 Multiplier(Alpha)$prob=10;
+startvals tau=birdtree;
+mcmcp checkpoint=yes checkfreq=1000 append=no ;
+mcmcp filename=full_est_submod.nex;
+mcmc  ngen=50000 samplefreq=50;
+sump burninfrac=0.5; 
+sumt burninfrac=0.5; 
+log stop;
+end;
+

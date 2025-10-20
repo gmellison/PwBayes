@@ -1,0 +1,39 @@
+begin mrbayes;
+log start filename=pw_strict_ln.log;
+
+execute ../bird_matrix.nex;
+execute ../bird.tree;   [read in tree] 
+execute ../calibrations/calibrations_strict_ln.nex; 
+
+prset brlenspr=clock:birthdeath;
+prset topologypr=constraints(
+    alligator  ,
+    paleo  ,
+    fossil3  ,
+    fossil4  ,
+    fossil5  ,
+    fossil6  ,
+    fossil7  ,
+    fossil8  ,
+    fossil9  ,
+    fossil10 , 
+    fossil11 , 
+    fossil12 , 
+    fossil13 , 
+    fossil14 , 
+    fossil15 , 
+    fossilA , 
+    fossilB , 
+    fossilC , 
+    fossilD ,
+    fossil20
+);
+
+execute pw_model.nex;
+mcmcp checkpoint=yes checkfreq=10000 append=no;
+mcmc  ngen=2000000 samplefreq=500 filename=pw_strict_ln.nex;
+sump burninfrac=0.5 filename=pw_strict_ln.nex; 
+sumt burninfrac=0.5 conformat=figtree filename=pw_strict_ln.nex;
+log stop;
+end;
+

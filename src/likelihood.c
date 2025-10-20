@@ -57,7 +57,6 @@ extern MrBFlt   **rateProbs;                /* pointers to rate probs used by ad
 
 /* pairwise globals (declared in model.c) */
 extern int usePairwise;
-extern int useTriples;
 
 /* local prototypes */
 MrBFlt    GetRate (int division, int chain);

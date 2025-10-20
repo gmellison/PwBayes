@@ -428,7 +428,6 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define ALLOC_SPECIESPARTITIONS  89
 #define ALLOC_SS                 90
 #define ALLOC_PAIRWISE           91
-#define ALLOC_TRIPLES            92
 #define LINKED                  0
 #define UNLINKED                1
 
@@ -1515,17 +1514,17 @@ typedef struct modelinfo
     MrBFlt      *pwWJEst;
     MrBFlt      pwWeight;       
 
-    /*  Triplet model information */
-    int         numTrips;
-    MrBFlt      **tripleCnDists;     /*  [chainId][tripleIndex * 3]   */
-    CLFlt       **tripleTiProbs;     /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
-    CLFlt       **tripleProbs;       /*  site pattern probs: [chainId*triptId][64] */ 
-    int         **tripIndex;         /*  holds indices for triplets: [chainId][tripId]  */
-    int         **tripDistIndex;     /*  holds indices for triplets: [chainId][tripId]  */
-    int         numTripleProbs;
-    int         numTiProbsTrip;
-    int         tiProbsTripLength;
-    int         tripleProbsLength;
+//    /*  Triplet model information */
+//    int         numTrips;
+//    MrBFlt      **tripleCnDists;     /*  [chainId][tripleIndex * 3]   */
+//    CLFlt       **tripleTiProbs;     /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
+//    CLFlt       **tripleProbs;       /*  site pattern probs: [chainId*triptId][64] */ 
+//    int         **tripIndex;         /*  holds indices for triplets: [chainId][tripId]  */
+//    int         **tripDistIndex;     /*  holds indices for triplets: [chainId][tripId]  */
+//    int         numTripleProbs;
+//    int         numTiProbsTrip;
+//    int         tiProbsTripLength;
+//    int         tripleProbsLength;
     int         condLikeLengthPw;             /* length of cond like array (incl. ti cats)    */
 
     MrBFlt      lnLikeAlpha[MAX_CHAINS];      /* log like for chain                           */

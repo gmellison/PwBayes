@@ -22884,7 +22884,7 @@ void SetUpMoveTypes (void)
     /* Move_ParsSPR1 e^{-S} */
     mt = &moveTypes[i++];
     mt->name = "Parsimony-biased SPR variant 1";
-    mt->shortName = "ParsSPR";
+    mt->shortName = "ParsSPR1";
     mt->subParams = YES;
     mt->tuningName[0] = "parsimony warp factor";
     mt->shortTuningName[0] = "warp";
