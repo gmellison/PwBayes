@@ -1758,7 +1758,10 @@ int ExamineSumpFile (char *fileName, SumpFileInfo *fileInfo, char ***headerNames
         if (chainParams.relativeBurnin == YES)
             burnin = (int) (chainParams.burninFraction * numParamLines);
         else
-            burnin = chainParams.chainBurnIn;
+            if (chainParams.inInitRun == YES)
+                burnin = chainParams.initBurnIn;
+            else 
+                burnin = chainParams.chainBurnIn;
         }
     
     /* check against burnin */

@@ -25,9 +25,12 @@ void        State_DOUBLET (char *state, int code);
 int         StateCode_AA (int n);
 int         StateCode_NUC4 (int n);
 int         StateCode_Std (int n);
+int         StateCode_METHYL (int n);
 char        WhichAA (int x);
 char        WhichNuc (int x);
 char        WhichRes (int x);
 char        WhichStand (int x);
+char        WhichMethyl (int x);
+
 
 #endif  /* __COMMAND_H__ */

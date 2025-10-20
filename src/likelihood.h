@@ -162,6 +162,11 @@ int       TiProbs_Hky (TreeNode *p, int division, int chain);
 int       TiProbs_JukesCantor (TreeNode *p, int division, int chain);
 int       TiProbs_Std (TreeNode *p, int division, int chain);
 int       TiProbs_Res (TreeNode *p, int division, int chain);
+int       SetNucQMatrix (MrBFlt **a, int n, int whichChain, int division, MrBFlt rateMult, MrBFlt *rA, MrBFlt *rS);
+
+int       UpDateCijk (int whichPart, int whichChain);
+
+
 
 
 #endif  /* __LIKELIHOOD_H__ */

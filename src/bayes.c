@@ -40,6 +40,7 @@
 #include "model.h"
 #include "sumpt.h"
 #include "utils.h"
+#include "pairwise.h"
 
 /* We only do proper command line parsing if we're on a system where the
    unistd.h header is available */
@@ -914,6 +915,9 @@ int InitializeMrBayes (void)
 
     defaultModel.nStates = 4;                           /* number of states for partition             */
 
+    defaultModel.usePairwise=NO;
+    defaultModel.pwWeight=1.0;
+
     /* Report format settings */
     strcpy(defaultModel.tratioFormat, "Ratio");         /* default format for tratio                  */
     strcpy(defaultModel.revmatFormat, "Dirichlet");     /* default format for revmat                  */
@@ -1065,6 +1069,14 @@ int ReinitializeMrBayes (void)
     chainParams.checkFreq = 1000;                    /* check-pointing frequency                      */
     chainParams.diagnStat = AVGSTDDEV;               /* mcmc diagnostic to use                        */
 
+    /*  init run for substitution model params  */ 
+    chainParams.initSampleFreq=500;
+    chainParams.initBurnIn=5000;
+    chainParams.initNumGen=10000;
+    chainParams.initSubMod=NO;
+    chainParams.inInitRun=NO;
+    //strcpy(chainParams.initFilename,"init");
+
     /* sumt parameters */
     strcpy(sumtParams.sumtFileName, "temp");         /* input name for sumt command                   */
     strcpy(sumtParams.sumtConType, "Halfcompat");    /* type of consensus tree output                 */
@@ -1108,7 +1120,8 @@ int ReinitializeMrBayes (void)
     strcpy(plotParams.plotFileName, "temp.p");       /* input name for plot command                   */
     strcpy(plotParams.parameter, "lnL");             /* plotted parameter plot command                */
     strcpy(plotParams.match, "Perfect");             /* matching for plot command                     */
-    
+   
+
     return (NO_ERROR);
 }
 

@@ -295,7 +295,7 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define ALPHA                   14
 #define NUMBER                  15
 #define RETURNSYMBOL            16
-#define ASTERISK                17
+#define ASTERISK                17 
 #define BACKSLASH               18
 #define FORWARDSLASH            19
 #define EXCLAMATIONMARK         20
@@ -352,6 +352,8 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define INDRVAR_MAX             10000.0f
 #define OMEGA_MIN               0.001f
 #define OMEGA_MAX               1000.0f
+#define MAX_DATA_SPLITS         1000
+
 
 #define POS_MIN                 1E-25f
 #define POS_INFINITY            1E25f
@@ -425,7 +427,7 @@ typedef float CLFlt;        /* single-precision float used for cond likes (CLFlt
 #define ALLOC_BEST               88
 #define ALLOC_SPECIESPARTITIONS  89
 #define ALLOC_SS                 90
-
+#define ALLOC_PAIRWISE           91
 #define LINKED                  0
 #define UNLINKED                1
 
@@ -716,6 +718,7 @@ typedef struct param
     MrBFlt*         priorParams;        /* pointer to the prior parameters                */
     LnPriorProbFxn  LnPriorProb;        /* ln prior prob function                         */
     LnPriorRatioFxn LnPriorRatio;       /* ln prior prob ratio function                   */
+
     } Param;
 
 /* parameter ID values */
@@ -955,6 +958,8 @@ typedef struct
     MrBFlt      *targetRate;        /* target acceptance rate for autotuning        */
     MrBFlt      *lastAcceptanceRate;/* acceptance rate in last complete batch       */
     MrBFlt      **tuningParam;      /* tuning parameters for the move               */
+    int         initRun;
+    int         mainRun;
     } MCMCMove;
 
 typedef int (*LikeDownFxn)(TreeNode *, int, int);
@@ -968,6 +973,11 @@ typedef int (*StateCodeFxn) (int);
 typedef int (*PrintSiteRateFxn) (TreeNode *, int, int);
 typedef int (*PosSelProbsFxn) (TreeNode *, int, int);
 typedef int (*SiteOmegasFxn) (TreeNode *, int, int);
+
+typedef int (*PwLikeFxn)(int, int, MrBFlt *);
+typedef int (*PwTiProbFxn)(int, int);
+typedef int (*DoubletProbFxn)(int, int);
+
 
 typedef struct cmdtyp           
     {
@@ -1035,6 +1045,11 @@ typedef struct model
     char        aaRevMatPr[100];   /* prior for aa GTR model                       */
     MrBFlt      aaRevMatFix[190];
     MrBFlt      aaRevMatDir[190];
+
+    char        methylRevMatPr[100];
+    MrBFlt      methylRevMatFix[3];
+    MrBFlt      methylRevMatDir[190];
+
     char        omegaPr[100];      /* prior for omega                              */
     MrBFlt      omegaFix;
     MrBFlt      omegaDir[2];
@@ -1188,6 +1203,12 @@ typedef struct model
     char        inferSiteOmegas[5];    /* should site omega vals be inferred (Yes/No)?  */
     char        inferSiteRates[5];     /* should site rates be inferred (Yes/No)?       */
     char        inferPosSel[5];        /* should site selection be inferred (Yes/No)?   */
+
+    int         usePairwise;
+    MrBFlt      pwWeight; 
+    //int         usePairwiseWeights;
+    //int         numDataSplits;
+
     } Model, ModelParams;
 
 typedef struct chain
@@ -1247,6 +1268,13 @@ typedef struct chain
     int         append;                /* order taxa before printing tree to file?      */
     int         autotune;              /* autotune tuning parameters of proposals ?     */
     int         tuneFreq;              /* autotuning frequency                          */
+
+    int         initSubMod;             /*  */
+    int         initNumGen;             /*  */
+    int         initBurnIn;             /*  */
+    int         initSampleFreq;         /*  */
+    int         inInitRun;
+
     } Chain;
 
 typedef struct modelinfo
@@ -1404,6 +1432,10 @@ typedef struct modelinfo
     PosSelProbsFxn      PosSelProbs;        /* function for sampling pos. selection probs   */
     SiteOmegasFxn       SiteOmegas;         /* function for sampling site omega values      */
 
+    PwLikeFxn           PwLikelihood;
+    PwTiProbFxn         PwTiProbs;
+    DoubletProbFxn      DoubletProbs;
+
     /* Report variables */
     int         printAncStates;             /* should ancestral states be printed (YES/NO)  */
     int         printSiteRates;             /* should site rates be printed (YES/NO)        */
@@ -1415,6 +1447,7 @@ typedef struct modelinfo
     int         useBeagleMultiPartitions;   /* use one Beagle instance for all partitions?  */
     int         useVec;                     /* use SSE for this partition?                  */
     int*        rescaleFreq;                /* rescale frequency for each chain             */
+
 
 #if defined (BEAGLE_ENABLED)
     /* Beagle variables */
@@ -1451,6 +1484,50 @@ typedef struct modelinfo
     BeagleOperationByPartition* operationsByPartition; /* array of division operations to be sent to Beagle     */
 #endif /* BEAGLE_V3_ENABLED */
 #endif /* BEAGLE_ENABLED */
+
+    /* Flags for how pw likelihood will be used   */
+    int         usePairwise;                  /*  Flag for whether pairwise likelihood is used in mcmc */
+    int         useTriples;
+    int         useFullForAlpha;
+    int         pwHotChains;
+
+    /*  Pairwise model information */
+    int         *pwCounts;
+    int         **pwCountsIndex;
+    MrBFlt      **pwDists;
+    int         **pwIndex;               
+    int         tiProbsPwLength;              
+    CLFlt       **tiProbsPw;
+    int         numTiProbsPw;                 /* number of ti prob arrays                     */
+    CLFlt       **doubletProbs;              
+    int         doubletProbsLength;
+    int         numDoubletProbs;
+    int         numPairs;
+
+    /*  pairwise likelihood weights */
+    int         usePwWeights;          
+    int         numPwWeights;
+    int         pwWeightLength;
+    int         pwSplitCountsLength;
+    int         **pwSplitCounts;
+    int         numDataSplits;
+    MrBFlt      *pwWJEst;
+    MrBFlt      pwWeight;       
+
+//    /*  Triplet model information */
+//    int         numTrips;
+//    MrBFlt      **tripleCnDists;     /*  [chainId][tripleIndex * 3]   */
+//    CLFlt       **tripleTiProbs;     /*  transition probabilities : [chainId*triplId][1:64*numRateCats] */ 
+//    CLFlt       **tripleProbs;       /*  site pattern probs: [chainId*triptId][64] */ 
+//    int         **tripIndex;         /*  holds indices for triplets: [chainId][tripId]  */
+//    int         **tripDistIndex;     /*  holds indices for triplets: [chainId][tripId]  */
+//    int         numTripleProbs;
+//    int         numTiProbsTrip;
+//    int         tiProbsTripLength;
+//    int         tripleProbsLength;
+    int         condLikeLengthPw;             /* length of cond like array (incl. ti cats)    */
+
+    MrBFlt      lnLikeAlpha[MAX_CHAINS];      /* log like for chain                           */
 
     } ModelInfo;
 
@@ -1518,6 +1595,8 @@ typedef struct sump
     {
     char        sumpFileName[100];     /* name of input file                            */
     char        sumpOutfile[120];      /* name of output file                           */
+    char        sumpFileNameInit[100]; /* name of input file                            */
+    char        sumpOutfileInit[120];  /* name of output file                           */
     //int       plot;                  /* output plot (y/n)?                            */
     int         table;                 /* output table (y/n)?                           */
     int         margLike;              /* output marginal likelihood (y/n)?             */
@@ -1819,6 +1898,8 @@ extern MrBFlt           cprevPi[20];                 /* stationary frequencies f
 extern MrBFlt           vtPi[20];                    /* stationary frequencies for VT model          */
 extern MrBFlt           blosPi[20];                  /* stationary frequencies for Blosum62 model    */
 extern MrBFlt           lgPi[20];                    /* stationary frequencies for LG model          */
+
+extern int              stepsTilAlpha;
 
 #if defined (PRINT_DUMP)
 FILE                    *dumpFile;                   /* for debugging logs */

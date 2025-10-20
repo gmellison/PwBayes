@@ -52,6 +52,7 @@
 #include "proposal.h"
 #include "sumpt.h"
 #include "utils.h"
+#include "pairwise.h"
 #if defined(__MWERKS__)
 #include "SIOUX.h"
 #endif
@@ -278,6 +279,8 @@ extern CLFlt     *preLikeL;                  /* precalculated cond likes for lef
 extern CLFlt     *preLikeR;                  /* precalculated cond likes for right descendant*/
 extern CLFlt     *preLikeA;                  /* precalculated cond likes for ancestor        */
 
+MrBFlt *pwWeight;
+
 /* local (to this file) variables */
 int             numLocalChains;              /* number of Markov chains                      */
 int             *chainId = NULL;             /* information on the id (0 ...) of the chain   */
@@ -305,7 +308,11 @@ CLFlt           **parsNodeLen = NULL;        /* pointers to pars node lengths fo
 char            *printString;                /* string for printing to a file                */
 size_t          printStringSize;             /* length of printString                        */
 MCMCMove        **usedMoves;                 /* vector of pointers to used moves             */
+MCMCMove        **usedMovesInit;             /* vector of pointers to used moves in init run */
+MCMCMove        **usedMovesMain;             /* vector of pointers to used moves in main run */
 int             numUsedMoves;                /* the number of moves used by chain            */
+int             numUsedMovesInit;            /* the number of moves used by chain in init run*/
+int             numUsedMovesMain;            /* the number of moves used by chain in main run*/
 Param           **printParam;                /* vector of pointers to normal params to print */
 int             numPrintParams;              /* the number of normal params to print         */
 Param           **printTreeParam;            /* vector of pointers to tree params to print   */
@@ -332,7 +339,11 @@ BitsLong        **partition;                 /* matrix holding partitions       
 MrBFlt          *maxLnL0 = NULL;             /* maximum likelihood                           */
 FILE            *fpMcmc = NULL;              /* pointer to .mcmc file                        */
 FILE            **fpParm = NULL;             /* pointer to .p file(s)                        */
+FILE            **fpParmInit = NULL;         /* pointer to .p file(s)                        */
+FILE            **fpParmMain = NULL;         /* pointer to .p file(s)                        */
 FILE            ***fpTree = NULL;            /* pointer to .t file(s)                        */
+//FILE            ***fpTreeInit = NULL;            /* pointer to .t file(s)                        */
+//FILE            ***fpTreeMain = NULL;            /* pointer to .t file(s)                        */
 FILE            *fpSS = NULL;                /* pointer to .ss file                          */
 static int      requestAbortRun;             /* flag for aborting mcmc analysis              */
 int             *topologyPrintIndex;         /* print file index of each topology            */
@@ -344,9 +355,14 @@ int             lowestLocalRunId;            /* lowest local run Id             
 int             highestLocalRunId;           /* highest local run Id                         */
 #endif
 
+int inInitRun;
+
 #if defined (PRINT_DUMP)
 FILE            **fpDump = NULL;             /* pointer to .dump file(s)                     */
 #endif
+
+/* used here but declared in bayes.h */
+int stepsTilAlpha=1000;
 
 /* AddPartition: Add a partition to the tree keeping track of partition frequencies */
 PFNODE *AddPartition (PFNODE *r, BitsLong *p, int runId)
@@ -592,7 +608,7 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
 {
     int             d, tempX, reweightingChars, isSwapSuccessful, chI, chJ, runId;
     MrBFlt          tempA, tempB, lnLikeA, lnLikeB, lnPriorA, lnPriorB, lnR, r,
-                    lnLikeStateAonDataB=0.0, lnLikeStateBonDataA=0.0, lnL;
+                    lnLikeStateAonDataB=0.0, lnLikeStateBonDataA=0.0, lnL, lnLikeFullA, lnLikeFullB;
     ModelInfo       *m;
     Tree            *tree;
 #   if defined (MPI_ENABLED)
@@ -1194,6 +1210,46 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
     lnPriorA = curLnPr[swapA];
     lnPriorB = curLnPr[swapB];
 
+    if (modelSettings->pwHotChains == YES) /*  We're using pairwise lkhd for hot and full for cold chains */
+        {
+        /* if one is hot & one cold , compute the cold pw likelihood for fast, fair comparison*/
+        if (chainId[swapA] % chainParams.numChains != 0 && chainId[swapB] % chainParams.numChains == 0)
+            { /*  B is the cold chain -- need to calc pw likelihood for swapB */
+            lnLikeFullB = lnLikeB;
+            TouchEverything(swapB);
+            lnLikeB = LogLikePairwise(swapB);
+            /*
+            lnLikeA = 0.0;
+            TouchEverything(swapA);
+            for (d=0; d<numCurrentDivisions; d++)
+                {
+                m = &modelSettings[d];
+                tree = GetTree(m->brlens, swapA, state[swapA]);
+                lnL = 0.0;
+                m->Likelihood (tree->root->left, d, swapA, &lnL, chainId[swapA] % chainParams.numChains);
+                lnLikeA += lnL;
+                }  */
+
+            }
+        if (chainId[swapA] % chainParams.numChains == 0 && chainId[swapB] % chainParams.numChains != 0)
+            { /*  A is the cold chain  */
+            lnLikeFullA = lnLikeA;
+            TouchEverything(swapA);
+            lnLikeA = LogLikePairwise(swapA);
+            /*            lnLikeB = 0.0;
+            TouchEverything(swapB);
+            for (d=0; d<numCurrentDivisions; d++)
+                {
+                m = &modelSettings[d];
+                tree = GetTree(m->brlens, swapB, state[swapB]);
+                lnL = 0.0;
+                m->Likelihood (tree->root->left, d, swapB, &lnL, chainId[swapB] % chainParams.numChains);
+                lnLikeB += lnL;
+                }*/
+            }  
+
+        }
+
     if (chainParams.isSS == YES)
         {
         lnLikeA *= powerSS;
@@ -1230,7 +1286,37 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
             }
         isSwapSuccessful = YES;
         }
-        
+
+    if (isSwapSuccessful && modelSettings->pwHotChains == YES) 
+        {
+        if (chainId[swapA] % chainParams.numChains == 0 && chainId[swapB] % chainParams.numChains != 0)
+            { /* cold chain: swap B<->A -- B WAS the cold chain so set its curLnL to its pw lkhd and A to the full lkhd */
+              /*  but indexes still point to pre-swap chains (only the indices swap...) */
+              /*  so, need to replace swapB with the pw likelihood & swapA with the full... */
+            lnLikeFullA = LogLike(swapA); 
+            curLnL[swapB] = lnLikeB;
+            curLnL[swapA] = lnLikeFullA;
+
+            if (curLnL[swapB] > 0 || curLnL[swapB] < -1000000000)
+                    MrBayesPrint("Problem!\n");
+            if (curLnL[swapA] > 0 || curLnL[swapA] < -1000000000)
+                    MrBayesPrint("Problem!\n");
+
+            }
+        if (chainId[swapB] % chainParams.numChains == 0 && chainId[swapA] % chainParams.numChains != 0)
+            {
+            lnLikeFullB = LogLike(swapB);
+            curLnL[swapB] = lnLikeFullB;
+            curLnL[swapA] = lnLikeA;
+
+            if (curLnL[swapB] > 0 || curLnL[swapB] < -1000000000)
+                    MrBayesPrint("Problem!\n");
+            if (curLnL[swapA] > 0 || curLnL[swapA] < -1000000000) 
+                    MrBayesPrint("Problem!\n");
+
+            }
+        }
+      
     chI = chainId[swapA];
     chJ = chainId[swapB];
     if (chainId[swapB] < chainId[swapA])
@@ -1244,6 +1330,7 @@ int AttemptSwap (int swapA, int swapB, RandLong *seed)
     swapInfo[runId][chJ][chI]++;
     if (isSwapSuccessful == YES)
         swapInfo[runId][chI][chJ]++;
+
 #   endif
     
     return (NO_ERROR);
@@ -2342,7 +2429,7 @@ int DoMcmc (void)
     GetStamp ();
     
     MrBayesPrint ("%s   Seed = %d\n", spacer, seed);
-    MrBayesPrint ("%s   Swapseed = %d\n", spacer, swapSeed);
+    MrBayesPrint ("%s   wapseed = %d\n", spacer, swapSeed);
 
     /* Show the model to make sure the user sees it before running the analysis */
     if (ShowModel() == ERROR)
@@ -2403,9 +2490,15 @@ int DoMcmc (void)
     if (InitInvCondLikes() == ERROR)
         goto errorExit;
 
+    /*  initialize pairwise counts */ 
+    if (InitPairwise() == ERROR)
+        return (ERROR);
+
     /* Allocate BEST chain variables */
     if (numTopologies > 1 && !strcmp(modelParams[0].topologyPr,"Speciestree"))
         AllocateBestChainVariables();
+
+   
 
     /* allocate SS memory for the chains if needed */
     if (chainParams.isSS == YES)
@@ -2851,6 +2944,9 @@ int DoMcmcParm (char *parmName, char *tkn)
                 }
                 */
             }
+
+
+
         /* set Swapseed (global variable swapSeed) ***************************************************************/
         else if (!strcmp(parmName, "Swapseed"))
             {
@@ -3919,6 +4015,7 @@ int DoMcmcParm (char *parmName, char *tkn)
                 return (ERROR);
                 }
             }
+
         /* set Append (chainParams.append) *********************************************/
         else if (!strcmp(parmName, "Append"))
             {
@@ -4031,6 +4128,114 @@ int DoMcmcParm (char *parmName, char *tkn)
                     MrBayesPrint ("%s   Setting program to attempt swaps only between chains of adjacent temperatures\n", spacer);
                 else
                     MrBayesPrint ("%s   Setting program to attempt all possible swaps between chains\n", spacer);
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else
+                {
+                free(tempStr);
+                return (ERROR);
+                }
+            }
+        /* set Ngen (numGen) ******************************************************************/
+        else if (!strcmp(parmName, "Initrunngen"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(NUMBER);
+            else if (expecting == Expecting(NUMBER))
+                {
+                sscanf (tkn, "%lli", &tempL);
+                if (tempL < 1)
+                    {
+                    MrBayesPrint ("%s   Too few generations in initial chain\n", spacer);
+                    return (ERROR);
+                    }
+                if ( tempL / chainParams.initSampleFreq > INT_MAX )
+                    {
+                    MrBayesPrint ("%s   Maximum %d samples allowed. Decrease 'initrunngen' or increase 'initsamplefreq'.\n", spacer, INT_MAX);
+                    return (ERROR);
+                    }
+                chainParams.initNumGen = tempL;
+                MrBayesPrint ("%s   Setting number of generations in initial run to %lli for submodel estimation\n", spacer, chainParams.numGen);
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else
+                {
+                free (tempStr);
+                return (ERROR);
+                }
+            }
+        /* set Samplefreq (sampleFreq) ********************************************************/
+        else if (!strcmp(parmName, "Initsamplefreq"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(NUMBER);
+            else if (expecting == Expecting(NUMBER))
+                {
+                sscanf (tkn, "%d", &tempI);
+                if (tempI < 1)
+                    {
+                    MrBayesPrint ("%s   Sampling chain too infrequently\n", spacer);
+                    free (tempStr);
+                    return (ERROR);
+                    }
+                if ( chainParams.initNumGen / tempI > INT_MAX )
+                    {
+                    MrBayesPrint ("%s   Maximum %d samples allowed. Decrease 'ngen' or increase 'samplefreq'.\n", spacer, INT_MAX);
+                    return (ERROR);
+                    }
+                chainParams.initSampleFreq = tempI;
+                MrBayesPrint ("%s   Setting sample frequency to %d\n", spacer, chainParams.initSampleFreq);
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else
+                {
+                free (tempStr);
+                return (ERROR);
+                }
+            }
+        /* set Burnin (chainBurnIn) ***********************************************************/
+        else if (!strcmp(parmName, "Initrunburnin"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(NUMBER);
+            else if (expecting == Expecting(NUMBER))
+                {
+                sscanf (tkn, "%d", &tempI);
+                chainParams.initBurnIn = tempI;
+                MrBayesPrint ("%s   Setting burn-in to %d for initial substitution model estimation chain\n", 
+                                spacer, chainParams.initBurnIn);
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else
+                {
+                free(tempStr);
+                return (ERROR);
+                }
+            }
+        /* set PwInitSubMod (pwInitSubMod) ********************************************************/
+        else if (!strcmp(parmName, "Initsubmod"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    if (!strcmp(tempStr, "Yes"))
+                        chainParams.initSubMod = YES;
+                    else
+                        chainParams.initSubMod = NO;
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for 'InitSubMod' (should we fix the submodel params via an initial short mcmc run?)\n", spacer);
+                    free(tempStr);
+                    return (ERROR);
+                    }
+                if (chainParams.initSubMod == YES)
+                    MrBayesPrint ("%s   Setting initial run to fix submodel params('InitSubMod') to yes\n", spacer);
+                else
+                    MrBayesPrint ("%s   Setting initial run ('InitSubMod') to no\n", spacer);
                 expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
                 }
             else
@@ -4515,7 +4720,8 @@ void FreeChainMemory (void)
             free (m->tiProbs);
             m->tiProbs = NULL;
             }
-                
+
+
         if (m->cijks)
             {
             for (j=0; j<numLocalChains+1; j++)
@@ -4665,7 +4871,13 @@ void FreeChainMemory (void)
         }
     if (memAllocs[ALLOC_USEDMOVES] == YES) /*alloc in setUsedMoves()*/
         {
-        free (usedMoves);
+        if (!(usedMovesInit==NULL))
+            free (usedMovesInit);
+        if (!(usedMovesMain==NULL))
+            free (usedMovesMain);
+        if (!chainParams.initSubMod)
+            if (!(usedMoves==NULL)) 
+                free (usedMoves); 
         memAllocs[ALLOC_USEDMOVES] = NO;
         }
     if (memAllocs[ALLOC_TERMSTATE] == YES) /*alloc in SetUpTermState()*/
@@ -4736,9 +4948,16 @@ void FreeChainMemory (void)
             free (fpTree[0]);
             free (fpTree);
             }
-        if (fpParm != NULL)
-            free (fpParm);
+        if (fpParmInit != NULL)
+            free (fpParmInit);
+        if (fpParmMain != NULL)
+            free (fpParmMain);
+        if (!chainParams.initSubMod)
+            if (fpParm != NULL)
+                free (fpParm);
         fpParm = NULL;
+        fpParmInit = NULL;
+        fpParmMain = NULL;
         fpTree = NULL;
         fpMcmc = NULL;
         fpSS = NULL;
@@ -4784,8 +5003,12 @@ void FreeChainMemory (void)
         FreeBestChainVariables();
         memAllocs[ALLOC_BEST] = NO;
         }
+    if (memAllocs[ALLOC_PAIRWISE] == YES) 
+        {
+        FreePairwise(numLocalChains);
+        memAllocs[ALLOC_PAIRWISE] = NO;
+        }
 }
-
 
 MrBFlt GetFitchPartials (ModelInfo *m, int chain, int source1, int source2, int destination)
 {
@@ -5699,7 +5922,7 @@ int InitAugmentedModels (void)
 int InitChainCondLikes (void)
 {
     int         c, d, i, j, k, s, t, numReps, condLikesUsed, nIntNodes, nNodes,
-                clIndex, tiIndex, scalerIndex, indexStep;
+                clIndex, tiIndex, scalerIndex, indexStep, pwIdx;
     BitsLong    *charBits;
     CLFlt       *cL;
     ModelInfo   *m;
@@ -5773,6 +5996,8 @@ int InitChainCondLikes (void)
         /* find size of tree */
         nIntNodes = GetTree(m->brlens, 0, 0)->nIntNodes;
         nNodes = GetTree(m->brlens, 0, 0)->nNodes;
+        m->numPairs = (numLocalTaxa) * (numLocalTaxa - 1) / 2;
+        //m->numTrips = (nNodes - nIntNodes) * (nNodes - nIntNodes - 2) * (nNodes - nIntNodes - 2)/ 6;
 
         /* figure out number of cond like arrays */
         m->numCondLikes = (numLocalChains + 1) * (nIntNodes);
@@ -5792,6 +6017,7 @@ int InitChainCondLikes (void)
 
         /* figure out length of ti prob array and number of ti prob arrays */
         m->tiProbLength = 0;
+
         if (m->dataType == STANDARD)
             {
             m->numTiCats = 0;   /* We do not have repeated similar transition probability matrices */
@@ -5812,13 +6038,16 @@ int InitChainCondLikes (void)
                 {
                 /* deal with unequal state frequencies */
                 if (m->isTiNeeded[0] == YES)
+                    {
                     m->tiProbLength += 4 * m->numRateCats * m->numBetaCats;
+                    }
+
                 for (c=0; c<m->numChars; c++)
                     {
                     if (m->nStates[c] > 2 && (m->cType[c] == UNORD || m->cType[c] == ORD))
                         {
                         m->tiProbLength += (m->nStates[c] * m->nStates[c]) * m->numRateCats;
-                        }
+                                                }
                     }
                 }
             }
@@ -5826,9 +6055,15 @@ int InitChainCondLikes (void)
             {
             m->numTiCats    = m->numRateCats * m->numBetaCats * m->numOmegaCats;   /* A single partition has either gamma, beta or omega categories */
             m->tiProbLength = m->numModelStates * m->numModelStates * m->numTiCats;
+            m->tiProbsPwLength = m->numModelStates * m->numModelStates * m->numTiCats;
+            //m->tiProbsTripLength = m->numModelStates * m->numModelStates * m->numTiCats;
+            m->doubletProbsLength = m->numModelStates * m->numModelStates;
             }
+
         m->numTiProbs = (numLocalChains + 1) * nNodes;
-        
+        m->numTiProbsPw = (numLocalChains + 1) * m->numPairs;
+        m->numDoubletProbs = (numLocalChains + 1) * m->numPairs;
+
         /* set info about eigen systems */
         if (InitEigenSystemInfo (m) == ERROR)
             return (ERROR);
@@ -6088,7 +6323,7 @@ int InitChainCondLikes (void)
                         return (ERROR);
                     }
 #endif
-#   endif
+#endif
                 }
 
             /* allocate tiprob space */
@@ -6100,6 +6335,70 @@ int InitChainCondLikes (void)
                 m->tiProbs[i] = (CLFlt*) SafeMalloc(m->tiProbLength * sizeof(CLFlt));
                 if (!m->tiProbs[i])
                     return (ERROR);
+                }
+
+
+            /*  allocate pw stuff, if pairwise is set */
+            if (m->usePairwise) 
+                {
+                /*  allocate space for pw distances */
+                m->pwDists = (MrBFlt**) SafeMalloc(numLocalChains * sizeof(MrBFlt*));
+                for (i=0; i<numLocalChains; i++)
+                    m->pwDists[i] = (MrBFlt*) SafeMalloc(m->numPairs * sizeof(MrBFlt));
+
+                //m->pwDistsShare = (int**) SafeMalloc(numLocalChains * sizeof(int*));
+                //for (i=0; i<numLocalChains; i++)
+                //    m->pwDistsShare[i] = (int*) SafeMalloc(m->numPairs * sizeof(int));
+
+                //m->numUniqueDists = (int*) SafeMalloc(numLocalChains * sizeof(int*));
+
+                /*  allocate space for pw ti probs  */
+                m->tiProbsPw = (CLFlt**) SafeMalloc(m->numTiProbsPw * sizeof(CLFlt*));
+                if (!m->tiProbs)
+                    return (ERROR);
+                for (i=0; i<m->numTiProbsPw; i++)
+                    {
+                    m->tiProbsPw[i] = (CLFlt*)SafeMalloc(m->tiProbsPwLength * sizeof(CLFlt));
+                    if (m->tiProbsPw[i] == NULL)
+                         return (ERROR);
+                    }
+
+                /*  allocate space for pw doublet probs  */
+                m->doubletProbs = (CLFlt**) SafeMalloc(m->numDoubletProbs * sizeof(CLFlt*));
+                if (!m->doubletProbs)
+                    return (ERROR);
+                for (i=0; i<m->numDoubletProbs; i++)
+                    {
+                    m->doubletProbs[i] = (CLFlt*)SafeMalloc(m->doubletProbsLength * sizeof(CLFlt));
+                    if (!m->doubletProbs[i])
+                        return (ERROR);
+                    }
+                }
+
+            } /*  end of (if usebeagle==false)  */
+
+        if (m->usePairwise) 
+            {
+            /* allocate and set indices from chain/pair to pw probs */
+            m->pwIndex = (int **) SafeMalloc (numLocalChains * sizeof(int *));
+            if (!m->pwIndex)
+                return (ERROR);
+            for (i=0; i<numLocalChains; i++)
+                {
+                m->pwIndex[i] = (int *) SafeMalloc (m->numPairs * sizeof(int));
+                if (!m->pwIndex[i])
+                    return (ERROR);
+                }
+
+            /* set up pw indices */
+            pwIdx = 0;
+            for (i=0; i<numLocalChains; i++)
+                {
+                for (j=0; j<m->numPairs; j++)
+                    {
+                    m->pwIndex[i][j] = pwIdx;
+                    pwIdx += indexStep;
+                    }
                 }
             }
 
@@ -6130,6 +6429,7 @@ int InitChainCondLikes (void)
 
         /* set up indices for nodes */
         tiIndex = 0;
+
         for (i=0; i<numLocalChains; i++)
             {
             for (j=0; j<nNodes; j++)
@@ -6138,6 +6438,7 @@ int InitChainCondLikes (void)
                 tiIndex += indexStep;
                 }
             }
+            
 
         /* allocate and set up scratch transition prob indices */
         m->tiProbsScratchIndex = (int *) SafeMalloc (nNodes * sizeof(int));
@@ -6466,7 +6767,7 @@ int InitChainCondLikes (void)
         nPartsOfPat = NULL;
          /* Set up scalers for Beagle */
         for (i=0; i<modelSettings[0].numScalers*modelSettings[0].nCijkParts; i++)
-            beagleResetScaleFactors(modelSettings[0].beagleInstance, i);
+            beagleResetScaleFactors(modelSettings[1].beagleInstance, i);
         }
 #endif
 
@@ -7489,6 +7790,8 @@ MrBFlt LogLike (int chain)
 
     return (chainLnLike);   
 }
+
+
 
 
 MrBFlt LogOmegaPrior (MrBFlt w1, MrBFlt w2, MrBFlt w3)
@@ -10443,12 +10746,34 @@ int PreparePrintFiles (void)
     fpMcmc = NULL;
     fpSS = NULL;
     fpParm = NULL;
+    fpParmInit = NULL;
+    fpParmMain = NULL;
     fpTree = NULL;  
-    fpParm = (FILE **) SafeCalloc (chainParams.numRuns, sizeof (FILE *));
-    if (fpParm == NULL)
+
+    if (chainParams.initSubMod) 
         {
-        MrBayesPrint ("%s   Could not allocate fpParm in PreparePrintFiles\n", spacer);
-        return ERROR;
+        fpParmInit = (FILE **) SafeCalloc (chainParams.numRuns, sizeof (FILE *));
+        if (fpParmInit == NULL)
+            {
+            MrBayesPrint ("%s   Could not allocate fpParmInit in PreparePrintFiles\n", spacer);
+            return ERROR;
+            }
+
+        fpParmMain = (FILE **) SafeCalloc (chainParams.numRuns, sizeof (FILE *));
+        if (fpParmMain == NULL)
+            {
+            MrBayesPrint ("%s   Could not allocate fpParmMain in PreparePrintFiles\n", spacer);
+            return ERROR;
+            }
+        }
+    else 
+        {
+        fpParm = (FILE **) SafeCalloc (chainParams.numRuns, sizeof (FILE *));
+        if (fpParm == NULL)
+            {
+            MrBayesPrint ("%s   Could not allocate fpParm in PreparePrintFiles\n", spacer);
+            return ERROR;
+            }
         }
     memAllocs[ALLOC_FILEPOINTERS] = YES;
     fpTree = (FILE ***) SafeCalloc (chainParams.numRuns, sizeof (FILE **));
@@ -10463,7 +10788,7 @@ int PreparePrintFiles (void)
         MrBayesPrint ("%s   Could not allocate fpTree[0] in PreparePrintFiles\n", spacer);
         return ERROR;
         }
-    for (i=1; i<chainParams.numRuns; i++)
+    for (i=0; i<chainParams.numRuns; i++)
         fpTree[i] = fpTree[0] + i*numTrees;
 
     /* Get root of local file name */
@@ -10547,15 +10872,44 @@ int PreparePrintFiles (void)
     /* Prepare the .p and .t files */
     for (n=0; n<chainParams.numRuns; n++)
         {
-        if (chainParams.numRuns == 1)
-            sprintf (fileName, "%s.p", localFileName);
-        else
-            sprintf (fileName, "%s.run%d.p", localFileName, n+1);
-        if ((fpParm[n] = OpenNewMBPrintFile (fileName)) == NULL)
+        if (chainParams.initSubMod)   
             {
-            noWarn = oldNoWarn;
-            autoOverwrite = oldAutoOverwrite;
-            return (ERROR);
+            // Init
+            if (chainParams.numRuns == 1)
+                sprintf (fileName, "%s.init.p", localFileName);
+            else
+                sprintf (fileName, "%s.run%d.init.p", localFileName, n+1);
+            if ((fpParmInit[n] = OpenNewMBPrintFile (fileName)) == NULL)
+                {
+                noWarn = oldNoWarn;
+                autoOverwrite = oldAutoOverwrite;
+                return (ERROR);
+                }
+
+            // Main
+            if (chainParams.numRuns == 1)
+                sprintf (fileName, "%s.p", localFileName);
+            else
+                sprintf (fileName, "%s.run%d.p", localFileName, n+1);
+            if ((fpParmMain[n] = OpenNewMBPrintFile (fileName)) == NULL)
+                {
+                noWarn = oldNoWarn;
+                autoOverwrite = oldAutoOverwrite;
+                return (ERROR);
+                }
+            }
+        else 
+            {
+            if (chainParams.numRuns == 1)
+                sprintf (fileName, "%s.p", localFileName);
+            else
+                sprintf (fileName, "%s.run%d.p", localFileName, n+1);
+            if ((fpParm[n] = OpenNewMBPrintFile (fileName)) == NULL)
+                {
+                noWarn = oldNoWarn;
+                autoOverwrite = oldAutoOverwrite;
+                return (ERROR);
+                }
             }
 
         for (i=0; i<numTrees; i++)
@@ -13207,7 +13561,7 @@ int PrintStatesToFiles (long long curGen)
             fflush (fpParm[runId]);
             free(printString);
 
-            /* print trees */
+            ///* print trees */
             for (i=0; i<numPrintTreeParams; i++)
                 {
                 param = printTreeParam[i];
@@ -16000,6 +16354,9 @@ int RunChain (RandLong *seed)
     MrBFlt      stepLengthSS=0, meanSS, varSS, *tempX;
     char        ckpFileName[220], bkupFileName[234];
 
+    MrBFlt      lnLikeAlMove, lnLikeAlCurr;
+    int         hybridAlphaStep=NO;
+    int         numAlphaHybridSteps=0;
 #   if defined (BEAGLE_ENABLED)
 #       ifdef DEBUG_BEAGLE
     int         beagleScalingSchemeOld;
@@ -16285,6 +16642,7 @@ int RunChain (RandLong *seed)
     CPULilklihood = 0;
 #   endif
 
+
     /* initialize likelihoods and prior                  */
     /* touch everything and calculate initial cond likes */
     TouchAllPartitions ();
@@ -16299,7 +16657,13 @@ int RunChain (RandLong *seed)
             }
         TouchAllTrees (chn);
         TouchAllCijks (chn);
+
+        pwWeight = (MrBFlt*)SafeMalloc(numCurrentDivisions * sizeof(MrBFlt));
+        for (i=0;i<numCurrentDivisions;i++) 
+            pwWeight[i] = 1.0;
+
         curLnL[chn] = LogLike(chn);
+
         curLnPr[chn] = LogPrior(chn);
         for (i=0; i<numCurrentDivisions; i++)
             {
@@ -16599,6 +16963,20 @@ int RunChain (RandLong *seed)
     CPUTime = 0.0;
     previousCPUTime = clock();
 
+
+    // are we running an initial short chain to estimate and fix substitution model params?
+    // if so, set the moves to only the initial chain moves
+    // also set the param output file to the initial run file 
+    if (chainParams.initSubMod && numPreviousGen+1 < chainParams.initNumGen)
+        {
+        MrBayesPrint("%s   Setting up initial run\n", spacer);
+        chainParams.inInitRun = YES;
+        usedMoves=usedMovesInit;
+        numUsedMoves=numUsedMovesInit;
+        fpParm=fpParmInit;
+        MrBayesPrint("%s   Done setting up initial run\n\n", spacer);
+        }
+
     /* print headers and starting states */
     if (numPreviousGen==0)
         {
@@ -16697,8 +17075,197 @@ int RunChain (RandLong *seed)
             }
         }
 
-    for (n=numPreviousGen+1; n<=chainParams.numGen; n++) /* begin run chain */
+     for (n=numPreviousGen+1; n<=chainParams.numGen; n++) /* begin run chain */
         {
+        // if done with initial run, calc and fix estimated submodel params
+        // no need to set priors to fixed; we'll just set the parms and d isable the 
+        // updating moves
+        if (chainParams.initSubMod && chainParams.inInitRun == YES && n == chainParams.initNumGen+1)
+            {
+            MrBayesPrint("%s   Done with initial run, setting up main run\n", spacer);
+            chainParams.inInitRun = NO;
+            usedMoves = usedMovesMain;
+            numUsedMoves = numUsedMovesMain;
+
+            // Do short version of sump with the init run output
+            int             nHeaders, numRows, numColumns, numRuns, len, longestHeader;
+            SumpFileInfo    fileInfo, firstFileInfo;
+            ParameterSample *parameterSamples=NULL;
+            char            temp[130];
+            firstFileInfo.numRows = 0;
+            firstFileInfo.numColumns = 0;
+            char            **headerNames=NULL;
+
+            ///* examine input file(s) */
+            for (i=0; i<sumpParams.numRuns; i++)
+                {
+                if (sumpParams.numRuns == 1)
+                    sprintf (temp, "%s.init.p", chainParams.chainFileName);
+                else
+                    sprintf (temp, "%s.run%d.init.p", chainParams.chainFileName, i+1);
+        
+                if (ExamineSumpFile (temp, &fileInfo, &headerNames, &nHeaders) == ERROR)
+                    MrBayesPrint("%s    Error examining init sump file\n", spacer);
+        
+                if (i==0)
+                    {
+                    if (fileInfo.numRows == 0 || fileInfo.numColumns == 0)
+                        {
+                        MrBayesPrint ("%s   The number of rows or columns in file %d is equal to zero\n", spacer, temp);
+                        }
+                    firstFileInfo = fileInfo;
+                    }
+                else
+                    {
+                    if (firstFileInfo.numRows != fileInfo.numRows || firstFileInfo.numColumns != fileInfo.numColumns)
+                        {
+                        MrBayesPrint ("%s   First file had %d rows and %d columns while file %s had %d rows and %d columns\n",
+                            spacer, firstFileInfo.numRows, firstFileInfo.numColumns, temp, fileInfo.numRows, fileInfo.numColumns);
+                        MrBayesPrint ("%s   MrBayes expects the same number of rows and columns in all files\n", spacer);
+                        }
+                    }
+                }
+
+            numRows = fileInfo.numRows;
+            numColumns = fileInfo.numColumns;
+            numRuns = chainParams.numRuns;
+
+            /* get length of longest header */
+            longestHeader = 9; /* 9 is the length of the word "parameter" (for printing table) */
+            for (i=0; i<nHeaders; i++)
+                {
+                len = (int) strlen(headerNames[i]);
+                if (len > longestHeader)
+                    longestHeader = len;
+                }
+    
+            /* allocate space to hold parameter information */
+            if (AllocateParameterSamples (&parameterSamples, numRuns, numRows, numColumns) == ERROR)
+                return ERROR;
+        
+            /* read samples */
+            for (i=0; i<sumpParams.numRuns; i++)
+                {
+                /* derive file name */
+                if (numRuns == 1)
+                    sprintf (temp, "%s.init.p", sumpParams.sumpFileName);
+                else
+                    sprintf (temp, "%s.run%d.init.p", sumpParams.sumpFileName, i+1);
+               
+                MrBayesPrint("%s  %s \n", spacer, temp);
+                /* read samples */    
+                if (ReadParamSamples (temp, &fileInfo, parameterSamples, i) == ERROR)
+                    MrBayesPrint("%s  ERROR in ReadParamSamples when ending init run! \n", spacer);
+                }
+
+            // Now do the mini version of 'PrintParamStats'
+            // but not printing stats, just get the param means 
+            // allocate and set nSamples */
+            int *sampleCounts=NULL;
+            static char *temp2=NULL;
+            Stat    theStats;
+
+            sampleCounts = (int *) SafeCalloc (numRuns, sizeof(int));
+            for (i=0; i<numRuns; i++)
+                sampleCounts[i] = numRows;
+
+            ModelInfo *m;
+            int d;
+            MrBFlt *bs, *rs, *al;
+
+            for (d=0;d<numCurrentDivisions;d++)
+                {
+                m=&modelSettings[d];
+                for (int chain=0; chain<numLocalChains; chain++)
+                    {
+                    if (m->stateFreq != NULL)
+                        bs = GetParamSubVals(m->stateFreq, chain, state[chain]);
+                    if (m->revMat != NULL)
+                        rs = GetParamVals(m->revMat, chain, state[chain]);
+                    if (m->shape != NULL)
+                        al = GetParamVals(m->shape, chain, state[chain]);
+
+                    for (i=0; i<nHeaders; i++)
+                        {
+
+                        SafeStrcpy(&temp2, headerNames[i]);
+                        for (j=0; modelIndicatorParams[j][0]!='\0'; j++)
+                            if (IsSame (temp2,modelIndicatorParams[j]) != DIFFERENT)
+                                break;
+                        if (modelIndicatorParams[j][0]!='\0')
+                            continue;
+                        if (!strcmp (temp2, "Gen") || !strcmp (temp2, "lnLike") || !strcmp (temp2, "lnPrior"))
+                            continue;
+
+                        GetSummary (parameterSamples[i].values, numRuns, sampleCounts, &theStats, sumpParams.HPD);
+               
+                        if (!strcmp(headerNames[i], "r(A<->C)")) 
+                            rs[0]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(A<->G)"))
+                            rs[1]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(A<->T)"))
+                            rs[2]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(C<->G)"))
+                            rs[3]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(C<->T)"))
+                            rs[4]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "r(G<->T)"))
+                            rs[5]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "pi(A)"))
+                            bs[0]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "pi(C)"))
+                            bs[1]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "pi(G)"))
+                            bs[2]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "pi(T)"))
+                            bs[3]=theStats.mean;
+                        else if (!strcmp(headerNames[i], "alpha"))
+                            al[0]=theStats.mean;
+
+                        // reset prior
+                        curLnPr[chain] = LogPrior(chain);
+                        curLnL[chain] = LogLike(chain);
+                        }
+                    }
+                }
+
+            /* free memory */
+            FreeParameterSamples(parameterSamples);
+            for (i=0; i<nHeaders; i++)
+                free (headerNames[i]);
+            free (headerNames);
+            free (sampleCounts);
+
+            fpParm=fpParmMain;
+
+
+            /*  PROBLEM IS IN THIS BLOCK!!!!! */
+            /*  re-print headers and starting states  */
+    if (numPreviousGen==0)
+        {
+        if (PrintStatesToFiles (0) == ERROR)
+            {
+            MrBayesPrint ("%s   Error in printing headers to files\n");
+#   if defined (MPI_ENABLED)
+            nErrors++;
+#   else
+            return ERROR;
+#   endif
+            }
+#   if defined (MPI_ENABLED)
+        MPI_Allreduce (&nErrors, &sumErrors, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+        if (sumErrors > 0)
+            {
+            MrBayesPrint ("%s   Aborting run.\n");
+            return ERROR;
+            }
+#   endif
+        }
+            // reset generations for start of main run
+            n = numPreviousGen+1;
+            MrBayesPrint("%s   Done setting up main run\n\n", spacer); 
+            } /* end prep for main run   */
+
         currentCPUTime = clock();
         if (currentCPUTime - previousCPUTime > 10 * CLOCKS_PER_SEC)
             {
@@ -16736,6 +17303,18 @@ int RunChain (RandLong *seed)
             /* decide which move to make */
             whichMove = PickProposal(seed, chainId[chn]);
             theMove = usedMoves[whichMove];
+
+            /*  PW likelihood stuff */
+            /*  skip alpha proposals when using pairwise likelihood in the hot chains */
+            if (modelSettings->pwHotChains && (chainId[chn] % chainParams.numChains != 0)) 
+                {
+                while (!strcmp(theMove->parm->name,"Alpha")) 
+                    {
+                    whichMove = PickProposal(seed, chainId[chn]);
+                    theMove = usedMoves[whichMove];
+                    }
+                }
+
 #   if defined SHOW_MOVE
             printf ("Making move '%s'\n", theMove->name);
 #   endif
@@ -16776,7 +17355,20 @@ int RunChain (RandLong *seed)
                 return ERROR;
                 }
 #   endif
-            /* make move */
+            /*  check if using pairwise with hybrid proposal for alpha. 
+             *  also grab the alpha lkhood before making the move 
+             */
+            if (!strcmp(theMove->parm->name,"Alpha") && modelSettings->useFullForAlpha == YES)
+                {
+                hybridAlphaStep = YES;
+                if (PrepareHybridStep(chn) == ERROR)
+                    MrBayesPrint("%s Error preparing for hybrid step", spacer);
+                lnLikeAlCurr=LogLike(chn);
+                numAlphaHybridSteps++;
+                }
+
+
+            /* make move  */
             if ((theMove->moveFxn)(theMove->parm, chn, seed, &lnPriorRatio, &lnProposalRatio, theMove->tuningParam[chainId[chn]]) == ERROR)
                 {
                 printf ("%s   Error in move %s\n", spacer, theMove->name);
@@ -16798,14 +17390,32 @@ int RunChain (RandLong *seed)
                 abortMove = YES;
                 }
 
-            /* abortMove is set to YES if the calculation fails because the likelihood is too small */
+            /*  start hybrid composite mcmc step */
             if (abortMove == NO)
-                lnLike = LogLike(chn);
+                {
+                if (hybridAlphaStep == YES) 
+                    {
+                    lnLikeAlMove=LogLike(chn);
+                    PostHybridStep(chn);
+                    }
+                else if (modelSettings->pwHotChains == YES && chainId[chn] % chainParams.numChains == 0)
+                    if (PrepareHybridStep(chn) == ERROR)
+                        MrBayesPrint("%s Error preparing for hybrid step", spacer);
+
+                lnLike=LogLike(chn);                
+                }
 
             /* calculate acceptance probability */
             if (abortMove == NO)
                 {
-                lnLikelihoodRatio = lnLike - curLnL[chn];
+                if (hybridAlphaStep == YES)
+                    {
+                    lnLikelihoodRatio = lnLikeAlMove - lnLikeAlCurr;
+                    hybridAlphaStep=NO;
+                    }
+                else 
+                    lnLikelihoodRatio = lnLike - curLnL[chn];
+
                 lnPrior = curLnPr[chn] + lnPriorRatio;
 
 #   ifndef NDEBUG
@@ -16856,7 +17466,6 @@ int RunChain (RandLong *seed)
                     return (ERROR);
                     }
 #   endif
-
                 /* heat */
                 lnLikelihoodRatio *= Temperature (chainId[chn]);
                 lnPriorRatio      *= Temperature (chainId[chn]);
@@ -16892,13 +17501,6 @@ int RunChain (RandLong *seed)
                 if (abortMove == NO)
                     ResetFlips(chn);
                 state[chn] ^= 1;
-#   if defined (BEAGLE_ENABLED)
-                if (recalcScalers == YES)
-                    {
-                    recalculateScalers(chn);
-                    recalcScalers = NO;
-                    }
-#   endif
                 }
             else
                 {
@@ -16906,8 +17508,10 @@ int RunChain (RandLong *seed)
                 /* store the likelihood and prior of the chain */
                 curLnL[chn] = lnLike;
                 curLnPr[chn] = lnPrior;
+                if (hybridAlphaStep && modelSettings->usePairwise == YES)
+                        curLnL[chn] = LogLike(chn);
                 }
-
+            
             /* check if time to autotune */
             if (theMove->nTried[i] >= chainParams.tuneFreq)
                 {
@@ -16916,21 +17520,58 @@ int RunChain (RandLong *seed)
                 theMove->nAccepted[i] = 0;
                 theMove->nBatches[i]++;                                     /* we only autotune at most 10000 times */
                 if (chainParams.autotune == YES && theMove->moveType->Autotune != NULL && theMove->nBatches[i] < MAXTUNINGPARAM)
-                    {
+                    
                     theMove->moveType->Autotune(theMove->lastAcceptanceRate[i],
                                                 theMove->targetRate[i],
                                                 theMove->nBatches[i],
                                                 &theMove->tuningParam[i][0],
                                                 theMove->moveType->minimum[0],
                                                 theMove->moveType->maximum[0]);
-                    }
                 }
 
             /* ShowValuesForChain (chn); */
+            /*  if (curLnL[chn] > maxLnL0[chainId[chn]]) */
+            if (curLnL[chn] > maxLnL0[chainId[chn]/chainParams.numChains])
+                maxLnL0[chainId[chn]/chainParams.numChains] = curLnL[chn];
 
-            if (curLnL[chn] > maxLnL0[chainId[chn]])
-                maxLnL0[chainId[chn]] = curLnL[chn];
+            }
 
+        /*  if we're using pairwise weights, check if it's time to update the weight */
+        if (n == 1 && modelSettings->pwWeight && chainParams.inInitRun == NO)
+//#   if defined (MPI_ENABLED)
+//                        && proc_id==0  
+//#   endif
+//                )  
+            {
+            /* calculate pairwise adjustment weights */
+            /*   */
+            MrBayesPrint("    %s Applying pwWeights using current cold chain alpha value. \n", spacer);
+            if (modelSettings->nst==1)
+                {
+                if (CalcPairwiseWeights(0) == ERROR) 
+                    {
+                    MrBayesPrint("%s Error in CalcPairwiseWeights", spacer);
+                    return ERROR;
+                    }
+                }
+            else if (modelSettings->nst==6)
+                {
+                if (CalcPairwiseWeights_GTR(0) == ERROR) 
+                    {
+                    MrBayesPrint("%s Error in CalcPairwiseWeights", spacer);
+                    return ERROR;
+                    }
+                }
+          
+#   if defined (MPI_ENABLED)
+           ierror=MPI_Bcast (pwWeight, numCurrentDivisions, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+           if (ierror != MPI_SUCCESS) 
+               MrBayesPrint("%s error mpi bcasting pwWeight \n", spacer);
+#   endif
+
+            /*  update current lnls with weighted lnls */
+            //for (chn=0;chn<numLocalChains;chn++)
+            //    curLnL[chn]=LogLikePairwise(chn);
             }
 
         /* attempt swap(s) Non-blocking for MPI if no swap with external process. */
@@ -16966,7 +17607,8 @@ int RunChain (RandLong *seed)
 
         /* print information to files */
         /* this will also add tree samples to topological convergence diagnostic counters */
-        if (n == chainParams.numGen || n % chainParams.sampleFreq == 0)
+        if (n == chainParams.numGen || ((chainParams.inInitRun == NO && n % chainParams.sampleFreq == 0) 
+                    || (chainParams.inInitRun == YES && n % chainParams.initSampleFreq == 0)) )
             {
 #   if defined (MPI_ENABLED)
             MPI_Allreduce (&nErrors, &sumErrors, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
@@ -16994,6 +17636,8 @@ int RunChain (RandLong *seed)
                 }
 #   endif
             }
+
+        if (chainParams.inInitRun) continue;
 
         /* print mcmc diagnostics. Blocking for MPI */
         if (chainParams.mcmcDiagn == YES && (n % chainParams.diagnFreq == 0
@@ -17263,7 +17907,8 @@ int RunChain (RandLong *seed)
                             MrBayesPrintf (fpSS, "\t%.6f",splitfreqSS[i*chainParams.numStepsSS+chainParams.numStepsSS-stepIndexSS-1]);
                             }
                         }
-                    else{
+                    else
+                        {
                         for (i=0; i<numTopologies; i++)
                             {
                             MrBayesPrintf (fpSS, "\t-2.0");
@@ -17350,7 +17995,12 @@ int RunChain (RandLong *seed)
             ERROR_TEST2("Error in printing checkpoint",return(ERROR),);
             }
 
+
+ 
+
         } /* end run chain */
+
+
     endingT = time(0);
 #   if defined (DEBUG_TIME)
     clock_gettime(CLOCK_MONOTONIC, &tw2);
@@ -17678,7 +18328,8 @@ int SafeSprintf (char **target, int *targetLen, char *fmt, ...)
     va_list    argp;
     int        retval;
 
-    while (1) {
+    while (1) 
+        {
         /* try to print in the available space */
         va_start(argp, fmt);
 #   ifdef VISUAL
@@ -17887,11 +18538,13 @@ void SetFileNames (void)
     strcpy (sumtParams.sumtOutfile, chainParams.chainFileName);
     strcpy (sumpParams.sumpFileName, chainParams.chainFileName);
     strcpy (sumpParams.sumpOutfile, chainParams.chainFileName);
+
     if (chainParams.numRuns == 1)
         {
         sprintf (comptreeParams.comptFileName1, "%s.t", chainParams.chainFileName);
         sprintf (comptreeParams.comptFileName2, "%s.t", chainParams.chainFileName);
         sprintf (plotParams.plotFileName, "%s.p", chainParams.chainFileName);
+
         MrBayesPrint ("%s   Setting chain output file names to \"%s.<p/t>\"\n", spacer, chainParams.chainFileName);
         }
     else /* if (chainParams.numRuns > 1) */
@@ -18060,7 +18713,33 @@ int SetLikeFunctions (void)
                         else
                             m->TiProbs = &TiProbs_Gen;
                         m->StateCode = &StateCode_NUC4;
-                        }
+
+                        if (m->usePairwise == YES)
+                            {
+                            m->PwLikelihood = &Likelihood_Pairwise;
+                            if (m->nst ==  1)
+                                {
+                                m->PwTiProbs = &TiProbsPairwise_JukesCantor;
+                                m->DoubletProbs = &DoubletProbs_JukesCantor;
+                                } 
+                            else if (m->nst == 6)
+                                {
+                                m->PwTiProbs = &TiProbsPairwise_Gen;
+                                m->DoubletProbs = &DoubletProbs_Gen;
+                                }
+                            if (modelSettings->pwHotChains==YES)
+                                {
+                                m->CondLikeDown = &CondLikeDown_NUC4;
+                                m->CondLikeRoot = &CondLikeRoot_NUC4;
+                                m->CondLikeScaler = &CondLikeScaler_NUC4;
+                                m->Likelihood  = &Likelihood_NUC4;
+                                if (m->nst ==  1)
+                                    m->TiProbs = &TiProbs_Fels;
+                                else if (m->nst == 6)
+                                    m->TiProbs = &TiProbs_Gen;
+                                }
+                            }
+                        }     
                     }
                 else if (m->nucModelId == NUCMODEL_DOUBLET)
                     {
@@ -18441,28 +19120,75 @@ int ShowMoveSummary (void)
             
             /* now we can print the values */
             MrBayesPrint ("\n");
-            if (areRunsSame == YES && areChainsSame == YES)
-                MrBayesPrint ("%s   The MCMC sampler will use the following moves:\n", spacer);
-            else if (areRunsSame == NO && areChainsSame == YES)
-                MrBayesPrint ("%s   The MCMC sampler will use the following moves for run %d:\n", spacer, run+1);
-            else if (areRunsSame == YES && areChainsSame == NO)
-                MrBayesPrint ("%s   The MCMC sampler will use the following moves for chain %d:\n", spacer, chain+1);
-            else if (areRunsSame == NO && areChainsSame == NO)
-                MrBayesPrint ("%s   The MCMC sampler will use the following moves for run %d, chain %d:\n", spacer, run+1, chain+1);
 
-            chainIndex = run*chainParams.numChains + chain;
-            MrBayesPrint ("%s      With prob.  Chain will use move\n", spacer);
-            for (i=0; i<numUsedMoves; i++)
+            if (chainParams.initSubMod == YES) 
                 {
-                mv = usedMoves[i];
-                prob = mv->cumProposalProb[chainIndex];
-                if (i > 0)
-                    prob -= usedMoves[i-1]->cumProposalProb[chainIndex];
-                if (AreDoublesEqual(prob,0.0,0.000001) == YES)
-                    continue;
-                MrBayesPrint ("%s       %6.2f %%   %s\n", spacer, 100*prob, mv->name);
+                    MrBayesPrint ("%s   The MCMC chain will run a short initial chain with the Full likelihood \n", spacer);
+                    MrBayesPrint ("%s   and a main run with the pairwise likelihood.  \n", spacer);
+                if (areRunsSame == YES && areChainsSame == YES) 
+                    MrBayesPrint ("%s   The MCMC sampler will use the following moves:\n", spacer);
+                else if (areRunsSame == NO && areChainsSame == YES)
+                    MrBayesPrint ("%s   The MCMC sampler will use the following moves for run %d:\n", spacer, run+1);
+                else if (areRunsSame == YES && areChainsSame == NO)
+                    MrBayesPrint ("%s   The MCMC sampler will use the following moves for chain %d:\n", spacer, chain+1);
+                else if (areRunsSame == NO && areChainsSame == NO)
+                    MrBayesPrint ("%s   The MCMC sampler will use the following moves for run %d, chain %d:\n", spacer, run+1, chain+1);
+
+                chainIndex = run*chainParams.numChains + chain;
+                MrBayesPrint ("%s      With prob.  Chain will use move\n", spacer);
+
+                MrBayesPrint ("%s   -- Initial run -- \n", spacer);
+                for (i=0; i<numUsedMovesInit; i++)
+                    {
+                    mv = usedMovesInit[i];
+                    prob = mv->cumProposalProb[chainIndex];
+                    if (i > 0)
+                        prob -= usedMovesInit[i-1]->cumProposalProb[chainIndex];
+                    if (AreDoublesEqual(prob,0.0,0.000001) == YES)
+                        continue;
+                    MrBayesPrint ("%s       %6.2f %%   %s\n", spacer, 100*prob, mv->name);
+                    }
+                MrBayesPrint ("\n");
+                MrBayesPrint ("%s   -- Main run -- \n", spacer);
+
+                for (i=0; i<numUsedMovesMain; i++)
+                    {
+                    mv = usedMovesMain[i];
+                    prob = mv->cumProposalProb[chainIndex];
+                    if (i > 0)
+                        prob -= usedMovesMain[i-1]->cumProposalProb[chainIndex];
+                    if (AreDoublesEqual(prob,0.0,0.000001) == YES)
+                        continue;
+                    MrBayesPrint ("%s       %6.2f %%   %s\n", spacer, 100*prob, mv->name);
+                    }
+                MrBayesPrint ("\n");
+                } 
+            else 
+                {
+                if (areRunsSame == YES && areChainsSame == YES)
+                    MrBayesPrint ("%s   The MCMC sampler will use the following moves:\n", spacer);
+                else if (areRunsSame == NO && areChainsSame == YES)
+                    MrBayesPrint ("%s   The MCMC sampler will use the following moves for run %d:\n", spacer, run+1);
+                else if (areRunsSame == YES && areChainsSame == NO)
+                    MrBayesPrint ("%s   The MCMC sampler will use the following moves for chain %d:\n", spacer, chain+1);
+                else if (areRunsSame == NO && areChainsSame == NO)
+                    MrBayesPrint ("%s   The MCMC sampler will use the following moves for run %d, chain %d:\n", spacer, run+1, chain+1);
+
+                chainIndex = run*chainParams.numChains + chain;
+                MrBayesPrint ("%s      With prob.  Chain will use move\n", spacer);
+                for (i=0; i<numUsedMoves; i++)
+                    {
+                    mv = usedMoves[i];
+                    prob = mv->cumProposalProb[chainIndex];
+                    if (i > 0)
+                        prob -= usedMoves[i-1]->cumProposalProb[chainIndex];
+                    if (AreDoublesEqual(prob,0.0,0.000001) == YES)
+                        continue;
+                    MrBayesPrint ("%s       %6.2f %%   %s\n", spacer, 100*prob, mv->name);
+                    }
+                MrBayesPrint ("\n");
                 }
-            MrBayesPrint ("\n");
+
             }   /* next chain */
         }   /* next run */
 
@@ -18677,9 +19403,15 @@ int SetUsedMoves (void)
 {
     int         i, j, moveIndex, numGlobalChains;
     MrBFlt      prob, sum, cumSum;
+    MrBFlt      initSum, mainSum;
+    MrBFlt      initCumSum, mainCumSum;
+    int         initMoveIndex, mainMoveIndex;
 
     /* first count moves */
     numUsedMoves = 0;
+    numUsedMovesInit = 0;
+    numUsedMovesMain = 0;
+
     numGlobalChains = chainParams.numChains * chainParams.numRuns;
     for (i=0; i<numApplicableMoves; i++)
         {
@@ -18690,9 +19422,29 @@ int SetUsedMoves (void)
                 prob = moves[i]->relProposalProb[j];
             }
         if (prob > 0.000001)
+            {
             numUsedMoves++;
+            if (chainParams.initSubMod == YES)
+                {
+                if (moves[i]->moveType->applicableTo[0] == SHAPE_UNI ||
+                    moves[i]->moveType->applicableTo[0] == REVMAT_DIR ||
+                    moves[i]->moveType->applicableTo[0] == REVMAT_MIX ||
+                    moves[i]->moveType->applicableTo[0] == PI_DIR)
+                    {
+                    numUsedMovesInit++;
+                    moves[i]->initRun=YES;
+                    moves[i]->mainRun=NO;
+                    }
+                else 
+                    {
+                    numUsedMovesMain++;
+                    moves[i]->mainRun=YES;
+                    moves[i]->initRun=NO;
+                    }
+                }
+            }
         }
-    
+   
     /* allocate space */
     if (memAllocs[ALLOC_USEDMOVES] == YES)
         {
@@ -18705,10 +19457,27 @@ int SetUsedMoves (void)
         MrBayesPrint ("%s   Problem allocating usedMoves\n", spacer);
         return (ERROR);
         }
+    if (chainParams.initSubMod == YES)
+        {
+        usedMovesInit = (MCMCMove **) SafeMalloc (numUsedMovesInit * sizeof (MCMCMove *));
+        usedMovesMain = (MCMCMove **) SafeMalloc (numUsedMovesMain * sizeof (MCMCMove *));
+        if (!usedMovesInit)
+            {
+            MrBayesPrint ("%s   Problem allocating usedMovesInit\n", spacer);
+            return (ERROR);
+            }
+        if (!usedMovesMain)
+            {
+            MrBayesPrint ("%s   Problem allocating usedMovesMain\n", spacer);
+            return (ERROR);
+            }
+        }
     memAllocs[ALLOC_USEDMOVES] = YES;
         
     /* set move pointers */
     moveIndex = 0;
+    initMoveIndex = 0;
+    mainMoveIndex = 0;
     for (i=0; i<numApplicableMoves; i++)
         {
         prob = 0.0;
@@ -18718,7 +19487,13 @@ int SetUsedMoves (void)
                 prob = moves[i]->relProposalProb[j];
             }
         if (prob > 0.000001)
+            {
+            if (moves[i]->initRun)
+                usedMovesInit[initMoveIndex++]=moves[i];
+            if (moves[i]->mainRun)
+                usedMovesMain[mainMoveIndex++]=moves[i];
             usedMoves[moveIndex++] = moves[i];
+            }
         }
     
     if (moveIndex != numUsedMoves)
@@ -18727,46 +19502,114 @@ int SetUsedMoves (void)
         return (ERROR);
         }
 
-    /* set parsimony flag if applicable */
-    for (i=0; i<numCurrentDivisions; i++)
-        modelSettings[i].parsimonyBasedMove = NO;
-    for (i=0; i<numUsedMoves; i++)
-        {
-        if (usedMoves[i]->moveType->parsimonyBased == YES)
-            {
-            for (j=0; j<usedMoves[i]->parm->nRelParts; j++)
-                modelSettings[usedMoves[i]->parm->relParts[j]].parsimonyBasedMove = YES;
-            }       
-        }
-
     /* set cumulative proposal probabilities */
-    for (j=0; j<numGlobalChains; j++)
+    if (chainParams.initSubMod == YES)
         {
-        sum = 0.0;
-        for (i=0; i<numUsedMoves; i++)
-            {
-            sum += usedMoves[i]->relProposalProb[j];
-            }
-        cumSum = 0.0;
-        for (i=0; i<numUsedMoves; i++)
-            {
-            cumSum += usedMoves[i]->relProposalProb[j];
-            usedMoves[i]->cumProposalProb[j] = cumSum / sum;
-            }
-        }
+        /* set parsimony flag if applicable */
+        for (i=0; i<numCurrentDivisions; i++)
+            modelSettings[i].parsimonyBasedMove = NO;
 
-    /* reset acceptance probability values */
-    for (i=0; i<numUsedMoves; i++)
-        {
+        for (i=0; i<numUsedMovesInit; i++)
+            {
+            if (usedMovesInit[i]->moveType->parsimonyBased == YES)
+                {
+                for (j=0; j<usedMovesInit[i]->parm->nRelParts; j++)
+                    modelSettings[usedMovesInit[i]->parm->relParts[j]].parsimonyBasedMove = YES;
+                }       
+            }
+        for (i=0; i<numUsedMovesMain; i++)
+            {
+            if (usedMovesMain[i]->moveType->parsimonyBased == YES)
+                {
+                for (j=0; j<usedMovesMain[i]->parm->nRelParts; j++)
+                    modelSettings[usedMovesMain[i]->parm->relParts[j]].parsimonyBasedMove = YES;
+                }       
+            }
+
         for (j=0; j<numGlobalChains; j++)
             {
-            usedMoves[i]->nAccepted[j] = 0;
-            usedMoves[i]->nTried[j] = 0;
-            usedMoves[i]->nTotAccepted[j] = 0;
-            usedMoves[i]->nTotTried[j] = 0;
+            initSum=0.0;
+            mainSum=0.0;
+            for (i=0; i<numUsedMovesInit; i++)
+                initSum += usedMovesInit[i]->relProposalProb[j];
+            for (i=0; i<numUsedMovesMain; i++)
+                mainSum += usedMovesMain[i]->relProposalProb[j];
+            initCumSum = 0.0;
+            mainCumSum = 0.0;
+            for (i=0; i<numUsedMovesInit; i++)
+                {
+                initCumSum += usedMovesInit[i]->relProposalProb[j];
+                usedMovesInit[i]->cumProposalProb[j] = initCumSum / initSum;
+                }
+            for (i=0; i<numUsedMovesMain; i++)
+                {
+                mainCumSum += usedMovesMain[i]->relProposalProb[j];
+                usedMovesMain[i]->cumProposalProb[j] = mainCumSum / mainSum;
+                }
             }
-        }
+        for (i=0; i<numUsedMovesInit; i++)
+            {
+            for (j=0; j<numGlobalChains; j++)
+                {
+                usedMovesInit[i]->nAccepted[j] = 0;
+                usedMovesInit[i]->nTried[j] = 0;
+                usedMovesInit[i]->nTotAccepted[j] = 0;
+                usedMovesInit[i]->nTotTried[j] = 0;
+                }
+            }
 
+        for (i=0; i<numUsedMovesMain; i++)
+            {
+            for (j=0; j<numGlobalChains; j++)
+                {
+                usedMovesMain[i]->nAccepted[j] = 0;
+                usedMovesMain[i]->nTried[j] = 0;
+                usedMovesMain[i]->nTotAccepted[j] = 0;
+                usedMovesMain[i]->nTotTried[j] = 0;
+                }
+            }
+        } /*  end init sub mod move setup */
+    else 
+        {
+        /* set parsimony flag if applicable */
+        for (i=0; i<numCurrentDivisions; i++)
+            modelSettings[i].parsimonyBasedMove = NO;
+        for (i=0; i<numUsedMoves; i++)
+            {
+            if (usedMoves[i]->moveType->parsimonyBased == YES)
+                {
+                for (j=0; j<usedMoves[i]->parm->nRelParts; j++)
+                    modelSettings[usedMoves[i]->parm->relParts[j]].parsimonyBasedMove = YES;
+                }       
+            }
+
+        for (j=0; j<numGlobalChains; j++)
+            {
+            sum = 0.0;
+            for (i=0; i<numUsedMoves; i++)
+                {
+                sum += usedMoves[i]->relProposalProb[j];
+                }
+            cumSum = 0.0;
+            for (i=0; i<numUsedMoves; i++)
+                {
+                cumSum += usedMoves[i]->relProposalProb[j];
+                usedMoves[i]->cumProposalProb[j] = cumSum / sum;
+                }
+            }
+
+        /* reset acceptance probability values */
+        for (i=0; i<numUsedMoves; i++)
+            {
+            for (j=0; j<numGlobalChains; j++)
+                {
+                usedMoves[i]->nAccepted[j] = 0;
+                usedMoves[i]->nTried[j] = 0;
+                usedMoves[i]->nTotAccepted[j] = 0;
+                usedMoves[i]->nTotTried[j] = 0;
+                }
+            }
+        } /*  end non-initsubmod version */
     return (NO_ERROR);
 }
 

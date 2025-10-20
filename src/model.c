@@ -43,6 +43,7 @@
 #include "proposal.h"
 #include "sumpt.h"
 #include "utils.h"
+#include "pairwise.h"
 #if defined(__MWERKS__)
 #include "SIOUX.h"
 #endif
@@ -166,6 +167,13 @@ Param           **subParamPtrs;              /* pointer to subparams for topolog
 int             *stateSize;                  /* # states for each compressed char                       */
 // int          foundCurly;
 // char         *plotTokenP;                 /* plotToken[CMD_STRING_LENGTH];*/
+
+
+/*  globals declared here (pairwise.c) */
+//int    usePairwise;
+//int    useTriples;
+//int    useFullForAlpha;
+
 
 
 /*-----------------------------------------------------------------------
@@ -3230,8 +3238,9 @@ int DoLsetParm (char *parmName, char *tkn)
                                 MrBayesPrint ("%s   Setting Nucmodel to %s\n", spacer, modelParams[i].nucModel);
                             else
                                 MrBayesPrint ("%s   Setting Nucmodel to %s for partition %d\n", spacer, modelParams[i].nucModel, i+1);
-                            }
-                        }
+                            } 
+
+                        }                     
                     if (tempInt == YES)
                         MrBayesPrint ("%s   Set state frequency prior to default\n", spacer);
                     }
@@ -3287,6 +3296,303 @@ int DoLsetParm (char *parmName, char *tkn)
             else
                 return (ERROR);
             }
+
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "UsePairwise"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    /*  TODO: either: 1. implement pairwise for different data partitions or 
+                     *  2: don't bother to loop through parts and just set global flags. if multiple 
+                     *  partitions, return warning or error.    */
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if (activeParts[i] == YES || nApplied == 0)
+                            {
+                            if (modelSettings[i].dataType == DNA)
+                                {
+                                if (!strcmp(tempStr, "Yes"))
+                                    {
+                                    /* modelSettings[i].usePairwise = YES; */
+                                    modelSettings[i].usePairwise=YES;
+                                    }
+                                else
+                                    {
+                                    modelSettings[i].usePairwise=NO;
+                                    }
+                                    /*  modelSettings[i].usePairwise = NO; */
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting usePairwise to %d\n", spacer, modelSettings[i].usePairwise);
+                                else
+                                    MrBayesPrint ("%s   Setting usePairwise to %d for partition %d\n", spacer, modelSettings[i].usePairwise, i+1);
+                                /* 
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                else
+                                    MrBayesPrint ("%s   Setting Pairwise flag to %d for partition %d\n", 
+                                                    spacer, modelSettings[i].usePairwise, i+1);
+                                 */
+                                }
+                            else 
+                                {
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Pairwise flag unchanged ", spacer);
+                                else
+                                    MrBayesPrint ("%s   Pairwise flag unchanged for partition %d ", 
+                                                    spacer, i+1);
+                                MrBayesPrint ("because dataType is not DNA\n");
+                                }
+                            } 
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for Pairwise\n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            }
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "PwAlphaLike"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if (activeParts[i] == YES || nApplied == 0)
+                            {
+                            if (modelSettings[i].dataType == DNA)
+                                {
+                                if (!strcmp(tempStr, "None"))
+                                    {
+                                    /*
+                                    modelSettings[i].useTriples = NO;
+                                    modelSettings[i].useFull = NO;
+                                    */
+                                    modelSettings[i].useTriples = NO;   
+                                    modelSettings[i].useFullForAlpha = NO;
+                                    }
+                                else if (!strcmp(tempStr, "Full"))
+                                    {
+                                    modelSettings[i].useTriples = NO;
+                                    modelSettings[i].useFullForAlpha = YES;
+                                    } 
+                                else if (!strcmp(tempStr, "Triplet"))
+                                    {
+                                    modelSettings[i].useTriples = YES;
+                                    modelSettings[i].useFullForAlpha = NO;
+                                    } 
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d\n", spacer, modelSettings[i].useTriples, modelSettings[i].useFullForAlpha);
+                                else
+                                    MrBayesPrint ("%s   Setting alpha lkhood flags to: useTriples=%d, useFull=%d for partition %d\n", 
+                                                    spacer, modelSettings[i].useTriples,modelSettings[i].useFullForAlpha, i+1);
+                                }
+                            else 
+                                {
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Pw alpha lkhood flags unchanged ", spacer);
+                                else
+                                    MrBayesPrint ("%s   Pw alpha lkhood unchanged for partition %d ", 
+                                                    spacer, i+1);
+                                MrBayesPrint ("because dataType is not DNA\n");
+                                }
+
+                            } 
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for alpha likelihood \n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else 
+                {
+                return (ERROR);
+                }
+            }
+
+
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "PwHotChain"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if (activeParts[i] == YES || nApplied == 0)
+                            {
+                            if (modelSettings[i].dataType == DNA)
+                                {
+                                if (!strcmp(tempStr, "Yes"))
+                                    {
+                                    modelSettings[i].pwHotChains=1;
+                                    }
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting Pw hot chain flag to to: pwHotChains=%d\n", spacer, modelSettings[i].pwHotChains);
+                                else
+                                    MrBayesPrint ("%s   Setting to:  pwHotChains=%d for partition %d\n", 
+                                                    spacer, modelSettings[i].pwHotChains, i+1);
+                                }
+                            else 
+                                {
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Pw alpha lkhood flags unchanged ", spacer);
+                                else
+                                    MrBayesPrint ("%s   Pw alpha lkhood unchanged for partition %d ", 
+                                                    spacer, i+1);
+                                MrBayesPrint ("because dataType is not DNA\n");
+                                }
+
+                            } 
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for alpha likelihood \n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else 
+                {
+                return (ERROR);
+                }
+            }
+
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "PwWeights"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(NUMBER);
+            else if (expecting == Expecting(NUMBER))
+                {
+                sscanf (tkn, "%d", &tempInt);
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    /*  TODO: either: 1. implement pairwise for different data partitions or 
+                     *  2: don't bother to loop through parts and just set global flags. if multiple 
+                     *  partitions, return warning or error.    */
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if (activeParts[i] == YES || nApplied == 0)
+                            {
+                            if (modelSettings[i].dataType == DNA)
+                                {
+                                if (tempInt == 1 || tempInt == 2 || tempInt == 3)
+                                    {
+                                    modelSettings[i].usePwWeights=tempInt;
+                                    modelSettings[i].pwWeight=1.0;
+                                    }
+                                else
+                                    {
+                                    modelSettings[i].usePwWeights=NO;
+                                    modelSettings[i].pwWeight=1.0;
+                                    }
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Setting pw weights flag to %d \n", 
+                                                    spacer, modelSettings[i].usePwWeights);
+                                else
+                                    MrBayesPrint ("%s   Setting pw weights flag to %d for partition %d\n", 
+                                                    spacer, modelSettings[i].usePwWeights, i+1);
+                                }
+                            else 
+                                {
+                                if (nApplied == 0 && numCurrentDivisions == 1)
+                                    MrBayesPrint ("%s   Pairwise weight flag unchanged ", spacer);
+                                else
+                                    MrBayesPrint ("%s   Pairwise weight flag unchanged for partition %d ", 
+                                                    spacer, i+1);
+                                MrBayesPrint ("because dataType is not DNA\n");
+                                }
+                            } 
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for PwWeights\n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            }
+
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "Nsplits"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(NUMBER);
+            else if (expecting == Expecting(NUMBER))
+                {
+                sscanf (tkn, "%d", &tempInt);
+                if (tempInt >= 2 && tempInt < MAX_DATA_SPLITS)
+                    {
+                    nApplied = NumActiveParts ();
+                    for (i=0; i<numCurrentDivisions; i++)
+                        {
+                        if ((activeParts[i] == YES || nApplied == 0) && (modelParams[i].dataType != CONTINUOUS))
+                            {
+                            modelSettings[i].numDataSplits = tempInt;
+                            if (nApplied == 0 && numCurrentDivisions == 1)
+                                MrBayesPrint ("%s   Setting Numdatasplits to %d\n", spacer, modelSettings[i].numDataSplits);
+                            else
+                                MrBayesPrint ("%s   Setting Numdatasplits to %d for partition %d\n", spacer, modelSettings[i].numDataSplits, i+1);
+                            }
+                        }
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid Numdatasplits argument (should be between 2 and %d)\n", spacer, MAX_DATA_SPLITS);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON); 
+                }
+            else 
+                return (ERROR);
+            }
+ 
+        /* set  Pairwise flag (pairwise) **********************************************************************/
+        else if (!strcmp(parmName, "Stepstilalpha"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(NUMBER);
+            else if (expecting == Expecting(NUMBER))
+                {
+                sscanf (tkn, "%d", &tempInt);
+                if (tempInt >= 2)
+                    {
+                    stepsTilAlpha=tempInt;
+                    MrBayesPrint ("%s   We'll estimate the pairwise adjustment weight after %d MCMC steps \n", spacer, stepsTilAlpha);
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   stepsTilAlpha should be an integer larger than 1 (recommend setting it to the anticipated burnin) \n", spacer);
+                    return (ERROR);
+                    }
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON); 
+                }
+            else 
+                return (ERROR);
+            }
+               
         /* set Ngammacat (numGammaCats) ************************************************************/
         else if (!strcmp(parmName, "Ngammacat"))
             {
@@ -3320,6 +3626,8 @@ int DoLsetParm (char *parmName, char *tkn)
             else
                 return (ERROR);
             }
+
+
         /* set Nlnormcat (numLnormCats) ************************************************************/
         else if (!strcmp(parmName, "Nlnormcat"))
             {
@@ -4811,6 +5119,8 @@ int DoPrsetParm (char *parmName, char *tkn)
                 {
                 if (IsArgValid(tkn, tempStr) == NO_ERROR)
                     {
+
+
                     nApplied = NumActiveParts ();
                     flag = 0;
                     for (i=0; i<numCurrentDivisions; i++)
@@ -4830,6 +5140,9 @@ int DoPrsetParm (char *parmName, char *tkn)
                         MrBayesPrint ("%s       Currently there is no active partition with such data.\n", spacer);
                         return (ERROR);
                         }
+
+
+
                     }
                 else
                     {
@@ -16214,7 +16527,12 @@ int PrintCompMatrix (void)
             whichChar = &WhichStand;
 
         MrBayesPrint ("\nCompressed matrix for division %d\n\n", d+1);
-        
+
+        MrBayesPrint ("\n Comp Matrix Start:  %d\n", m->compMatrixStart);
+        MrBayesPrint ("\n Comp Matrix Stop:  %d\n", m->compMatrixStop);
+        MrBayesPrint ("\n Comp Char Start:  %d\n", m->compCharStart);
+        MrBayesPrint ("\n Comp Char Stop:  %d\n", m->compCharStop);
+         
         k = 66;
         if (mp->dataType == CONTINUOUS)
             k /= 4;
@@ -18504,7 +18822,7 @@ int SetModelDefaults (void)
     for (j=0; j<numCurrentDivisions; j++)
         {
         modelParams[j] = defaultModel;                      /* start with default settings */
-        
+       
         modelParams[j].dataType = DataType (j);             /* data type for partition                      */
 
         if (modelParams[j].dataType == STANDARD)
@@ -18525,6 +18843,8 @@ int SetModelDefaults (void)
 
         SetCode (j);
         modelParams[j].nStates = NumStates (j);             /* number of states for partition             */
+        MrBayesPrint("Number States: %d\n", NumStates (j));             /* number of states for partition             */
+
 
         if (numDefinedConstraints > 0)
             modelParams[j].activeConstraints = (int *) SafeCalloc((size_t)(numDefinedConstraints), sizeof(int));  /* allocate space for active constraints (yes/no) */
@@ -21370,6 +21690,10 @@ int SetUpAnalysis (RandLong *seed)
     if (CompressData() == ERROR)
         return (ERROR);
 
+    // if (modelSettings->useTriples)
+    //     if (CountTriplets() == ERROR)
+    //         return (ERROR);
+
     /* Add dummy characters, if needed. */
     if (AddDummyChars() == ERROR)
         return (ERROR);
@@ -22560,7 +22884,7 @@ void SetUpMoveTypes (void)
     /* Move_ParsSPR1 e^{-S} */
     mt = &moveTypes[i++];
     mt->name = "Parsimony-biased SPR variant 1";
-    mt->shortName = "ParsSPR";
+    mt->shortName = "ParsSPR1";
     mt->subParams = YES;
     mt->tuningName[0] = "parsimony warp factor";
     mt->shortTuningName[0] = "warp";
@@ -23580,7 +23904,7 @@ int ShowModel (void)
             {
             MrBayesPrint ("%s         Datatype  = Continuous\n", spacer);
             }
-            
+           
         if (modelSettings[i].dataType == CONTINUOUS)
             {
             /* begin description of continuous models */
@@ -23656,7 +23980,7 @@ int ShowModel (void)
                                 modelParams[i].revMatFix[3], modelParams[i].revMatFix[4], modelParams[i].revMatFix[5]);
                             }
                         }
-                    
+                   
                     if (!strcmp(modelParams[i].nucModel,"Codon"))
                         {
                         /* what is the distribution on the nonsyn./syn. rate ratio */
@@ -24025,7 +24349,7 @@ int ShowModel (void)
                 if (modelSettings[i].dataType != CONTINUOUS)
                     {
                     if (((modelSettings[i].dataType == DNA || modelSettings[i].dataType == RNA) && strcmp(modelParams[i].nucModel,"Codon")!=0) ||
-                          modelSettings[i].dataType == PROTEIN || modelSettings[i].dataType == RESTRICTION || modelSettings[i].dataType == STANDARD)
+                          modelSettings[i].dataType == PROTEIN || modelSettings[i].dataType == RESTRICTION || modelSettings[i].dataType == STANDARD )
                         {
                         if (!strcmp(modelParams[i].covarionModel, "No"))
                             MrBayesPrint ("%s         Rates     = %s\n", spacer, modelParams[i].ratesModel);
@@ -24619,7 +24943,7 @@ int ShowParameters (int showStartVals, int showMoves, int showAllAvailable)
             }
         else if (j == P_REVMAT)
             {
-            if (ms->numModelStates != 20)
+            if (ms->numModelStates != 20 && ms->numModelStates != 3)
                 {
                 if (!strcmp(mp->nst,"Mixed"))
                     {

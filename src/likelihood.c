@@ -40,7 +40,8 @@
 #include "mbbeagle.h"
 #include "model.h"
 #include "utils.h"
-
+#include "pairwise.h"
+#include "command.h"
 #define LIKE_EPSILON                1.0e-300
 
 /* global variables declared here */
@@ -53,6 +54,9 @@ extern int      *chainId;
 extern int      numLocalChains;
 extern int      rateProbRowSize;            /* size of rate probs for one chain one state   */
 extern MrBFlt   **rateProbs;                /* pointers to rate probs used by adgamma model */
+
+/* pairwise globals (declared in model.c) */
+extern int usePairwise;
 
 /* local prototypes */
 MrBFlt    GetRate (int division, int chain);
@@ -68,8 +72,6 @@ int       SetNucQMatrix (MrBFlt **a, int n, int whichChain, int division, MrBFlt
 int       SetStdQMatrix (MrBFlt **a, int nStates, MrBFlt *bs, int cType);
 int       SetDiMethylQMatrix (MrBFlt **a, int nStates, int whichChain, int division, MrBFlt rateMult, MrBFlt *rA, MrBFlt *rS);
 int       SetProteinQMatrix (MrBFlt **a, int n, int whichChain, int division, MrBFlt rateMult);
-int       UpDateCijk (int whichPart, int whichChain);
-
 
 /*----------------------------------------------------------------
 |
@@ -932,7 +934,6 @@ int CondLikeDown_NUC4 (TreeNode *p, int division, int chain)
                     }
                 }
         }
-
     return NO_ERROR;
 }
 
@@ -7855,6 +7856,7 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
     TreeNode        *p;
     ModelInfo       *m;
     Tree            *tree;
+
 #   if defined (TIMING_ANALIZ)
     clock_t         CPUTimeStart;
 #   endif
@@ -7871,7 +7873,16 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
             }
         m->upDateAll = YES;
         }
-    
+  
+    if (m->usePairwise && chainParams.inInitRun==NO && (modelSettings->pwHotChains==NO || (modelSettings->pwHotChains==YES && (chainId[chain] % chainParams.numChains) != 0))) 
+        {
+        CalcPairwiseDists_ReverseDownpass(tree,d,chain);
+        m->PwTiProbs(d,chain);
+        m->DoubletProbs(d,chain);
+        m->PwLikelihood(d,chain,lnL);
+        return;
+        }
+
 #   if defined (BEAGLE_ENABLED)
     if (m->useBeagle == YES)
         {
@@ -7879,8 +7890,8 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
         return;
         }
 #   endif
-        
-    if (m->parsModelId == NO && m->dataType != CONTINUOUS)
+
+     if (m->parsModelId == NO && m->dataType != CONTINUOUS)
         {
         /* get site scalers ready */
         FlipSiteScalerSpace(m, chain);
@@ -7938,12 +7949,12 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
 
                 if (m->unscaledNodes[chain][p->index] == 0 && m->upDateAll == NO)
                     {
-#if defined (SSE_ENABLED)
+#if defined(SSE_ENABLED)
                     if (m->useVec == VEC_SSE)
                         {
                         TIME(RemoveNodeScalers_SSE (p, d, chain),CPUScalersRemove);
                         }
-#if defined (AVX_ENABLED)
+#if defined(AVX_ENABLED)
                     else if (m->useVec == VEC_AVX)
                         {
                         TIME(RemoveNodeScalers_AVX (p, d, chain),CPUScalersRemove);
@@ -7953,9 +7964,9 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
                         {
                         TIME(RemoveNodeScalers (p, d, chain),CPUScalersRemove);
                         }
-#   else
+#else   
                     TIME(RemoveNodeScalers (p, d, chain),CPUScalersRemove);
-#   endif
+#endif
                     }
                 FlipNodeScalerSpace (m, chain, p->index);
                 m->unscaledNodes[chain][p->index] = 1 + m->unscaledNodes[chain][p->left->index] + m->unscaledNodes[chain][p->right->index];
@@ -7966,10 +7977,11 @@ void LaunchLogLikeForDivision(int chain, int d, MrBFlt* lnL)
                     }
                 }
             }
-        }
-    
-    /* call likelihood function to summarize result */
-    TIME(m->Likelihood (tree->root->left, d, chain, lnL, (chainId[chain] % chainParams.numChains)),CPULilklihood);
+
+        /* call likelihood function to summarize result */
+        TIME(m->Likelihood (tree->root->left, d, chain, lnL, (chainId[chain] % chainParams.numChains)),CPULilklihood);
+        } 
+
     return;
 }
 

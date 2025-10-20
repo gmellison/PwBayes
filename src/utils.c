@@ -106,12 +106,10 @@ void    GaussianElimination (int dim, MrBFlt **a, MrBFlt **bMat, MrBFlt **xMat);
 int     Hqr2 (int dim, int low, int high, MrBFlt **h, MrBFlt *wr, MrBFlt *wi, MrBFlt **z);
 MrBFlt  IncompleteBetaFunction (MrBFlt alpha, MrBFlt beta, MrBFlt x);
 MrBFlt  IncompleteGamma (MrBFlt x, MrBFlt alpha, MrBFlt LnGamma_alpha);
-int     InvertMatrix (int dim, MrBFlt **a, MrBFlt *col, int *indx, MrBFlt **aInv);
 MrBFlt  LBinormal (MrBFlt h1, MrBFlt h2, MrBFlt r);
 int     LogBase2Plus1 (MrBFlt x);
 void    LUBackSubstitution (int dim, MrBFlt **a, int *indx, MrBFlt *b);
 int     LUDecompose (int dim, MrBFlt **a, MrBFlt *vv, int *indx, MrBFlt *pd);
-void    MultiplyMatrixByScalar (int dim, MrBFlt **a, MrBFlt scalar, MrBFlt **result);
 MrBFlt  PointChi2 (MrBFlt prob, MrBFlt v);
 void    PrintComplexVector (int dim, MrBComplex *vec);
 void    PrintSquareComplexMatrix (int dim, MrBComplex **m);
@@ -130,7 +128,7 @@ void    TiProbsUsingPadeApprox (int dim, MrBFlt **qMat, MrBFlt v, MrBFlt r, MrBF
 MrBFlt  QuantileLogNormal (MrBFlt prob, MrBFlt mu, MrBFlt sigma);
 int     DiscreteLogNormal (MrBFlt *rK, MrBFlt sigma, int K, int median);
 MrBFlt  LogNormalPoint (MrBFlt x, MrBFlt mu, MrBFlt sigma);
-
+
 #if defined (BEAGLE_V3_ENABLED)
 int     Height(TreeNode *p);
 void    ReverseLevelOrder(Tree *t, TreeNode *p, int *i);
@@ -5446,11 +5444,11 @@ void PrintNodes (Tree *t)
     int         i;
     TreeNode    *p;
 
-    printf ("Node\tleft\tright\tanc\tlength\n");
+    printf ("Node\tleft\tright\tanc  \tlength    \n");
     for (i=0; i<t->nNodes; i++)
         {
         p = &t->nodes[i];
-        printf ("%d\t%d\t%d\t%d\t%f\t%f\n",
+        printf ("%d   \t%d   \t%d   \t%d\t%f\t%f\n",
             p->index,
             p->left == NULL ? -1 : p->left->index,
             p->right == NULL ? -1 : p->right->index,
@@ -5484,7 +5482,6 @@ void PrintNodes (Tree *t)
         }
     printf ("\n");
 }
-
 
 /* PrintPolyNodes: Print a list of polytomous tree nodes, pointers and length */
 void PrintPolyNodes (PolyTree *pt)
