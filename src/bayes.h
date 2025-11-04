@@ -986,7 +986,7 @@ typedef struct cmdtyp
     int         specialCmd;
     CmdFxn      cmdFxnPtr;
     short       numParms;
-    short       parmList[50];
+    short       parmList[51];
     int         expect;
     char        *cmdDescription;
     int         cmdUse;
@@ -1274,6 +1274,7 @@ typedef struct chain
     int         initBurnIn;             /*  */
     int         initSampleFreq;         /*  */
     int         inInitRun;
+    int         fixRateParm;            /*  */
 
     } Chain;
 
