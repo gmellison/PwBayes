@@ -14813,6 +14813,8 @@ void SetUpParms (void)
     PARAM (280, "Statefreqmodel", DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
     PARAM (281, "Rootfreqpr",     DoPrsetParm,       "Dirichlet|Fixed|\0"); //SK
     PARAM (282, "Statefrmod",     DoLsetParm,        "Stationary|Directional|Mixed|\0"); //SK
+    /* ~PW~ */
+    /*  new parameters for pw likelihood features */
     PARAM (283, "UsePairwise",    DoLsetParm,        "Yes|No|\0"); 
     PARAM (284, "PwAlphaLike",    DoLsetParm,        "None|Full|Triplet|\0"); 
     PARAM (285, "PwHotChain",     DoLsetParm,        "Yes|No|\0"); 

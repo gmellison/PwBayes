@@ -974,6 +974,7 @@ typedef int (*PrintSiteRateFxn) (TreeNode *, int, int);
 typedef int (*PosSelProbsFxn) (TreeNode *, int, int);
 typedef int (*SiteOmegasFxn) (TreeNode *, int, int);
 
+/*  ~PW~  */
 typedef int (*PwLikeFxn)(int, int, MrBFlt *);
 typedef int (*PwTiProbFxn)(int, int);
 typedef int (*DoubletProbFxn)(int, int);
@@ -1432,6 +1433,7 @@ typedef struct modelinfo
     PosSelProbsFxn      PosSelProbs;        /* function for sampling pos. selection probs   */
     SiteOmegasFxn       SiteOmegas;         /* function for sampling site omega values      */
 
+    /*  ~PW~  */
     PwLikeFxn           PwLikelihood;
     PwTiProbFxn         PwTiProbs;
     DoubletProbFxn      DoubletProbs;
@@ -1485,6 +1487,7 @@ typedef struct modelinfo
 #endif /* BEAGLE_V3_ENABLED */
 #endif /* BEAGLE_ENABLED */
 
+    /*  ~PW~  */
     /* Flags for how pw likelihood will be used   */
     int         usePairwise;                  /*  Flag for whether pairwise likelihood is used in mcmc */
     int         useTriples;
