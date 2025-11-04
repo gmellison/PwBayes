@@ -31,7 +31,6 @@
 #include "mcmc.h"
 #include "model.h"
 #include "likelihood.h"
-#include "main.h"
 
 #if defined(__MWERKS__)
 #include "SIOUX.h"
@@ -1911,7 +1910,7 @@ int CalcPairwiseWeights_GTR (int chain) {
             numBranches=numLocalTaxa*2 - 2;
 
         overallPwIdx = m->numDataSplits;
-        MrBayesPrint("%s Calculating PW Weight using method %d \n",  spacer, m->pwWeight );
+        MrBayesPrint("%s Calculating PW Weight using method %d \n",  spacer, m->usePwWeights );
 
         /*  * 
          *  Initialize necessary arrays:
@@ -2335,7 +2334,7 @@ int CalcPairwiseWeights_GTR (int chain) {
 
         for (i=0; i<numBranches; i++) {
             //MrBayesPrint("Eigen %d = %f \n", i, eigvals[i]);
-            eigsum += fabs(eigvals[i]);
+            eigsum += fabs(eigvals[i]) ;
             eigsum2 += eigvals[i] * eigvals[i];
         }
 

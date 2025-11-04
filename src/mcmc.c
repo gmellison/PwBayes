@@ -4229,7 +4229,7 @@ int DoMcmcParm (char *parmName, char *tkn)
                     }
                 else
                     {
-                    MrBayesPrint ("%s   Invalid argument for 'InitSubMod' (should we fix the submodel params via an initial short mcmc run?)\n", spacer);
+                    MrBayesPrint ("%s   Invalid argument for 'InitSubMod' (should we estimate the submodel params via an initial short mcmc run?)\n", spacer);
                     free(tempStr);
                     return (ERROR);
                     }
@@ -4245,6 +4245,39 @@ int DoMcmcParm (char *parmName, char *tkn)
                 return (ERROR);
                 }
             }
+        /* set  fixRateParm() ********************************************************/
+        else if (!strcmp(parmName, "Fixrateparm"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    if (!strcmp(tempStr, "Yes"))
+                        chainParams.fixRateParm = YES;
+                    else
+                        chainParams.fixRateParm = NO;
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for 'fixRateParm' (should we fix the submodel params via an initial short mcmc run?)\n", spacer);
+                    free(tempStr);
+                    return (ERROR);
+                    }
+                if (chainParams.initSubMod == YES)
+                    MrBayesPrint ("%s   Setting fixRateParm to yes\n", spacer);
+                else
+                    MrBayesPrint ("%s   Setting fixRateParm to no\n", spacer);
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else
+                {
+                free(tempStr);
+                return (ERROR);
+                }
+            }
+
         else
             {
             free(tempStr);
@@ -19433,10 +19466,20 @@ int SetUsedMoves (void)
             /*  ~PW~ */
             if (chainParams.initSubMod == YES)
                 {
-                if (moves[i]->moveType->applicableTo[0] == SHAPE_UNI ||
-                    moves[i]->moveType->applicableTo[0] == REVMAT_DIR ||
+                if (moves[i]->moveType->applicableTo[0] == REVMAT_DIR ||
                     moves[i]->moveType->applicableTo[0] == REVMAT_MIX ||
                     moves[i]->moveType->applicableTo[0] == PI_DIR)
+                    {
+                    numUsedMovesInit++;
+                    moves[i]->initRun=YES;
+                    moves[i]->mainRun=NO;
+                    if (!chainParams.fixRateParm) 
+                        {
+                        numUsedMovesMain++;
+                        moves[i]->mainRun=YES;
+                        }
+                    }
+                else if (moves[i]->moveType->applicableTo[0] == SHAPE_UNI)
                     {
                     numUsedMovesInit++;
                     moves[i]->initRun=YES;
@@ -19445,8 +19488,9 @@ int SetUsedMoves (void)
                 else 
                     {
                     numUsedMovesMain++;
+                    numUsedMovesInit++;
                     moves[i]->mainRun=YES;
-                    moves[i]->initRun=NO;
+                    moves[i]->initRun=YES;
                     }
                 }
             }
