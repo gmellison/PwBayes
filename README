@@ -1,58 +1,83 @@
-Hi,
+This is the GitHub repository for PwBayes.
+PwBayes enables compuation of the pairwise (PW) likelihood, which is very fast 
+for long sequences, along with adjustment weights that attempt to make 
+the PW likelihood behave more like the full likelihood. 
 
-This is the GitHub repository for MrBayes, a program used for Bayesian
-inference of phylogeny.
-
-
-Build instructions, very very short version (would install MrBayes as
-"/usr/local/bin/mb" on a Unix system):
-
-    git clone --depth=1 https://github.com/NBISweden/MrBayes.git
-    cd MrBayes
-    ./configure
-    make && sudo make install
-
-    Refer to the document called "INSTALL" for further information.
-
-
-Current repository directory layout:
-
-    .
-    ├── autotools      : Files relating to the build system
-    ├── doc
-    │   └── manual     : The manual
-    ├── examples       : Example input data sets
-    └── src            : C source code
-
+PwBayes is a fork of MrBayes version 3.2.6, which can be found here:
+https://github.com/NBISweden/MrBayes.git.
 
 The MrBayes web site is available at
 
     http://mrbayes.net/
 
 
-Historical releases are tagged with "v3.2.0" (etc.) from release 3.2.0
-onwards.
+To build and install the source code, run the following from a command prompt:
 
-The 'master' branch contains releases.
+    git clone https://github.com/gmellison/PwBayes.git
+    cd PwBayes
+    ./configure
+    make 
 
-The 'develop' branch should hopefully, at all times, contain working
-development code that at least compiles.  Apart from simple fixes, new
-development happens on feature branches off the 'develop' branch, and
-are merged back into 'develop' when finished.  This more or less follows
-the "git-flow" branching model.
+The 'mb' binary will be created in the 'src' subdirectory.
 
-The 'gh-pages' branch contains the web site (only).
+PwBayes can also be compiled with support for multithreading via MPI:
+    ./configure --with-mpi=yes
+    make && sudo make install
 
-The 'testing' branch contains testing data files (only).
+    Refer to the document called "INSTALL" for further information.
 
-After release 3.2.6 (November 2015), MrBayes entered "maintenance mode",
-and its care has been passed over to NBIS (National Bioinformatics
-Infrastructure Sweden, http://nbis.se/).  The original development
-team is still involved with the program, but any future releases will
-probably be geared more towards bug-fixes rather than addition of new
-features.
+PwBayes simply adds additional features relating to the use of the PW
+likelihood to MrBayes, so its usage will be straightforward for anyone 
+familiar with MrBayes.
 
-With kind regards,
-    Andreas (Kusalananda) Kähäri, and
-    Johan Nylander
-    NBIS
+Most of the new code is in src/pairwise.c, with header file src/pairwise.h.
+Some changes have been made in src/mcmc.c, src/likelihood.c, src/model.c, and 
+src/command.c, and new declarations have been made to the declarations 
+in src/bayes.h. These changes have been flagged with a comment
+`/* ~PW~ */`
+
+This README contains a short introduction the the options available for 
+the PW likelihood. The 'examples' subdirectory contains sample 
+NEXUS files using the PW likelihood and demonstrating the various 
+options. 
+
+The pairwise likelihood is enabled using the command `lset usePairwise=yes;`.
+This option is only available for the DNA datatype and General Time 
+Reversible (GTR)  and Jukes-Cantor (JC) substitution models. 
+The GTR and JC models are set using the commands `lset nst=6` and `lset nst=1`,
+respectively. 
+
+Setting `pwweights=1` or `pwweights=2` will use the adjusted 
+pairwise likelihood function with weight calculated with the first 
+or second order weights described in the paper. The weight is 
+calculated before starting the MCMC run, so reasonable values of the 
+substitution model parameters are necessary for obtaining a good estimate 
+of the weight. If these are known in advance, they can be specified by the 
+user with already existing MrBayes functionality, either by fixing the 
+parameters using, for example, 
+
+`prset revmatpr=fixed(r1,r2,r3,r4,r5,r6) shapepr=fixed(alpha);`
+
+or by setting the starting values manually with 
+`startvals revmat=(r1,r2,r3,r4,r5,r6) alpha=(alpha); `
+
+If these values are not known in advance, a short MCMC run can be used to
+estimate them with the full likelihood. To do this, PwBayes includes options
+`initsubmod=[yes|no]`, which is 'no' by default, and if set to 'yes' will use
+the initial run to estimate the substitution model parameters for the GTR
+model.  The `fixrateparm=[yes|no]` option is set to 'yes' by default, and if
+the initial run is used, tells PwBayes to either fix the GTR relative rate
+parameters parameters during the main MCMC run or continue to sample them. The
+alpha parameter is fixed always, as it is not identifiable by the PW
+likelihood.  
+
+The `initrungen`, `initsamplefreq`, and `initrunburnin` all take
+integer values, and control the length of the initial run, the sample
+frequency, and the number of samples to discard as burn-in. They default to 
+10000, 50, and 5000, respectively. The samples from the initial run will
+be written to file `filename.runi.init.p` for chain i. 
+Note that this is only necessary for the GTR substitution model.  
+    
+
+
+
