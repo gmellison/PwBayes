@@ -18,7 +18,7 @@ To build and install the source code, run the following from a command prompt:
     ./configure
     make 
 
-The 'mb' binary will be created in the 'src' subdirectory.
+The 'pwb' binary will be created in the 'src' subdirectory.
 
 PwBayes can also be compiled with support for multithreading via MPI:
     ./configure --with-mpi=yes
@@ -78,6 +78,10 @@ frequency, and the number of samples to discard as burn-in. They default to
 be written to file `filename.runi.init.p` for chain i. 
 Note that this is only necessary for the GTR substitution model.  
     
-
+The `numdatasplits` tells PwBays how many independent data splits 
+to use to estimate the PW weights. The default is 10. The alignment is 
+split into `numdatasplits` independent partitions, with sites 
+(p - 1) * (nsites/ndatasplits) + (1:(nsites/ndatasplits)) assigned to 
+split p (the notation 1:n is shorthand for 1, 2, ..., n ). 
 
 

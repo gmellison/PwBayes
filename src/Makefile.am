@@ -1,6 +1,6 @@
-bin_PROGRAMS=	mb
+bin_PROGRAMS=	pwb
 
-mb_SOURCES=	\
+pwbb_SOURCES=	\
 	bayes.c \
 	bayes.h \
 	best.c \
@@ -24,7 +24,7 @@ mb_SOURCES=	\
 	utils.c \
 	utils.h 
 
-mb_CFLAGS=	$(SIMD_FLAGS) $(CPUEXT_FLAGS)
+pwb_CFLAGS=	$(SIMD_FLAGS) $(CPUEXT_FLAGS)
 
-mb_LDADD=	$(BEAGLE_LIBS)
-mb_CFLAGS+=	$(BEAGLE_CFLAGS)
+pwb_LDADD=	$(BEAGLE_LIBS)
+pwb_CFLAGS+=	$(BEAGLE_CFLAGS)
