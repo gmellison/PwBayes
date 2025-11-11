@@ -3,7 +3,7 @@ PwBayes enables compuation of the pairwise (PW) likelihood, which is very fast
 for long sequences, along with adjustment weights that attempt to make 
 the PW likelihood behave more like the full likelihood. 
 
-PwBayes is a fork of MrBayes version 3.2.6, which can be found here:
+PwBayes is a fork of MrBayes version 3.2.7, which can be found here:
 https://github.com/NBISweden/MrBayes.git.
 
 The MrBayes web site is available at
@@ -22,9 +22,7 @@ The 'pwb' binary will be created in the 'src' subdirectory.
 
 PwBayes can also be compiled with support for multithreading via MPI:
     ./configure --with-mpi=yes
-    make && sudo make install
-
-    Refer to the document called "INSTALL" for further information.
+    make
 
 PwBayes simply adds additional features relating to the use of the PW
 likelihood to MrBayes, so its usage will be straightforward for anyone 
