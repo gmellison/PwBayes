@@ -61,11 +61,11 @@ begin mrbayes;
     startvals tau=simtree;
     
     [run the mcmc]
-    mcmc ngen=100000;
+    [mcmc ngen=100000;]
     
     [summarize the output]
-    sump outputname=simulated.nex burninfrac=0.5;
-    sumt outputname=simulated.nex burninfrac=0.5 conformat=figtree;
+    [sump outputname=simulated.nex burninfrac=0.5;]
+    [sumt outputname=simulated.nex burninfrac=0.5 conformat=figtree;]
     
     log stop;
 end;
