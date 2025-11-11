@@ -1,14 +1,9 @@
 #NEXUS
-[Test 1. Mixed model with partitions.]
+[Test 1. PW with weight 1]
 begin mrbayes;
     set autoclose=yes nowarnings=yes;
-    execute "primates.nex";
-    partition test = 2: 1-400, 401-.;
-    set partition=test;
-    lset nst=mixed rates=invgamma;
-    unlink statefr=(all) revmat=(all) pinvar=(all) shape=(all);
-    prset ratepr=variable;
-    mcmc ng=20000;
+    execute "simulated.nex";
+    mcmc ng=100000;
     sump;
     sumt;
 end;
