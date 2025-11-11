@@ -1,0 +1,12 @@
+prset brlenspr=clock:birthdeath;
+prset clockvarpr=iln;
+prset nodeagepr=calibrated;
+prset clockratepr=normal(0.001, 0.01);
+lset nst=6 usepairwise=yes;
+lset pwweights=2 nsplits=50;
+prset revmatpr=fixed(0.081, 0.321, 0.044, 0.111, 0.376, 0.066);
+lset rates=gamma;
+prset shapepr=fixed(0.453);
+propset ParsSPRClock(Tau,V)$prob=0 ExtSPRClock(Tau,V)$prob=0 NNIClock(Tau,V)$prob=0; [fix tree topology]
+startvals tau=birdtree;
+

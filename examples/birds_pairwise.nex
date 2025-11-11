@@ -1,0 +1,66 @@
+begin mrbayes;
+log start filename=pw.log;
+
+execute bird_matrix.nex;     [read in data]
+execute bird.tree;           [read in tree] 
+execute calibrations.nex; [read in fossil calibration priors]
+
+prset brlenspr=clock:birthdeath;
+prset topologypr=constraints(
+    alligator  ,
+    paleo  ,
+    fossil3  ,
+    fossil4  ,
+    fossil5  ,
+    fossil6  ,
+    fossil7  ,
+    fossil8  ,
+    fossil9  ,
+    fossil10 , 
+    fossil11 , 
+    fossil12 , 
+    fossil13 , 
+    fossil14 , 
+    fossil15 , 
+    fossil16 , 
+    fossil17 , 
+    fossil18 , 
+    fossil19 ,
+    fossil20
+);
+
+[set up relaxed clock model]
+prset brlenspr=clock:birthdeath;
+prset clockvarpr=iln;
+prset nodeagepr=calibrated;
+prset clockratepr=normal(0.001, 0.01);
+
+[usepairwise flag to set up pairwise likelihood] 
+lset nst=6 usepairwise=yes;
+
+[use APW1, 50 data splits to estimate weight]
+[lset pwweights=1 nsplits=50;]
+
+[use APW2, 50 data splits to estimate weight]
+[lset pwweights=2 nsplits=50;]
+
+[fix the GTR rates]
+prset revmatpr=fixed();
+lset rates=gamma;
+prset shapepr=fixed(0.45);
+
+[estimate the GTR rates (and alpha) using a short initial run with the full likelihood ]
+[mcmcp initsubmod=yes initrungen=10000 initsamplefreq=50 initrunburnin=5000;]
+
+[should the GTR relative rates be fixed after the initial run? (the alpha param will be fixed either way)] 
+[mcmcp fixrateparm=no; ]
+
+[disable tree update moves and set start tree to bird topology]
+propset ParsSPRClock(Tau,V)$prob=0 ExtSPRClock(Tau,V)$prob=0 NNIClock(Tau,V)$prob=0; [fix tree topology]
+startvals tau=birdtree;
+
+mcmcp checkpoint=yes checkfreq=10000 append=no;
+mcmc  ngen=2000000 samplefreq=500 filename=birds_pw.nex;
+log stop;
+end;
+
