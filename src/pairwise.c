@@ -1004,7 +1004,7 @@ int CalcPairwiseWeights (int chain) {
             numBranches=numLocalTaxa*2 - 2;
 
         overallPwIdx = m->numDataSplits;
-        MrBayesPrint("%s Calculating PW weight for JC submod using method %d. \n", spacer, m->pwWeight);
+        MrBayesPrint("%s Calculating PW weight for JC submod using method %d. \n", spacer, m->usePwWeights);
 
         V     = AllocateSquareDoubleMatrix(numBranches);
         Vinv  = AllocateSquareDoubleMatrix(numBranches);
@@ -1910,7 +1910,7 @@ int CalcPairwiseWeights_GTR (int chain) {
             numBranches=numLocalTaxa*2 - 2;
 
         overallPwIdx = m->numDataSplits;
-        MrBayesPrint("%s Calculating PW Weight using method %d \n",  spacer, m->usePwWeights );
+        MrBayesPrint("%s Calculating PW Weight using method %f \n",  spacer, m->usePwWeights );
 
         /*  * 
          *  Initialize necessary arrays:
