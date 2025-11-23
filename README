@@ -18,7 +18,7 @@ To build and install the source code, run the following from a command prompt:
     ./configure
     make 
 
-The 'pwb' binary will be created in the 'src' subdirectory.
+Then the 'pwb' binary will be created in the 'src' subdirectory.
 
 PwBayes can also be compiled with support for multithreading via MPI:
     ./configure --with-mpi=yes
@@ -27,6 +27,10 @@ PwBayes can also be compiled with support for multithreading via MPI:
 PwBayes simply adds additional features relating to the use of the PW
 likelihood to MrBayes, so its usage will be straightforward for anyone 
 familiar with MrBayes.
+
+To see the PW features in action, after compiling run: 
+    src/pwb -i simulated.nex
+
 
 Most of the new code is in src/pairwise.c, with header file src/pairwise.h.
 Some changes have been made in src/mcmc.c, src/likelihood.c, src/model.c, and 
