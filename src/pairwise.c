@@ -31,7 +31,6 @@
 #include "mcmc.h"
 #include "model.h"
 #include "likelihood.h"
-#include "main.h"
 
 #if defined(__MWERKS__)
 #include "SIOUX.h"
@@ -1005,7 +1004,7 @@ int CalcPairwiseWeights (int chain) {
             numBranches=numLocalTaxa*2 - 2;
 
         overallPwIdx = m->numDataSplits;
-        MrBayesPrint("%s Calculating PW weight for JC submod using method %d. \n", spacer, m->pwWeight);
+        MrBayesPrint("\n %s Calculating PW weight for JC submod using method %d. \n \n ", spacer, m->usePwWeights);
 
         V     = AllocateSquareDoubleMatrix(numBranches);
         Vinv  = AllocateSquareDoubleMatrix(numBranches);
@@ -1492,7 +1491,7 @@ int CalcPairwiseWeights (int chain) {
         else if (m->usePwWeights == 2)  
             pwWeight[d]=v;
 
-        MrBayesPrint("%s PW Weight (division %d): %f \n", spacer, d, pwWeight[d]);
+        MrBayesPrint("%s PW Weight (division %d): %f \n \n", spacer, d, pwWeight[d]);
 
         /*  free allocations   */
         /*  helper matrices */
@@ -1911,7 +1910,7 @@ int CalcPairwiseWeights_GTR (int chain) {
             numBranches=numLocalTaxa*2 - 2;
 
         overallPwIdx = m->numDataSplits;
-        MrBayesPrint("%s Calculating PW Weight using method %d \n",  spacer, m->pwWeight );
+        MrBayesPrint("%s Calculating PW Weight using method %f \n",  spacer, m->usePwWeights );
 
         /*  * 
          *  Initialize necessary arrays:
@@ -2335,7 +2334,7 @@ int CalcPairwiseWeights_GTR (int chain) {
 
         for (i=0; i<numBranches; i++) {
             //MrBayesPrint("Eigen %d = %f \n", i, eigvals[i]);
-            eigsum += fabs(eigvals[i]);
+            eigsum += fabs(eigvals[i]) ;
             eigsum2 += eigvals[i] * eigvals[i];
         }
 
@@ -2347,12 +2346,10 @@ int CalcPairwiseWeights_GTR (int chain) {
         else if (m->usePwWeights == 2)  
             pwWeight[d]=v;
 
-        MrBayesPrint("%s Pw Weight: %f \n", spacer, pwWeight[d]);
+        MrBayesPrint("%s Pw Weight: %f \n \n", spacer, pwWeight[d]);
 
         /*  free allocations   */
         /*  helper matrices */
-
-        ///MrBayesPrint("%s 1st chunk \n", spacer);        
         FreeSquareDoubleMatrix(V);
         FreeSquareDoubleMatrix(Vinv);
         FreeSquareComplexMatrix(Vc);
@@ -2363,18 +2360,10 @@ int CalcPairwiseWeights_GTR (int chain) {
         free(iw);
 
         /*  counts */
-        //MrBayesPrint("%s 2nd chunk \n", spacer);        
         free(counts);
-        //MrBayesPrint("%s 2a \n", spacer);        
         for (i=0; i<(nSplits+1); i++)
             free(countIndex[i]);
-        //MrBayesPrint("%s 2b \n", spacer);        
         free(countIndex);
-        //MrBayesPrint("%s 2c \n", spacer);        
-        //MrBayesPrint("%s 2d \n", spacer);        
-        //free(n10);
-        //MrBayesPrint("%s 2e \n", spacer);        
-        //free(n11);
         //
         for (i=0; i<nPairs; i++) 
             free(tp1[i]);
@@ -2409,7 +2398,6 @@ int CalcPairwiseWeights_GTR (int chain) {
         free(eigvals);
         free(eigvalsc);
 
-        //MrBayesPrint("%s 6th free \n", spacer);
         for (i=0; i<numBranches; i++)
             free(PairBranch[i]);
         free(PairBranch);

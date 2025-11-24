@@ -355,6 +355,7 @@ int             lowestLocalRunId;            /* lowest local run Id             
 int             highestLocalRunId;           /* highest local run Id                         */
 #endif
 
+/*  ~PW~ */
 int inInitRun;
 
 #if defined (PRINT_DUMP)
@@ -4228,7 +4229,7 @@ int DoMcmcParm (char *parmName, char *tkn)
                     }
                 else
                     {
-                    MrBayesPrint ("%s   Invalid argument for 'InitSubMod' (should we fix the submodel params via an initial short mcmc run?)\n", spacer);
+                    MrBayesPrint ("%s   Invalid argument for 'InitSubMod' (should we estimate the submodel params via an initial short mcmc run?)\n", spacer);
                     free(tempStr);
                     return (ERROR);
                     }
@@ -4244,6 +4245,39 @@ int DoMcmcParm (char *parmName, char *tkn)
                 return (ERROR);
                 }
             }
+        /* set  fixRateParm() ********************************************************/
+        else if (!strcmp(parmName, "Fixrateparm"))
+            {
+            if (expecting == Expecting(EQUALSIGN))
+                expecting = Expecting(ALPHA);
+            else if (expecting == Expecting(ALPHA))
+                {
+                if (IsArgValid(tkn, tempStr) == NO_ERROR)
+                    {
+                    if (!strcmp(tempStr, "Yes"))
+                        chainParams.fixRateParm = YES;
+                    else
+                        chainParams.fixRateParm = NO;
+                    }
+                else
+                    {
+                    MrBayesPrint ("%s   Invalid argument for 'fixRateParm' (should we fix the submodel params via an initial short mcmc run?)\n", spacer);
+                    free(tempStr);
+                    return (ERROR);
+                    }
+                if (chainParams.initSubMod == YES)
+                    MrBayesPrint ("%s   Setting fixRateParm to yes\n", spacer);
+                else
+                    MrBayesPrint ("%s   Setting fixRateParm to no\n", spacer);
+                expecting = Expecting(PARAMETER) | Expecting(SEMICOLON);
+                }
+            else
+                {
+                free(tempStr);
+                return (ERROR);
+                }
+            }
+
         else
             {
             free(tempStr);
@@ -16963,7 +16997,7 @@ int RunChain (RandLong *seed)
     CPUTime = 0.0;
     previousCPUTime = clock();
 
-
+    /*  ~PW~ */
     // are we running an initial short chain to estimate and fix substitution model params?
     // if so, set the moves to only the initial chain moves
     // also set the param output file to the initial run file 
@@ -17077,6 +17111,7 @@ int RunChain (RandLong *seed)
 
      for (n=numPreviousGen+1; n<=chainParams.numGen; n++) /* begin run chain */
         {
+        /*  ~PW~ */
         // if done with initial run, calc and fix estimated submodel params
         // no need to set priors to fixed; we'll just set the parms and d isable the 
         // updating moves
@@ -17304,7 +17339,7 @@ int RunChain (RandLong *seed)
             whichMove = PickProposal(seed, chainId[chn]);
             theMove = usedMoves[whichMove];
 
-            /*  PW likelihood stuff */
+            /*  ~PW~ */ 
             /*  skip alpha proposals when using pairwise likelihood in the hot chains */
             if (modelSettings->pwHotChains && (chainId[chn] % chainParams.numChains != 0)) 
                 {
@@ -17536,6 +17571,7 @@ int RunChain (RandLong *seed)
 
             }
 
+        /*  ~PW~ */
         /*  if we're using pairwise weights, check if it's time to update the weight */
         if (n == 1 && modelSettings->pwWeight && chainParams.inInitRun == NO)
 //#   if defined (MPI_ENABLED)
@@ -17605,6 +17641,7 @@ int RunChain (RandLong *seed)
 #   endif
             }
 
+        /*  ~PW~ */ /*  check if init run is over. if so, write details to init.p files */
         /* print information to files */
         /* this will also add tree samples to topological convergence diagnostic counters */
         if (n == chainParams.numGen || ((chainParams.inInitRun == NO && n % chainParams.sampleFreq == 0) 
@@ -17637,6 +17674,7 @@ int RunChain (RandLong *seed)
 #   endif
             }
 
+        /*  ~PW~ */
         if (chainParams.inInitRun) continue;
 
         /* print mcmc diagnostics. Blocking for MPI */
@@ -19424,12 +19462,24 @@ int SetUsedMoves (void)
         if (prob > 0.000001)
             {
             numUsedMoves++;
+
+            /*  ~PW~ */
             if (chainParams.initSubMod == YES)
                 {
-                if (moves[i]->moveType->applicableTo[0] == SHAPE_UNI ||
-                    moves[i]->moveType->applicableTo[0] == REVMAT_DIR ||
+                if (moves[i]->moveType->applicableTo[0] == REVMAT_DIR ||
                     moves[i]->moveType->applicableTo[0] == REVMAT_MIX ||
                     moves[i]->moveType->applicableTo[0] == PI_DIR)
+                    {
+                    numUsedMovesInit++;
+                    moves[i]->initRun=YES;
+                    moves[i]->mainRun=NO;
+                    if (!chainParams.fixRateParm) 
+                        {
+                        numUsedMovesMain++;
+                        moves[i]->mainRun=YES;
+                        }
+                    }
+                else if (moves[i]->moveType->applicableTo[0] == SHAPE_UNI)
                     {
                     numUsedMovesInit++;
                     moves[i]->initRun=YES;
@@ -19438,8 +19488,9 @@ int SetUsedMoves (void)
                 else 
                     {
                     numUsedMovesMain++;
+                    numUsedMovesInit++;
                     moves[i]->mainRun=YES;
-                    moves[i]->initRun=NO;
+                    moves[i]->initRun=YES;
                     }
                 }
             }
@@ -19488,6 +19539,7 @@ int SetUsedMoves (void)
             }
         if (prob > 0.000001)
             {
+            /*  ~PW~ */
             if (moves[i]->initRun)
                 usedMovesInit[initMoveIndex++]=moves[i];
             if (moves[i]->mainRun)
@@ -19509,6 +19561,8 @@ int SetUsedMoves (void)
         for (i=0; i<numCurrentDivisions; i++)
             modelSettings[i].parsimonyBasedMove = NO;
 
+        /*  ~PW~ */
+        /*  calculate move probs for initial run and main run separately */
         for (i=0; i<numUsedMovesInit; i++)
             {
             if (usedMovesInit[i]->moveType->parsimonyBased == YES)

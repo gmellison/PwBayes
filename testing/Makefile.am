@@ -7,7 +7,7 @@ NEX_LOG_DRIVER=	\
 NEX_LOG_COMPILER=	./runtests.sh
 
 TESTS=	test1.nex \
-	test2.nex
+		test2.nex
 
 EXTRA_DIST=	\
 	$(TESTS) \

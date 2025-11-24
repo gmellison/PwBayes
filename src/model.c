@@ -3297,6 +3297,7 @@ int DoLsetParm (char *parmName, char *tkn)
                 return (ERROR);
             }
 
+        /* ~PW~ */
         /* set  Pairwise flag (pairwise) **********************************************************************/
         else if (!strcmp(parmName, "UsePairwise"))
             {
@@ -3568,6 +3569,7 @@ int DoLsetParm (char *parmName, char *tkn)
             else 
                 return (ERROR);
             }
+        /* END ~PW~ */
  
         /* set  Pairwise flag (pairwise) **********************************************************************/
         else if (!strcmp(parmName, "Stepstilalpha"))
