@@ -983,7 +983,9 @@ int InitializeMrBayes (void)
 void PrintHeader (void)
 {
     MrBayesPrint ("\n\n");
-    MrBayesPrint ("                            MrBayes %s %s\n\n", VERSION_NUMBER, HOST_CPU);
+    MrBayesPrint ("                PwBayes: Pairwise likelihood enabled MrBayes \n\n");
+    MrBayesPrint ("                         --------------------------          \n\n");
+MrBayesPrint ("                           MrBayes %s %s\n\n", VERSION_NUMBER, HOST_CPU);
     MrBayesPrint ("                      (Bayesian Analysis of Phylogeny)\n\n");
 #   if defined (MPI_ENABLED)
     MrBayesPrint ("                             (Parallel version)\n");
@@ -1070,7 +1072,7 @@ int ReinitializeMrBayes (void)
     chainParams.diagnStat = AVGSTDDEV;               /* mcmc diagnostic to use                        */
 
     /*  init run for substitution model params  */ 
-    chainParams.initSampleFreq=500;
+    chainParams.initSampleFreq=50;
     chainParams.initBurnIn=5000;
     chainParams.initNumGen=10000;
     chainParams.initSubMod=NO;

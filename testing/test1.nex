@@ -3,7 +3,4 @@
 begin mrbayes;
     set autoclose=yes nowarnings=yes;
     execute "simulated.nex";
-    mcmc ng=100000;
-    sump;
-    sumt;
 end;

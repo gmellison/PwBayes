@@ -916,6 +916,12 @@ int DoAbout (void)
     MrBayesPrint ("   ---------------------------------------------------------------------------   \n");
     MrBayesPrint ("   About the program                                                             \n");
     MrBayesPrint ("                                                                                 \n");
+    MrBayesPrint ("   PwBayes simply adds some (hopefully useful) features into MrBayes.            \n");
+    MrBayesPrint ("   The MrBayes about is printed below.                                           \n");
+    MrBayesPrint ("                                                                                 \n");
+    MrBayesPrint ("   ---------------------------------------------------------------------------   \n");
+    MrBayesPrint ("                                                                                 \n");
+    MrBayesPrint ("                                                                                 \n");
     MrBayesPrint ("   MrBayes is a program for the Bayesian estimation of phylogeny. Bayesian       \n");
     MrBayesPrint ("   inference of phylogeny is based upon the posterior probability distribution   \n");
     MrBayesPrint ("   of trees. Trees are labelled T1, T2, ..., Tn, where n is the number of        \n");
@@ -977,6 +983,11 @@ int DoAbout (void)
 
 int DoAcknowledgments (void)
 {
+    MrBayesPrint ("   ---------------------------------------------------------------------------   \n");
+    MrBayesPrint ("   PwBayes simply adds some (hopefully useful) features into MrBayes.            \n");
+    MrBayesPrint ("   The original MrBayes acknowlegements are printed below:                       \n");
+    MrBayesPrint ("                                                                                 \n");
+    MrBayesPrint ("                                                                                 \n");
     MrBayesPrint ("   ---------------------------------------------------------------------------   \n");
     MrBayesPrint ("   Acknowledgments                                                               \n");
     MrBayesPrint ("                                                                                 \n");
